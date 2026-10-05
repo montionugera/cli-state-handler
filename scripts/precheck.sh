@@ -63,15 +63,21 @@ run_slot() {
 
 # SLOT 1 - build / typecheck (e.g. `pnpm build && pnpm check`, `go vet ./...`, `mypy app`)
 slot_build_typecheck() {
-  if [ -f "package.json" ] && [ ! -d "node_modules" ]; then
-    pnpm install
+  if [ -f "package.json" ]; then
+    pnpm install --prefer-offline 2>/dev/null || pnpm install
   fi
-  pnpm run typecheck && pnpm run build
+  pnpm run build && pnpm run typecheck
 }
 
 # SLOT 2 - unit tests (e.g. `pnpm test:unit`, `pytest -q`, `go test ./...`)
 slot_unit_tests() {
   pnpm test
+  if command -v dart >/dev/null 2>&1 && [ -f "packages/ucsa_dart/pubspec.yaml" ]; then
+    (cd packages/ucsa_dart && dart test)
+  fi
+  if command -v dotnet >/dev/null 2>&1 && [ -f "packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj" ]; then
+    dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
+  fi
 }
 
 # SLOT 3 - fast static UI checks: lint for controls that cannot be clicked

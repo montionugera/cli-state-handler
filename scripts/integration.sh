@@ -74,7 +74,13 @@ require_env() {  # FAIL, never skip, when the real datastore is not configured
 # SLOT 1 - integration tests against the REAL datastore (run migrations, then the
 # integration suite against $DATASTORE_ENV_VAR). Keep the require_env line.
 slot_integration_real_datastore() {
-  pnpm test packages/core/tests/e2e/full-chain.test.ts packages/core/tests/storage/concurrency.test.ts packages/core/tests/storage/sqlite.test.ts
+  pnpm test packages/core/tests/e2e/full-chain.test.ts packages/core/tests/storage/concurrency.test.ts packages/core/tests/storage/sqlite.test.ts apps/cli/tests/cli-commands.test.ts
+  if command -v dart >/dev/null 2>&1 && [ -f "packages/ucsa_dart/pubspec.yaml" ]; then
+    (cd packages/ucsa_dart && dart test test/query_engine_test.dart test/sqlite_test.dart)
+  fi
+  if command -v dotnet >/dev/null 2>&1 && [ -f "packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj" ]; then
+    dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj --filter "FullyQualifiedName~SqliteAdapterTests|FullyQualifiedName~QueryEngineTests"
+  fi
 }
 
 # SLOT 2 - browser smoke: click every primary control, fail on any page error

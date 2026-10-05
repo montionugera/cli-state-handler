@@ -1,0 +1,10 @@
+{
+  "name": "com.ucsa.unity",
+  "version": "0.1.0",
+  "displayName": "UCSA for Unity",
+  "description": "Unified Client State Architecture (UCSA) reference implementation for Unity.",
+  "unity": "2021.3",
+  "author": {
+    "name": "DeepMind UCSA Team"
+  }
+}

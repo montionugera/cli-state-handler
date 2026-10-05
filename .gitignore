@@ -8,3 +8,7 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+.ucsa*
+*.db
+*.db-wal
+*.db-shm

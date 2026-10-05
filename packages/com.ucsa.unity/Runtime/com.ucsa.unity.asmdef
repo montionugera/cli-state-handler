@@ -1,0 +1,9 @@
+{
+  "name": "com.ucsa.unity",
+  "rootNamespace": "Ucsa.Unity",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "autoReferenced": true
+}

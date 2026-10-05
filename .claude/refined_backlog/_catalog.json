@@ -68,5 +68,44 @@
     "shipped_at": "2026-10-05T14:58:03.240755+00:00",
     "shipped_sha": "d95f04e84ba8a829509a4b9ba4182438df88edb4",
     "promoted_at": "2026-10-05T15:00:40.525629+00:00"
+  },
+  {
+    "id": "F-006",
+    "title": "Interactive Node CLI POC",
+    "from_idea": "I-006",
+    "created_at": "2026-10-05T15:53:21.570571+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "1.2",
+    "epic": "E-002",
+    "claimed_at": "2026-10-05T15:54:16.864285+00:00",
+    "shipped_at": "2026-10-05T16:11:34.771699+00:00",
+    "shipped_sha": "d7b43c42136d141e2d3a3493e4cedd35510bbff9"
+  },
+  {
+    "id": "F-007",
+    "title": "Dart Flutter Reference POC",
+    "from_idea": "I-007",
+    "created_at": "2026-10-05T15:53:21.727613+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "1.2",
+    "epic": "E-002",
+    "claimed_at": "2026-10-05T16:11:44.310345+00:00",
+    "shipped_at": "2026-10-05T16:34:13.805580+00:00",
+    "shipped_sha": "5f0a9563f2c170d49abfece4447cc0bcb44ada84"
+  },
+  {
+    "id": "F-008",
+    "title": "CSharp Unity Reference POC",
+    "from_idea": "I-008",
+    "created_at": "2026-10-05T15:53:21.852890+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "1.2",
+    "epic": "E-002",
+    "claimed_at": "2026-10-05T16:34:35.802029+00:00",
+    "shipped_at": "2026-10-05T16:54:00.564489+00:00",
+    "shipped_sha": "da04a3277b0e3247b5cd76795c9a9564e9f6b3aa"
   }
 ]

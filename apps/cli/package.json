@@ -1,0 +1,15 @@
+{
+  "name": "@ucsa/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "ucsa": "./bin/ucsa.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ucsa/core": "workspace:*"
+  }
+}

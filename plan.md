@@ -1,63 +1,70 @@
-# F-005: Multi-Platform Consumer Bindings Implementation Plan
+# F-008: CSharp Unity Reference POC Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement consumer integration adapters, re-render benchmarks proving zero-unnecessary-renders via structural sharing, and CLI process durability with synchronous exit write-through flushes.
+**Goal:** Implement the official Unity C# package reference implementation (`packages/com.ucsa.unity`) of the Unified Client State Architecture (UCSA), tailored for game engine frame loops with zero-allocation reactive state observation, SQLite WAL persistence, Content-Addressable Storage (CAS), asynchronous GPU texture caching, and Unity lifecycle integration.
 
-**Architecture:** Consumer hooks bind `QueryEngine` to UI/CLI subscriber models. `re-render.test.ts` rigorously tests observer notification counts across background polling and push invalidations. `CliDurability` registers `beforeExit` / `exit` hooks to force synchronous write-through flushes, preventing dropped state during rapid CLI process terminations.
-
-**Tech Stack:** TypeScript (ESM), SQLite (`SqliteAdapter`), Vitest.
-
-**Spec:** [`docs/superpowers/specs/2026-10-05-unified-state-architecture-design.md`](file:///Users/pasitnusso/workspace/repos/cli-state-handler/docs/superpowers/specs/2026-10-05-unified-state-architecture-design.md)
-
-## Global Constraints
-
-- **Re-render Budget:** An observer must not be notified more than once for initial data and zero times for identical background revalidations.
-- **Process Exit Flush:** All pending in-memory writes and outbox mutations must flush synchronously before `process.exit()` terminates the runtime.
+**Architecture:** `packages/com.ucsa.unity` is a Unity Package Manager (UPM) package:
+- `package.json`: package manifest (`com.ucsa.unity`, version `0.1.0`).
+- `Linker.xml`: IL2CPP bytecode preservation rules preventing stripping of model classes and SQLite metadata.
+- `Runtime/com.ucsa.unity.asmdef`: Unity assembly definition file.
+- `Runtime/Core/LifecycleFsm.cs`: 5-stage deterministic FSM with full jitter backoff.
+- `Runtime/Core/StateObserver.cs`: zero-allocation / DistinctUntilChanged selector to prevent Canvas/UI dirtying.
+- `Runtime/Storage/UnitySqliteAdapter.cs`: executes UCSA SQLite WAL schema with busy timeout and tag index cascade.
+- `Runtime/Storage/UnityCasStore.cs`: SHA-256 CAS package store with atomic file promotion and LRU quota pruning.
+- `Runtime/Core/QueryEngine.cs`: SWR query coordinator with CancellationToken / UniTask async.
+- `Runtime/Transports/TextureCache.cs`: asynchronous texture download using Unity native decoders to bypass main-thread CPU stall.
+- `Runtime/Unity/UcsaBehaviour.cs`: MonoBehaviour lifecycle handler reacting to `OnApplicationPause`.
+- Test suite verifying C# contract behavior and zero-allocation semantics.
 
 ---
 
 ## Tasks
 
-### Task 1: Re-render Benchmark & Structural Sharing Verification
+### Task 1: Unity Package Layout & Reactivity
 **Files:**
-- Create: `packages/core/src/consumer/observer.ts`
-- Create: `packages/core/tests/consumer/re-render.test.ts`
+- Create: `packages/com.ucsa.unity/package.json`
+- Create: `packages/com.ucsa.unity/Linker.xml`
+- Create: `packages/com.ucsa.unity/Runtime/com.ucsa.unity.asmdef`
+- Create: `packages/com.ucsa.unity/Runtime/Core/Types.cs`
+- Create: `packages/com.ucsa.unity/Runtime/Core/LifecycleFsm.cs`
+- Create: `packages/com.ucsa.unity/Runtime/Core/StateObserver.cs`
+- Create: `packages/com.ucsa.unity/Tests/Runtime/LifecycleFsmTests.cs`
+- Create: `packages/com.ucsa.unity/Tests/Runtime/StateObserverTests.cs`
 
-- [x] Implement `packages/core/src/consumer/observer.ts`:
-  - `createSelectorObserver<T, TSelected>(engine: QueryEngine, queryKey: QueryKey, selector: (data: T) => TSelected): { getSnapshot: () => TSelected | undefined, subscribe: (listener: () => void) => () => void }`
-- [x] Write unit tests in `packages/core/tests/consumer/re-render.test.ts`:
-  - Verify render counter: subscriber renders exactly 1 time on initial fetch.
-  - Background revalidation with identical data: subscriber renders 0 additional times.
-  - Background revalidation with partial update outside selector: subscriber renders 0 additional times.
-  - Background revalidation modifying selected slice: subscriber renders exactly 1 additional time.
-- [x] Export `createSelectorObserver` in `packages/core/src/index.ts`.
-- [x] Run `pnpm test` and verify tests pass.
-- [x] Commit: `feat(consumer): implement selector observer with re-render elimination`.
+- [x] Create package layout (`package.json`, `Linker.xml`, `asmdef`).
+- [x] Implement `Runtime/Core/Types.cs` and `Runtime/Core/LifecycleFsm.cs`.
+- [x] Implement `Runtime/Core/StateObserver.cs` with zero-allocation dirty checking to prevent UI rebuilds.
+- [x] Write unit tests verifying FSM transitions, backoff jitter, and observer notification suppression.
+- [x] Run test verification.
+- [x] Commit: `feat(unity): scaffold com.ucsa.unity package, lifecycle FSM, and state observer`.
 
-### Task 2: CLI Ephemeral Process Durability & Flush Manager
+### Task 2: Unity Persistence, CAS Store & SWR Engine
 **Files:**
-- Create: `packages/core/src/cli/durability.ts`
-- Create: `packages/core/tests/cli/durability.test.ts`
+- Create: `packages/com.ucsa.unity/Runtime/Storage/UnitySqliteAdapter.cs`
+- Create: `packages/com.ucsa.unity/Runtime/Storage/UnityCasStore.cs`
+- Create: `packages/com.ucsa.unity/Runtime/Core/QueryEngine.cs`
+- Create: `packages/com.ucsa.unity/Tests/Runtime/SqliteAdapterTests.cs`
+- Create: `packages/com.ucsa.unity/Tests/Runtime/CasStoreTests.cs`
+- Create: `packages/com.ucsa.unity/Tests/Runtime/QueryEngineTests.cs`
 
-- [x] Implement `packages/core/src/cli/durability.ts`:
-  - `CliDurabilityManager`: registers flusher callbacks.
-  - `registerExitFlush(flusher: () => void): () => void`: attaches to `beforeExit` and `exit` events.
-  - `flushAll(): void`: runs all registered flushes synchronously.
-- [x] Write unit tests in `packages/core/tests/cli/durability.test.ts`:
-  - Verify flush handler execution.
-  - Verify SQLite WAL checkpointing on exit (`PRAGMA wal_checkpoint(TRUNCATE);`).
-- [x] Export `CliDurabilityManager` and `registerExitFlush` in `packages/core/src/index.ts`.
-- [x] Run `pnpm test` and verify 100% pass rate.
-- [x] Commit: `feat(cli): implement CLI durability manager with synchronous exit flush`.
+- [x] Implement `Runtime/Storage/UnitySqliteAdapter.cs` executing UCSA schema in WAL mode.
+- [x] Implement `Runtime/Storage/UnityCasStore.cs` with SHA-256 and atomic `File.Move`.
+- [x] Implement `Runtime/Core/QueryEngine.cs` with SWR, CancellationToken, and tag invalidation.
+- [x] Write tests verifying persistence, CAS atomic operations, SWR cache hits, and tag invalidations.
+- [x] Run test verification.
+- [x] Commit: `feat(unity): implement SQLite WAL adapter, CAS store, and SWR query engine`.
 
-### Task 3: Full-Chain End-to-End Verification & Precheck Gate
+### Task 3: GPU Texture Cache, Behaviour & Ship
 **Files:**
-- Create: `packages/core/tests/e2e/full-chain.test.ts`
+- Create: `packages/com.ucsa.unity/Runtime/Transports/TextureCache.cs`
+- Create: `packages/com.ucsa.unity/Runtime/Unity/UcsaBehaviour.cs`
+- Create: `packages/com.ucsa.unity/Tests/Runtime/TextureCacheTests.cs`
 - Modify: `README.md`
+- Run: `./scripts/precheck.sh`
 
-- [x] Write `packages/core/tests/e2e/full-chain.test.ts`:
-  - Test full chain: Ingress -> QueryEngine -> SQLite WAL -> CAS Package Cache -> Outbox -> Durability Flush.
-- [x] Update `README.md` with complete architecture guide, re-render prevention metrics, and multi-platform consumer examples.
-- [x] Run `./scripts/precheck.sh` and ensure Gate 1 passes cleanly (`Gate 1: ok`).
-- [x] Commit: `chore(release): verify Gate 1 precheck for F-005`.
+- [x] Implement `Runtime/Transports/TextureCache.cs` with off-thread download and GPU upload logic.
+- [x] Implement `Runtime/Unity/UcsaBehaviour.cs` handling `OnApplicationPause` backgrounding and foreground revalidation.
+- [x] Update `README.md` with Unity C# installation, UPM configuration, and code examples.
+- [x] Run `./scripts/precheck.sh` ensuring Gate 1 passes cleanly (`Gate 1: ok`).
+- [x] Commit: `chore(release): verify Gate 1 precheck for F-008`.

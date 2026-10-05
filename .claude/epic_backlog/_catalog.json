@@ -9,5 +9,16 @@
     "verified_at": "2026-10-05T15:00:37.798173+00:00",
     "split_approved_by": null,
     "verifying_sha": null
+  },
+  {
+    "id": "E-002",
+    "title": "Multi-Platform Reference POCs (CLI, Dart, C# Unity)",
+    "created_at": "2026-10-05T15:52:55.612877+00:00",
+    "status": "verified",
+    "release_version": "1.2",
+    "verified_sha": "da72c7f5ddaa228b12e7990a814f5090a57a9c31",
+    "verified_at": "2026-10-05T16:54:37.576470+00:00",
+    "split_approved_by": null,
+    "verifying_sha": null
   }
 ]

@@ -1,0 +1,9 @@
+<linker>
+  <assembly fullname="com.ucsa.unity" preserve="all" />
+  <assembly fullname="Ucsa.Unity" preserve="all" />
+  <assembly fullname="System.Text.Json" preserve="all" />
+  <assembly fullname="System.Data" preserve="all" />
+  <assembly fullname="Mono.Data.Sqlite" preserve="all" />
+  <assembly fullname="SQLite-net" preserve="all" />
+  <assembly fullname="Microsoft.Data.Sqlite" preserve="all" />
+</linker>

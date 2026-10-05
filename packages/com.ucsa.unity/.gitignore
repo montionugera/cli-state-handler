@@ -1,0 +1,7 @@
+# .NET and Unity build artifacts
+bin/
+obj/
+*.user
+*.userprefs
+*.pidb
+*.suo

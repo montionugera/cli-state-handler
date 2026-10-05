@@ -24,6 +24,14 @@ importers:
         specifier: ^3.0.5
         version: 3.2.7(@types/node@22.20.5)
 
+  apps/cli:
+    dependencies:
+      '@ucsa/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+
+  packages/com.ucsa.unity: {}
+
   packages/core:
     dependencies:
       better-sqlite3:
