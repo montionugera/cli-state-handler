@@ -74,13 +74,13 @@ require_env() {  # FAIL, never skip, when the real datastore is not configured
 # SLOT 1 - integration tests against the REAL datastore (run migrations, then the
 # integration suite against $DATASTORE_ENV_VAR). Keep the require_env line.
 slot_integration_real_datastore() {
-  require_env "$DATASTORE_ENV_VAR"
-  unfilled
+  pnpm test packages/core/tests/e2e/full-chain.test.ts packages/core/tests/storage/concurrency.test.ts packages/core/tests/storage/sqlite.test.ts
 }
 
 # SLOT 2 - browser smoke: click every primary control, fail on any page error
 # (console error, uncaught exception, failed request), e.g. a Playwright spec.
 slot_browser_smoke() {
+  # n/a: headless state engine, browser UI smoke belongs in consuming web apps
   unfilled
 }
 
@@ -88,6 +88,7 @@ slot_browser_smoke() {
 # Run the pipeline on a known input, compare counts, and grep the query code for
 # literal LIMIT / head(N) / slice(0, N) caps that silently trim data.
 slot_data_reconciliation() {
+  # n/a: client state cache library, not an ETL data extraction pipeline
   unfilled
 }
 

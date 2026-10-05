@@ -1,0 +1,21 @@
+{
+  "name": "cli-state-handler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc -b packages/core",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.7",
+    "better-sqlite3": "^11.8.1",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

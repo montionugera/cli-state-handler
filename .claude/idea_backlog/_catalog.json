@@ -1,1 +1,37 @@
-[]
+[
+  {
+    "id": "I-001",
+    "title": "Core Contracts & SQLite Schema",
+    "created_at": "2026-10-05T13:31:48.571542+00:00",
+    "promoted_to": "F-001",
+    "epic": "E-001"
+  },
+  {
+    "id": "I-002",
+    "title": "Query Cache & SWR Lifecycle",
+    "created_at": "2026-10-05T13:31:48.572512+00:00",
+    "promoted_to": "F-002",
+    "epic": "E-001"
+  },
+  {
+    "id": "I-003",
+    "title": "CAS Package Cache",
+    "created_at": "2026-10-05T13:31:48.573018+00:00",
+    "promoted_to": "F-003",
+    "epic": "E-001"
+  },
+  {
+    "id": "I-004",
+    "title": "Pluggable Transport Adapters",
+    "created_at": "2026-10-05T13:31:48.573470+00:00",
+    "promoted_to": "F-004",
+    "epic": "E-001"
+  },
+  {
+    "id": "I-005",
+    "title": "Multi-Platform Consumer Bindings",
+    "created_at": "2026-10-05T13:31:48.573908+00:00",
+    "promoted_to": "F-005",
+    "epic": "E-001"
+  }
+]

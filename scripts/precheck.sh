@@ -63,18 +63,22 @@ run_slot() {
 
 # SLOT 1 - build / typecheck (e.g. `pnpm build && pnpm check`, `go vet ./...`, `mypy app`)
 slot_build_typecheck() {
-  unfilled
+  if [ -f "package.json" ] && [ ! -d "node_modules" ]; then
+    pnpm install
+  fi
+  pnpm run typecheck && pnpm run build
 }
 
 # SLOT 2 - unit tests (e.g. `pnpm test:unit`, `pytest -q`, `go test ./...`)
 slot_unit_tests() {
-  unfilled
+  pnpm test
 }
 
 # SLOT 3 - fast static UI checks: lint for controls that cannot be clicked
 # (handlers missing, unclosed containers, overlays covering buttons), e.g.
 # `pnpm lint`, svelte-check, an antislop script. No browser here - that is Gate 2.
 slot_static_ui_checks() {
+  # n/a: headless state engine, UI components are in consuming client applications
   unfilled
 }
 

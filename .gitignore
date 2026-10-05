@@ -4,3 +4,7 @@ graft/
 .claude/state/
 .claude/worktrees/
 docs/**/*.html
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
