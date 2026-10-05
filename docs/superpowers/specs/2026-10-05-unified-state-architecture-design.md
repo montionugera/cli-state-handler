@@ -98,11 +98,22 @@ UCSA strictly decouples fast real-time transport pipelines from deep state and p
   ["cli", "packages", "pkg_state_handler", "versions"]
   ```
 - **Stale-While-Revalidate (SWR):** Queries serve cached data synchronously from memory, triggering a silent background fetch if `Date.now() > stale_at`.
+- **Cache Lifecycle Policies (`staleTime` vs `gcTime`):**
+  - `staleTime`: Duration (ms) a cached query is considered fresh. Within this window, subsequent reads return immediately without background network refetches.
+  - `gcTime`: Duration (ms) an inactive query (0 mounted observers) remains in memory before being garbage-collected from the active store.
+- **Query Cancellation & AbortSignals:** Every query execution receives an `AbortSignal`. When a consumer unmounts or a query is superseded, the signal fires, aborting the in-flight network request at the transport layer to conserve bandwidth and prevent state races.
+- **Infinite Queries & Pagination:** First-class support for paginated collections with cursor parameters (`pageParam`, `fetchNextPage()`, `hasNextPage`), accumulating page slices into a contiguous collection.
 - **Fast Tag Invalidation:** Queries register domain tags (e.g., `["tag:user-profile", "tag:workspace-99"]`). Tags map to query hashes via an indexed join table, enabling $O(\log N)$ invalidations without scanning the entire cache table.
 - **Optimistic Updates & Rollback:**
   1. `onMutate`: Cancel outgoing refetches, snapshot current cache into a rollback context, apply optimistic patch locally.
   2. `onError`: Revert cache to snapshot, surface error to UI.
   3. `onSettled`: Invalidate affected query keys to synchronize with authoritative server state.
+- **Offline Outbox Conflict Resolution:**
+  - Outbox mutations carry an `expected_etag` or timestamp token.
+  - If a replayed mutation receives an HTTP 409 Conflict, resolution applies according to entity policy:
+    - `server-wins` (default): Roll back optimistic update and refetch authoritative server entity.
+    - `client-wins`: Re-issue mutation with forced overwrite header.
+    - `merge`: Invoke registered domain merge function to reconcile conflicting fields.
 
 ### 4.3 Tier 3: Persistence & Offline Cache (SQLite Engine)
 SQLite operates as the authoritative local persistence layer for structured data and offline mutation queuing.
@@ -232,11 +243,12 @@ All asynchronous operations follow a deterministic 5-stage state machine:
 ```
 
 ### 6.1 Resilience Rules
-1. **Network Detection:** Offline transitions pause in-flight retries. Restoring network connectivity (`online` event) immediately triggers a retry sweep for paused queries and outbox items.
-2. **Backoff Formula:** Exponential backoff with full jitter:
+1. **Network Connectivity Manager (`onlineManager`):** Listens to platform-specific network monitor events (Browser `window.ononline`/`onoffline`, Apple `NWPathMonitor`, Android `ConnectivityManager`). Offline transitions pause active retries and mutation queues; reconnecting triggers an immediate non-blocking revalidation sweep.
+2. **Window / App Foreground Manager (`focusManager`):** Monitors tab visibility (`document.visibilityState`), desktop window focus, and mobile app lifecycle (`didBecomeActive`). Refetches active stale queries upon foregrounding unless disabled per query.
+3. **Backoff Formula:** Exponential backoff with full jitter:
    $$t_{\text{wait}} = \text{random}(0, \min(t_{\text{max}}, t_{\text{base}} \times 2^{\text{attempt}}))$$
    - Defaults: $t_{\text{base}} = 500\,\text{ms}$, $t_{\text{max}} = 30\,000\,\text{ms}$, $\text{max\_retries} = 4$.
-3. **Error Categorization:**
+4. **Error Categorization:**
    - **Retryable:** Network timeouts, DNS failures, HTTP 429, HTTP 502/503/504.
    - **Non-Retryable:** HTTP 400, 403, 404, 422 (fail immediately).
    - **Authentication Expired (HTTP 401):** Intercepted by auth middleware to refresh access token, then transparently replay request.
