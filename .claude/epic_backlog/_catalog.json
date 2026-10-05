@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "id": "E-001",
+    "title": "Unified Client State Architecture",
+    "created_at": "2026-10-05T13:31:17.906362+00:00",
+    "status": "open",
+    "release_version": null,
+    "verified_sha": null,
+    "verified_at": null,
+    "split_approved_by": null
+  }
+]

@@ -1,6 +1,6 @@
 # Unified Client State Architecture (UCSA) — Specification
 
-> **Status:** Draft (Awaiting Approval)  
+> **Status:** Draft (Audited & Refined)  
 > **Date:** 2026-10-05  
 > **Target Audience:** Cross-platform engineers, CLI architects, and client application teams (macOS, Web, iOS, Android, Windows).  
 > **Goal (Verbatim):** "has multiple cli need to support ; want to unify statemanagement ( like tan-stack , redux ) Want simplicity + efficient + scale ; help do deep research ; synthesis usecases, epic , plan, spec for all platform Support BFF API , WS , WebRTC, GQL , hydrate , de-hydrate , persistence SQLite ,image cache , package cache, init load retry success fail; Platform; Mac , Web , iOS, Android , Windows"
@@ -19,12 +19,13 @@ Client applications across macOS, iOS, Android, Web, Windows, and developer CLIs
 - **Cache Inconsistency:** In-memory states desynchronize from background pushes, WebSockets, and offline mutations.
 - **Blob & Artifact Bloat:** Image caching and package/binary caching are frequently conflated with relational state, causing database bloat or excessive memory usage.
 - **Cold Boot Latency:** Clients lack deterministic hydration snapshots, resulting in visual flickers and slow startup times.
+- **CLI Ephemeral Write Loss:** Fast-terminating CLI processes drop asynchronous background writes, and concurrent CLI runs hit SQLite database locks.
 
 ### 1.2 The UCSA Solution
 UCSA unifies client state management around five decoupled layers:
 1. **Server & Query State:** Asynchronous cache governed by TanStack Query semantics (Stale-While-Revalidate, hierarchical query keys, tag invalidations, and optimistic rollbacks).
-2. **Persistent Structured Storage:** Local SQLite database in WAL mode for queries, metadata, TTL records, and offline outboxes.
-3. **Content-Addressable Storage (CAS):** File-based disk cache keyed by SHA-256 for developer CLI packages, WASM artifacts, and heavy binary payloads.
+2. **Persistent Structured Storage:** Local SQLite database with platform-tuned journaling (`WAL` on native platforms, `MEMORY`/`IDB` on Web), busy timeouts (`PRAGMA busy_timeout = 5000;`), and indexed tag mappings.
+3. **Content-Addressable Storage (CAS):** File-based disk cache keyed by SHA-256 for developer CLI packages, WASM artifacts, and heavy binary payloads with access tracking.
 4. **Hardware GPU Image Pipeline:** Delegated to native hardware-accelerated texture pools (`Kingfisher` on Apple, `Coil` on Android, `CacheStorage` on Web).
 5. **Pluggable Transports:** Uniform transport adapter contracts bridging BFF REST, GraphQL, WebSocket push streams, and WebRTC DataChannels into the query engine.
 
@@ -36,9 +37,9 @@ UCSA unifies client state management around five decoupled layers:
 ## Decisions (batch-grill, 2026-10-05)
 - Architecture Strategy → Standardized Architecture Pattern (Idiomatic Native/TS Primitives over Shared Schema & Contracts). Rejects monolithic all-in-one Rust FFI to avoid UI reactivity impedance and GPU texture marshaling overhead.
 - State Paradigm → TanStack Query Mental Model (QueryCache + MutationCache + Stale-While-Revalidate + Tag Invalidation + Optimistic Updates).
-- Persistence & Blob Tier → Multi-Tier Hybrid: SQLite WAL for structured metadata and offline outbox; Content-Addressable Storage (CAS) on disk for package cache; Native GPU libraries for image caching.
+- Persistence & Blob Tier → Multi-Tier Hybrid: SQLite for structured metadata and offline outbox; Content-Addressable Storage (CAS) on disk for package cache; Native GPU libraries for image caching.
 - Transport Boundary → Pluggable Transport Adapters (BFF REST, GraphQL, WebSockets, WebRTC DataChannel) exposing uniform event streams into the query cache.
-- Resilience FSM → Strict 5-Stage Lifecycle: Init -> Load -> Retry (with exponential backoff and decorrelated jitter) -> Success / Fail.
+- Resilience FSM → Strict 5-Stage Lifecycle: Init -> Load -> Retry (with exponential backoff and jitter) -> Success / Fail.
 ```
 
 ---
@@ -54,8 +55,8 @@ UCSA strictly decouples fast real-time transport pipelines from deep state and p
 | [FLOW A: Real-Time & Network Ingress]    [FLOW B: Core State & Query Engine]       [FLOW C: Multi-Tier Storage]         |
 |                                                                                                                         |
 | +----------------------------------+     +----------------------------------+     +----------------------------------+  |
-| | BFF REST (HTTP/2, ETag, Auth)    | --> | TanStack Query & Mutation Cache  | --> | SQLite (WAL)                     |  |
-| | GraphQL (AST, Subscriptions)     |     | (Query Keys, SWR, Invalidation)  |     | (Indexed Queries, TTL, Outbox)   |  |
+| | BFF REST (HTTP/2, ETag, Auth)    | --> | TanStack Query & Mutation Cache  | --> | SQLite (WAL/Memory)              |  |
+| | GraphQL (AST, Subscriptions)     |     | (Query Keys, SWR, Invalidation)  |     | (Indexed Queries, Tags, Outbox)  |  |
 | | WebSocket (Multiplex, Heartbeat) |     | 5-Stage Lifecycle & Backoff FSM  |     | Content-Addressable Storage      |  |
 | | WebRTC DataChannel (Signaling)   |     | Hydrate / Dehydrate JSON Engine  |     | (Package Cache, SHA-256 Blobs)   |  |
 | +----------------------------------+     +----------------------------------+     | Native GPU Texture Cache         |  |
@@ -97,7 +98,7 @@ UCSA strictly decouples fast real-time transport pipelines from deep state and p
   ["cli", "packages", "pkg_state_handler", "versions"]
   ```
 - **Stale-While-Revalidate (SWR):** Queries serve cached data synchronously from memory, triggering a silent background fetch if `Date.now() > stale_at`.
-- **Invalidation Tags:** Queries register domain tags (e.g., `["tag:user-profile", "tag:workspace-99"]`). Mutations trigger tag invalidations rather than manual refetches.
+- **Fast Tag Invalidation:** Queries register domain tags (e.g., `["tag:user-profile", "tag:workspace-99"]`). Tags map to query hashes via an indexed join table, enabling $O(\log N)$ invalidations without scanning the entire cache table.
 - **Optimistic Updates & Rollback:**
   1. `onMutate`: Cancel outgoing refetches, snapshot current cache into a rollback context, apply optimistic patch locally.
   2. `onError`: Revert cache to snapshot, surface error to UI.
@@ -105,27 +106,39 @@ UCSA strictly decouples fast real-time transport pipelines from deep state and p
 
 ### 4.3 Tier 3: Persistence & Offline Cache (SQLite Engine)
 SQLite operates as the authoritative local persistence layer for structured data and offline mutation queuing.
-- **Mode:** Write-Ahead Logging (`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;`).
-- **Schema:**
+- **Journal Mode:**
+  - **Native (macOS, iOS, Android, Windows, CLI):** `PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;`
+  - **Web (`wa-sqlite` / IndexedDB VFS):** `PRAGMA journal_mode = MEMORY;` (WAL is skipped on Web due to missing POSIX shared memory).
+- **Concurrency & CLI Durability:**
+  - `PRAGMA busy_timeout = 5000;` to avoid database lock errors across concurrent CLI executions.
+  - Ephemeral CLI processes register an exit hook (`process.on('exit')` / `atexit`) to execute synchronous write-through flushes before process termination.
+- **Schema (Explicit TEXT Types to Avoid Numeric Affinity Coercion):**
   ```sql
   CREATE TABLE IF NOT EXISTS ucsa_query_cache (
       query_hash TEXT PRIMARY KEY,
-      query_key JSON NOT NULL,
-      data_payload JSON NOT NULL,
+      query_key TEXT NOT NULL,
+      data_payload TEXT NOT NULL,
       etag TEXT,
-      tags JSON NOT NULL,
       created_at INTEGER NOT NULL,
       stale_at INTEGER NOT NULL,
       expires_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_ucsa_cache_expires ON ucsa_query_cache(expires_at);
 
+  CREATE TABLE IF NOT EXISTS ucsa_cache_tags (
+      tag TEXT NOT NULL,
+      query_hash TEXT NOT NULL,
+      PRIMARY KEY (tag, query_hash),
+      FOREIGN KEY (query_hash) REFERENCES ucsa_query_cache(query_hash) ON DELETE CASCADE
+  );
+  CREATE INDEX IF NOT EXISTS idx_ucsa_tags_hash ON ucsa_cache_tags(query_hash);
+
   CREATE TABLE IF NOT EXISTS ucsa_mutation_outbox (
       mutation_id TEXT PRIMARY KEY,
       endpoint TEXT NOT NULL,
       method TEXT NOT NULL,
-      headers JSON,
-      payload JSON,
+      headers TEXT,
+      payload TEXT,
       status TEXT NOT NULL CHECK(status IN ('pending', 'in_flight', 'failed')),
       retry_count INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
@@ -142,7 +155,9 @@ For CLI packages, binary plugins, models, and heavy assets:
   - Mobile: App-sandboxed `Caches/cas/`
 - **Keying:** `SHA-256` content hash.
 - **Atomic File Writing:** Assets are downloaded into `<cas>/tmp/<uuid>.tmp`, verified against checksum, and atomically renamed to `<cas>/objects/<hash_prefix>/<full_hash>`.
-- **LRU Budget & Pruning:** Configurable maximum size (e.g., 2.0 GB). On reaching 90% capacity, background worker prunes objects by `atime` (access time) down to 70%.
+- **LRU Budget & Pruning:** Because filesystem `atime` is disabled or throttled by modern OS mounts (`noatime`/`relatime`), UCSA tracks access times explicitly:
+  - Cache hits touch file modification time (`mtime`) and update `last_accessed_at` in an SQLite index table `ucsa_cas_objects (hash TEXT PRIMARY KEY, size INTEGER, last_accessed_at INTEGER)`.
+  - On reaching 90% capacity of the size budget (e.g., 2.0 GB), a background worker prunes objects with the oldest access timestamps down to 70%.
 
 ### 4.5 Tier 5: Hardware GPU Image Cache
 Images are never stored in SQLite or manipulated as raw decoded byte arrays in JS:
@@ -166,7 +181,7 @@ sequenceDiagram
 
     Client->>Engine: useQuery(["messages", "list"])
     Engine->>SQLite: Check cached record
-    SQLite-->>Engine: Cached JSON (Stale)
+    SQLite-->>Engine: Cached TEXT Payload (Stale)
     Engine-->>Client: Yield Cached Data (Immediate Render)
     
     rect rgb(30, 30, 46)
@@ -200,7 +215,7 @@ sequenceDiagram
 ### 5.4 WebRTC DataChannel
 - Low-latency P2P state synchronization (gaming, collaboration, HUD companions).
 - Handles ICE candidate gathering and connection states (`connecting`, `connected`, `failed`).
-- Ingress DataChannel packets deserialize into lightweight mutation events.
+- Ingress DataChannel packets deserialize into lightweight mutation events routed into the Query Cache.
 
 ---
 
@@ -243,9 +258,9 @@ To ensure zero-flicker startup across native apps, SSR web pages, and fast CLI c
 |---|---|---|---|---|---|
 | **macOS** | Swift 6 | SwiftUI | `UCSA-Swift` (Actor Cache) | `GRDB.swift` (WAL) | `Kingfisher` |
 | **iOS** | Swift 6 | SwiftUI | `UCSA-Swift` (Actor Cache) | `GRDB.swift` (WAL) | `Kingfisher` |
-| **Web** | TypeScript | Svelte 5 / React | `@tanstack/query-core` | `wa-sqlite` / IndexedDB | Native HTTP + CacheStorage |
+| **Web** | TypeScript | Svelte 5 / React | `@tanstack/query-core` | `wa-sqlite` (Memory VFS) | Native HTTP + CacheStorage |
 | **Android** | Kotlin | Jetpack Compose | `UCSA-Kotlin` (Coroutines/Flow) | AndroidX `Room` | `Coil` |
-| **Windows / CLI**| TypeScript / Rust | Win32 / Terminal | `@tanstack/query-core` | `better-sqlite3` / `rusqlite` | Headless CAS bypass |
+| **Windows / CLI**| TypeScript / Rust | Win32 / Terminal | `@tanstack/query-core` | `better-sqlite3` / `rusqlite` (WAL) | Headless CAS bypass |
 
 ---
 
@@ -253,7 +268,7 @@ To ensure zero-flicker startup across native apps, SSR web pages, and fast CLI c
 
 ### Use Case 1: Multi-Platform Developer CLI (Fast Boot & Offline Mode)
 - **Scenario:** Developer executes CLI commands repeatedly in the terminal.
-- **Behavior:** Query cache loads from local SQLite in <5ms. Commands that fetch remote schemas or packages check the Content-Addressable Storage (CAS) on disk; if present and fresh, execution proceeds with zero network delay. If offline, mutations are recorded to `ucsa_mutation_outbox` for subsequent push.
+- **Behavior:** Query cache loads from local SQLite in <5ms. Commands that fetch remote schemas or packages check the Content-Addressable Storage (CAS) on disk; if present and fresh, execution proceeds with zero network delay. If offline, mutations are recorded to `ucsa_mutation_outbox` for subsequent push. Synchronous write-through flush ensures no dropped state upon CLI exit.
 
 ### Use Case 2: Real-Time Companion App (macOS HUD & Mobile)
 - **Scenario:** User interacts with real-time assistant and smart glasses (`joy-companion`).
@@ -275,9 +290,9 @@ This architecture maps directly to **Epic E-001** with 5 sequential implementati
 [Wave 5: Multi-Platform Bindings] <── [Wave 4: Pluggable Transports] <─────────┘
 ```
 
-- **Wave 1 (Contracts & SQLite Schema):** Define TypeScript and Swift/Kotlin interfaces for `QueryCache`, `QueryKey`, and implement SQLite WAL tables (`ucsa_query_cache`, `ucsa_mutation_outbox`).
-- **Wave 2 (Query Engine & SWR Lifecycle):** Implement 5-state lifecycle machine, exponential jitter backoff, tag-based invalidations, and optimistic update rollbacks.
-- **Wave 3 (CAS & Blob Storage):** Implement Content-Addressable Storage (CAS) with SHA-256 hashing, atomic file writes, and LRU disk quota eviction.
+- **Wave 1 (Contracts & SQLite Schema):** Define TypeScript and Swift/Kotlin interfaces for `QueryCache`, `QueryKey`, and implement SQLite schema with `TEXT` column types, tag join tables, and `PRAGMA busy_timeout = 5000;`.
+- **Wave 2 (Query Engine & SWR Lifecycle):** Implement 5-state lifecycle machine, exponential jitter backoff, $O(\log N)$ tag-based invalidations, and optimistic update rollbacks.
+- **Wave 3 (CAS & Blob Storage):** Implement Content-Addressable Storage (CAS) with SHA-256 hashing, atomic file writes, explicit access time tracking, and LRU disk quota eviction.
 - **Wave 4 (Pluggable Transports):** Implement transport adapters for BFF REST (ETags/auth), GraphQL, WebSocket (multiplexed FSM), and WebRTC DataChannels.
 - **Wave 5 (Multi-Platform Adapters & Verification):** Validate bindings across macOS (SwiftUI), Web (Svelte 5), Android (Compose), and developer CLIs with end-to-end integration tests.
 
@@ -293,3 +308,10 @@ This architecture maps directly to **Epic E-001** with 5 sequential implementati
 
 ### 11.2 Audit Trail
 - 2026-10-05: Initial specification authored based on user requirements for multi-platform client state handling. Batch-grill decision captured: adopted standardized architectural patterns over monolithic Rust FFI.
+- 2026-10-05 self-grill-audit: verdict `safe-with-fixes`.
+  - Corrected SQLite column types from `JSON` to `TEXT` to prevent NUMERIC affinity data corruption.
+  - Added `ucsa_cache_tags` join table to prevent $O(N)$ full table scans during tag invalidations.
+  - Added conditional SQLite journal mode (`WAL` on native, `MEMORY` on Web `wa-sqlite`).
+  - Added `PRAGMA busy_timeout = 5000;` and synchronous write-through flush on CLI exit.
+  - Added explicit `last_accessed_at` / `mtime` touch for CAS LRU pruning to circumvent `noatime` OS mount throttling.
+  - Re-routed Draw.io semantic edges with label background pills, maintaining structural score 0.

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <mxfile host="Electron" agent="Antigravity" version="24.0.0">
   <diagram id="unified-state-arch" name="Unified Client State Architecture">
-    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+    <mxGraphModel dx="1400" dy="950" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="950" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -14,7 +14,7 @@
         <mxCell id="node_gql" value="GraphQL Client&#10;(Document Hash, Subscriptions)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_transports">
           <mxGeometry x="20" y="140" width="280" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="node_ws" value="WebSocket Transport&#10;(Reconnection FSM, Multiplex)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_transports">
+        <mxCell id="node_ws" value="WebSocket Transport&#10;(Reconnection FSM, Push Invalidation)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_transports">
           <mxGeometry x="20" y="230" width="280" height="60" as="geometry" />
         </mxCell>
         <mxCell id="node_webrtc" value="WebRTC DataChannel&#10;(Low-latency Events, Signaling)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_transports">
@@ -38,7 +38,7 @@
         <mxCell id="cont_storage" value="Flow C: Persistent Multi-Tier Storage" style="swimlane;whiteSpace=wrap;html=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;rounded=1;arcSize=10;fillColor=#181825;strokeColor=#45475a;strokeWidth=2;fontColor=#f9e2af;fontSize=14;fontStyle=1;collapsible=0;" vertex="1" parent="1">
           <mxGeometry x="860" y="40" width="340" height="440" as="geometry" />
         </mxCell>
-        <mxCell id="node_sqlite" value="SQLite Storage (WAL)&#10;(Indexed Queries, TTL, Outbox)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#f9e2af;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_storage">
+        <mxCell id="node_sqlite" value="SQLite Storage (WAL/Memory)&#10;(Indexed Queries, Tags, Outbox)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#f9e2af;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_storage">
           <mxGeometry x="30" y="50" width="280" height="70" as="geometry" />
         </mxCell>
         <mxCell id="node_cas" value="Content-Addressable Storage (CAS)&#10;(Package Cache, SHA-256 Blobs)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#f9e2af;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_storage">
@@ -68,22 +68,22 @@
         <mxCell id="e1" value="REST Queries" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#89b4fa;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_bff" target="node_query_cache">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e2" value="GQL Mutations" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#89b4fa;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_gql" target="node_mutation_queue">
+        <mxCell id="e2" value="GQL Operations" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#89b4fa;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_gql" target="node_mutation_queue">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e3" value="Real-Time Push" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#89b4fa;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_ws" target="node_lifecycle">
+        <mxCell id="e3" value="WS Ping/FSM" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#89b4fa;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_ws" target="node_lifecycle">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e4" value="Signaling &amp; State" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#89b4fa;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_webrtc" target="node_hydration">
+        <mxCell id="e4" value="Signaling Session" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#89b4fa;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_webrtc" target="node_hydration">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e5" value="Persist &amp; TTL" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#a6e3a1;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_query_cache" target="node_sqlite">
+        <mxCell id="e5" value="Persist &amp; Query Index" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#a6e3a1;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_query_cache" target="node_sqlite">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e6" value="Outbox &amp; Packages" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#a6e3a1;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_mutation_queue" target="node_cas">
+        <mxCell id="e6" value="CAS Binary Packages" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#a6e3a1;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_mutation_queue" target="node_cas">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e7" value="Image Decoders" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#a6e3a1;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_hydration" target="node_image_cache">
+        <mxCell id="e7" value="GPU Texture Refs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#a6e3a1;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_hydration" target="node_image_cache">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e8" value="Hydrate Store" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;strokeColor=#cba6f7;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_hydration" target="cli_web">
