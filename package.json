@@ -8,7 +8,8 @@
   ],
   "scripts": {
     "test": "vitest run",
-    "build": "tsc -b packages/core",
+    "test:full-chain": "./scripts/e2e-full-chain.sh",
+    "build": "pnpm -r run build",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

@@ -1431,6 +1431,7 @@ public class AvatarLoader : MonoBehaviour
 | **Dart CAS Store & SHA-256** | `packages/ucsa_dart/test/cas_test.dart` | 11 | Passing (100%) |
 | **Dart SWR Query Engine** | `packages/ucsa_dart/test/query_engine_test.dart` | 20 | Passing (100%) |
 | **Dart Zero-Rebuild Observer** | `packages/ucsa_dart/test/observer_test.dart` | 4 | Passing (100%) |
+| **Dart Full-Chain E2E Gate** | `packages/ucsa_dart/test/e2e_full_chain_test.dart` | 1 | Passing (100%) |
 | **Unity Lifecycle FSM** | `packages/com.ucsa.unity/Tests/Runtime/LifecycleFsmTests.cs` | 6 | Passing (100%) |
 | **Unity State Observer** | `packages/com.ucsa.unity/Tests/Runtime/StateObserverTests.cs` | 8 | Passing (100%) |
 | **Unity SQLite WAL Storage** | `packages/com.ucsa.unity/Tests/Runtime/SqliteAdapterTests.cs` | 15 | Passing (100%) |
@@ -1438,21 +1439,26 @@ public class AvatarLoader : MonoBehaviour
 | **Unity SWR Query Engine** | `packages/com.ucsa.unity/Tests/Runtime/QueryEngineTests.cs` | 14 | Passing (100%) |
 | **Unity Texture Cache** | `packages/com.ucsa.unity/Tests/Runtime/TextureCacheTests.cs` | 5 | Passing (100%) |
 | **Unity Behaviour Durability** | `packages/com.ucsa.unity/Tests/Runtime/UcsaBehaviourTests.cs` | 4 | Passing (100%) |
-| **Total** | **26 Test Suites** | **295 Tests** | **295 / 295 Passing (100%) (52 C# Unity + 69 Dart + 174 Node/TS)** |
+| **Unity Full-Chain E2E Gate** | `packages/com.ucsa.unity/Tests/Runtime/E2EFullChainTests.cs` | 1 | Passing (100%) |
+| **Total** | **28 Test Suites** | **297 Tests** | **297 / 297 Passing (100%) (53 C# Unity + 70 Dart + 174 Node/TS)** |
 
 ### Verification Commands
 
 ```bash
+# Run the complete live Multi-Platform Full Chain across all 4 tiers
+pnpm run test:full-chain
+# or directly: ./scripts/e2e-full-chain.sh
+
 # Run type checks and build
 pnpm run typecheck && pnpm run build
 
 # Run complete Vitest suite (174 tests across 14 files)
 pnpm test
 
-# Run complete Dart test suite (69 tests across 5 files)
+# Run complete Dart test suite (70 tests across 6 files)
 (cd packages/ucsa_dart && dart test)
 
-# Run complete C# Unity test suite (52 tests across 7 files)
+# Run complete C# Unity test suite (53 tests across 8 files)
 dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
 
 # Run Gate 1 precheck script (cross-platform verification)
