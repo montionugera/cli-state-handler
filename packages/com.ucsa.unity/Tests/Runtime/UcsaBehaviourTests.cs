@@ -19,6 +19,7 @@ namespace Ucsa.Unity.Tests.Runtime
         [SetUp]
         public void Setup()
         {
+            UcsaBehaviour.ResetInstance();
             _testDir = Path.Combine(Path.GetTempPath(), "ucsa_beh_test_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_testDir);
             _dbPath = Path.Combine(_testDir, "test.db");
@@ -32,6 +33,7 @@ namespace Ucsa.Unity.Tests.Runtime
         [TearDown]
         public void TearDown()
         {
+            UcsaBehaviour.ResetInstance();
             _sqlite.Dispose();
             if (Directory.Exists(_testDir))
             {

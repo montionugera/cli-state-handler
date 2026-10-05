@@ -12,3 +12,8 @@ coverage/
 *.db
 *.db-wal
 *.db-shm
+.dart_tool/
+.packages
+build/
+bin/
+obj/

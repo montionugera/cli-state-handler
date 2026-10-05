@@ -1422,6 +1422,7 @@ public class AvatarLoader : MonoBehaviour
 | **Mutation Outbox** | `packages/core/tests/query/outbox.test.ts` | 16 | Passing (100%) |
 | **Network Transports** | `packages/core/tests/network/transports.test.ts` | 23 | Passing (100%) |
 | **Consumer Re-render** | `packages/core/tests/consumer/re-render.test.ts` | 6 | Passing (100%) |
+| **React 19 Framework (DOM)** | `packages/core/tests/consumer/react-framework.test.tsx` | 1 | Passing (100%) |
 | **CLI Process Durability** | `packages/core/tests/cli/durability.test.ts` | 19 | Passing (100%) |
 | **Full-Chain E2E Gate** | `packages/core/tests/e2e/full-chain.test.ts` | 1 | Passing (100%) |
 | **CLI Argument Router** | `apps/cli/tests/router.test.ts` | 10 | Passing (100%) |
@@ -1432,6 +1433,7 @@ public class AvatarLoader : MonoBehaviour
 | **Dart SWR Query Engine** | `packages/ucsa_dart/test/query_engine_test.dart` | 20 | Passing (100%) |
 | **Dart Zero-Rebuild Observer** | `packages/ucsa_dart/test/observer_test.dart` | 4 | Passing (100%) |
 | **Dart Full-Chain E2E Gate** | `packages/ucsa_dart/test/e2e_full_chain_test.dart` | 1 | Passing (100%) |
+| **Flutter Widget Framework** | `packages/ucsa_flutter/test/widget_test.dart` | 1 | Passing (100%) |
 | **Unity Lifecycle FSM** | `packages/com.ucsa.unity/Tests/Runtime/LifecycleFsmTests.cs` | 6 | Passing (100%) |
 | **Unity State Observer** | `packages/com.ucsa.unity/Tests/Runtime/StateObserverTests.cs` | 8 | Passing (100%) |
 | **Unity SQLite WAL Storage** | `packages/com.ucsa.unity/Tests/Runtime/SqliteAdapterTests.cs` | 15 | Passing (100%) |
@@ -1440,7 +1442,7 @@ public class AvatarLoader : MonoBehaviour
 | **Unity Texture Cache** | `packages/com.ucsa.unity/Tests/Runtime/TextureCacheTests.cs` | 5 | Passing (100%) |
 | **Unity Behaviour Durability** | `packages/com.ucsa.unity/Tests/Runtime/UcsaBehaviourTests.cs` | 4 | Passing (100%) |
 | **Unity Full-Chain E2E Gate** | `packages/com.ucsa.unity/Tests/Runtime/E2EFullChainTests.cs` | 1 | Passing (100%) |
-| **Total** | **28 Test Suites** | **297 Tests** | **297 / 297 Passing (100%) (53 C# Unity + 70 Dart + 174 Node/TS)** |
+| **Total** | **30 Test Suites** | **299 Tests** | **299 / 299 Passing (100%) (53 C# Unity + 70 Dart + 1 Flutter + 175 Node/TS/React)** |
 
 ### Verification Commands
 
@@ -1452,8 +1454,11 @@ pnpm run test:full-chain
 # Run type checks and build
 pnpm run typecheck && pnpm run build
 
-# Run complete Vitest suite (174 tests across 14 files)
+# Run complete Vitest suite (175 tests across 15 files, including React DOM)
 pnpm test
+
+# Run Flutter widget test suite
+(cd packages/ucsa_flutter && flutter test)
 
 # Run complete Dart test suite (70 tests across 6 files)
 (cd packages/ucsa_dart && dart test)

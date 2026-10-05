@@ -1,0 +1,16 @@
+name: ucsa_flutter
+description: Flutter widget bindings for Unified Client State Architecture (UCSA).
+version: 0.1.0
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ucsa_dart:
+    path: ../ucsa_dart
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

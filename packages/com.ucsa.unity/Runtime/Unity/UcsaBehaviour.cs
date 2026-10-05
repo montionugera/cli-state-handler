@@ -15,6 +15,7 @@ namespace Ucsa.Unity.Unity
     {
         private static UcsaBehaviour? _instance;
         public static UcsaBehaviour? Instance => _instance;
+        public static void ResetInstance() => _instance = null;
 
         public QueryEngine? QueryEngine { get; set; }
         public UnitySqliteAdapter? SqliteAdapter { get; set; }
