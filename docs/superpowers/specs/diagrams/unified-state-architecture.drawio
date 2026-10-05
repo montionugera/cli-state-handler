@@ -1,0 +1,95 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="Electron" agent="Antigravity" version="24.0.0">
+  <diagram id="unified-state-arch" name="Unified Client State Architecture">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="cont_transports" value="Flow A: Pluggable Transport Ingress" style="swimlane;whiteSpace=wrap;html=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;rounded=1;arcSize=10;fillColor=#181825;strokeColor=#313244;strokeWidth=2;fontColor=#89b4fa;fontSize=14;fontStyle=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="320" height="440" as="geometry" />
+        </mxCell>
+        <mxCell id="node_bff" value="BFF REST Client&#10;(HTTP/2, ETag, Auth Injection)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_transports">
+          <mxGeometry x="20" y="50" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="node_gql" value="GraphQL Client&#10;(Document Hash, Subscriptions)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_transports">
+          <mxGeometry x="20" y="140" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="node_ws" value="WebSocket Transport&#10;(Reconnection FSM, Multiplex)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_transports">
+          <mxGeometry x="20" y="230" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="node_webrtc" value="WebRTC DataChannel&#10;(Low-latency Events, Signaling)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_transports">
+          <mxGeometry x="20" y="320" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cont_core" value="Flow B: Core State &amp; Query Engine" style="swimlane;whiteSpace=wrap;html=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;rounded=1;arcSize=10;fillColor=#181825;strokeColor=#45475a;strokeWidth=2;fontColor=#a6e3a1;fontSize=14;fontStyle=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="420" y="40" width="380" height="440" as="geometry" />
+        </mxCell>
+        <mxCell id="node_query_cache" value="TanStack Query Cache&#10;(Query Keys, Stale-While-Revalidate)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#a6e3a1;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_core">
+          <mxGeometry x="30" y="50" width="320" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="node_mutation_queue" value="Mutation Queue &amp; Rollback&#10;(Optimistic Updates, Offline Outbox)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#a6e3a1;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_core">
+          <mxGeometry x="30" y="140" width="320" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="node_lifecycle" value="5-State Lifecycle Manager&#10;(Init, Load, Retry+Jitter, Success, Fail)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#a6e3a1;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_core">
+          <mxGeometry x="30" y="230" width="320" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="node_hydration" value="Hydrate / Dehydrate Engine&#10;(Cold-Boot JSON Snapshots)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#a6e3a1;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_core">
+          <mxGeometry x="30" y="320" width="320" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cont_storage" value="Flow C: Persistent Multi-Tier Storage" style="swimlane;whiteSpace=wrap;html=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;rounded=1;arcSize=10;fillColor=#181825;strokeColor=#45475a;strokeWidth=2;fontColor=#f9e2af;fontSize=14;fontStyle=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="860" y="40" width="340" height="440" as="geometry" />
+        </mxCell>
+        <mxCell id="node_sqlite" value="SQLite Storage (WAL)&#10;(Indexed Queries, TTL, Outbox)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#f9e2af;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_storage">
+          <mxGeometry x="30" y="50" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="node_cas" value="Content-Addressable Storage (CAS)&#10;(Package Cache, SHA-256 Blobs)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#f9e2af;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_storage">
+          <mxGeometry x="30" y="160" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="node_image_cache" value="Native GPU Texture Cache&#10;(Apple Kingfisher / Android Coil)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#f9e2af;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_storage">
+          <mxGeometry x="30" y="270" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="cont_clients" value="Flow D: Cross-Platform Client Consumption Surfaces" style="swimlane;whiteSpace=wrap;html=1;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;rounded=1;arcSize=10;fillColor=#181825;strokeColor=#45475a;strokeWidth=2;fontColor=#cba6f7;fontSize=14;fontStyle=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="520" width="1160" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="cli_mac" value="macOS Native&#10;(SwiftUI / GRDB)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#cba6f7;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_clients">
+          <mxGeometry x="20" y="50" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cli_ios" value="iOS Native&#10;(SwiftUI / Kingfisher)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#cba6f7;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_clients">
+          <mxGeometry x="250" y="50" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cli_web" value="Web / Browser&#10;(Svelte / React / Wasm)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#cba6f7;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_clients">
+          <mxGeometry x="480" y="50" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cli_android" value="Android Native&#10;(Compose / Room / Coil)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#cba6f7;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_clients">
+          <mxGeometry x="710" y="50" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="cli_desktop" value="Windows &amp; Developer CLIs&#10;(Win32 / Node / Bun)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;fillColor=#1e1e2e;strokeColor=#cba6f7;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="cont_clients">
+          <mxGeometry x="940" y="50" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="REST Queries" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#89b4fa;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_bff" target="node_query_cache">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="GQL Mutations" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#89b4fa;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_gql" target="node_mutation_queue">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="Real-Time Push" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#89b4fa;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_ws" target="node_lifecycle">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="Signaling &amp; State" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#89b4fa;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_webrtc" target="node_hydration">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="Persist &amp; TTL" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#a6e3a1;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_query_cache" target="node_sqlite">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="Outbox &amp; Packages" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#a6e3a1;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_mutation_queue" target="node_cas">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="Image Decoders" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1.0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#a6e3a1;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_hydration" target="node_image_cache">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="Hydrate Store" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1.0;exitDx=0;exitDy=0;entryX=0.5;entryY=0.0;entryDx=0;entryDy=0;strokeColor=#cba6f7;strokeWidth=2;fontColor=#cdd6f4;fontSize=10;labelBackgroundColor=#1e1e2e;labelBorderColor=none;" edge="1" parent="1" source="node_hydration" target="cli_web">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
