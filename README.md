@@ -838,6 +838,165 @@ export function CliDeploymentStatus({
 
 ---
 
+## Timing Controls: Observer Throttling, Query Debouncing & Outbox Rate-Limiting
+
+In high-throughput event environments (such as 60Hz real-time telemetry, rapid user typeahead, and offline mutation replays), unbounded execution causes UI frame drops, duplicate network storms, and HTTP `429 Too Many Requests` API rejections.
+
+UCSA provides native, zero-dependency **Timing Controls** across TypeScript Core, Dart 3+, and C# Unity:
+
+```mermaid
+flowchart LR
+  subgraph Inputs ["High-Frequency Sources"]
+    UI["Rapid Typeahead / Input"]
+    STREAM["60Hz Telemetry / WS Push"]
+    OUTBOX["Offline Outbox Backlog"]
+  end
+
+  subgraph Controls ["UCSA Timing Controls"]
+    QD["Query Debouncing (debounceMs)\nCollapses rapid calls, aborts timers"]
+    OT["Observer Throttling (throttleMs)\nLeading + trailing edge UI pacing"]
+    RL["Outbox Rate-Limiting (rateLimitMs)\nPaced replay with batch chunking"]
+  end
+
+  subgraph Targets ["Execution Targets"]
+    NET["Remote REST / GraphQL / BFF"]
+    RENDER["React / Flutter / Unity Canvas"]
+    SYNC["Backend Mutation Sync"]
+  end
+
+  UI --> QD --> NET
+  STREAM --> OT --> RENDER
+  OUTBOX --> RL --> SYNC
+```
+
+### 1. Observer Throttling & Debouncing
+
+Rate-limits consumer observer updates during high-frequency data arrival while guaranteeing the newest snapshot is always delivered:
+
+- **Throttling (`throttleMs`)**: Executes the **leading edge immediately** (`now - lastInvoked >= throttleMs`), and automatically schedules a **trailing edge invocation** with the newest state snapshot when the throttle window expires.
+- **Debouncing (`debounceMs`)**: Postpones subscriber notification until data arrival has ceased for the specified quiet duration.
+
+#### TypeScript
+```typescript
+import { createSelectorObserver } from 'cli-state-handler';
+
+// Throttle high-frequency updates to at most once every 100ms
+const observer = createSelectorObserver(
+  engine,
+  ['market', 'ticks'],
+  (data: MarketData) => data.lastPrice,
+  {
+    throttleMs: 100, // Leading edge immediate + trailing edge newest snapshot
+  }
+);
+```
+
+#### Dart & Flutter
+```dart
+final observer = SelectorObserver<MarketData, double>(
+  engine: engine,
+  queryKey: ['market', 'ticks'],
+  selector: (data) => data.lastPrice,
+  throttleDuration: const Duration(milliseconds: 100),
+);
+```
+
+#### C# Unity
+```csharp
+var observer = new StateObserver<MarketData, float>(
+    data => data.LastPrice,
+    throttleMs: 100
+);
+```
+
+---
+
+### 2. Query Execution Debouncing & Cancellation
+
+Collapses rapid burst query invocations (e.g. search suggestions as the user types) into a single remote network fetch. Any pending debounce timer is automatically superseded and cancelled when a new query invocation arrives or when `cancelQuery()` is invoked.
+
+#### TypeScript
+```typescript
+// Rapid search typeahead collapsed into a single network execution
+const results = await engine.fetchQuery(
+  ['search', userInput],
+  async ({ signal }) => fetchSearchResults(userInput, signal),
+  { debounceMs: 150 }
+);
+
+// Standalone helper
+import { debounceQuery } from 'cli-state-handler';
+const data = await debounceQuery(engine, ['search', q], fetchFn, 150);
+
+// Explicit cancellation aborts timer without firing queryFn
+engine.cancelQuery(['search', userInput]);
+```
+
+#### Dart
+```dart
+final results = await engine.fetchQuery<SearchResults>(
+  ['search', query],
+  (ct) => searchApi(query),
+  debounceDuration: const Duration(milliseconds: 150),
+);
+```
+
+#### C# Unity
+```csharp
+// Debounced query with CancellationToken support
+var results = await engine.FetchQueryAsync(
+    new object[] { "search", query },
+    async ct => await SearchApiAsync(query, ct),
+    new QueryOptions { DebounceMs = 150 }
+);
+
+// Or via convenience helper
+var data = await engine.DebounceQueryAsync(
+    new object[] { "search", query },
+    queryFn,
+    150
+);
+```
+
+---
+
+### 3. Outbox Batch Replay Rate-Limiting
+
+Replaying offline mutation queues across unstable cellular or embedded connections risks triggering HTTP `429 Too Many Requests` or overwhelming servers. `MutationOutbox.replay()` supports **pacing intervals** and **batch size chunking**:
+
+#### TypeScript
+```typescript
+// Replay mutations in batches of 10 with 50ms pacing between requests
+const result = await outbox.replay(
+  async (mutation) => transport.send(mutation),
+  {
+    rateLimitMs: 50, // 50ms pacing between successive requests
+    batchSize: 10,   // Process in chunks of 10 mutations per replay pass
+  }
+);
+console.log(`Replayed ${result.successful}/${result.processed} mutations`);
+```
+
+#### Dart
+```dart
+final result = await adapter.replayOutbox(
+  (mutation) => sendToServer(mutation),
+  rateLimit: const Duration(milliseconds: 50),
+  batchSize: 10,
+);
+```
+
+#### C# Unity
+```csharp
+var result = await adapter.ReplayOutboxAsync<object>(
+    async mutation => await SendMutationAsync(mutation),
+    rateLimitMs: 50,
+    batchSize: 10
+);
+```
+
+---
+
 ## CLI Ephemeral Process Durability & Flush Manager
 
 CLI commands and background developer subagents execute in short-lived, ephemeral processes. If a CLI command exits immediately upon output completion or gets terminated prematurely (`SIGINT`, `process.exit()`, terminal window close), in-memory queues and uncheckpointed SQLite Write-Ahead Log (WAL) frames can remain on disk, causing dirty state or uncommitted outbox mutations.
@@ -1419,9 +1578,12 @@ public class AvatarLoader : MonoBehaviour
 | **Concurrency Safety** | `packages/core/tests/storage/concurrency.test.ts` | 3 | Passing (100%) |
 | **Query Lifecycle FSM** | `packages/core/tests/query/lifecycle.test.ts` | 20 | Passing (100%) |
 | **Query Engine & SWR** | `packages/core/tests/query/query-engine.test.ts` | 24 | Passing (100%) |
+| **Query Debouncing & Cancel** | `packages/core/tests/query/query-debouncing.test.ts` | 3 | Passing (100%) |
 | **Mutation Outbox** | `packages/core/tests/query/outbox.test.ts` | 16 | Passing (100%) |
+| **Outbox Rate-Limit & Batch** | `packages/core/tests/query/outbox-rate-limit.test.ts` | 3 | Passing (100%) |
 | **Network Transports** | `packages/core/tests/network/transports.test.ts` | 23 | Passing (100%) |
 | **Consumer Re-render** | `packages/core/tests/consumer/re-render.test.ts` | 6 | Passing (100%) |
+| **Observer Throttling & Debounce** | `packages/core/tests/consumer/observer-timing.test.ts` | 3 | Passing (100%) |
 | **React 19 Framework (DOM)** | `packages/core/tests/consumer/react-framework.test.tsx` | 1 | Passing (100%) |
 | **CLI Process Durability** | `packages/core/tests/cli/durability.test.ts` | 19 | Passing (100%) |
 | **Full-Chain E2E Gate** | `packages/core/tests/e2e/full-chain.test.ts` | 1 | Passing (100%) |
@@ -1431,42 +1593,51 @@ public class AvatarLoader : MonoBehaviour
 | **Dart SQLite WAL Storage** | `packages/ucsa_dart/test/sqlite_test.dart` | 19 | Passing (100%) |
 | **Dart CAS Store & SHA-256** | `packages/ucsa_dart/test/cas_test.dart` | 11 | Passing (100%) |
 | **Dart SWR Query Engine** | `packages/ucsa_dart/test/query_engine_test.dart` | 20 | Passing (100%) |
+| **Dart Query Debouncing** | `packages/ucsa_dart/test/query_debouncing_test.dart` | 2 | Passing (100%) |
 | **Dart Zero-Rebuild Observer** | `packages/ucsa_dart/test/observer_test.dart` | 4 | Passing (100%) |
+| **Dart Observer Throttling** | `packages/ucsa_dart/test/observer_timing_test.dart` | 2 | Passing (100%) |
+| **Dart Outbox Rate-Limiting** | `packages/ucsa_dart/test/outbox_rate_limit_test.dart` | 2 | Passing (100%) |
 | **Dart Full-Chain E2E Gate** | `packages/ucsa_dart/test/e2e_full_chain_test.dart` | 1 | Passing (100%) |
 | **Flutter Widget Framework** | `packages/ucsa_flutter/test/widget_test.dart` | 1 | Passing (100%) |
 | **Unity Lifecycle FSM** | `packages/com.ucsa.unity/Tests/Runtime/LifecycleFsmTests.cs` | 6 | Passing (100%) |
 | **Unity State Observer** | `packages/com.ucsa.unity/Tests/Runtime/StateObserverTests.cs` | 8 | Passing (100%) |
+| **Unity State Observer Timing** | `packages/com.ucsa.unity/Tests/Runtime/StateObserverTimingTests.cs` | 2 | Passing (100%) |
 | **Unity SQLite WAL Storage** | `packages/com.ucsa.unity/Tests/Runtime/SqliteAdapterTests.cs` | 15 | Passing (100%) |
 | **Unity CAS Store & Prune** | `packages/com.ucsa.unity/Tests/Runtime/CasStoreTests.cs` | 14 | Passing (100%) |
 | **Unity SWR Query Engine** | `packages/com.ucsa.unity/Tests/Runtime/QueryEngineTests.cs` | 14 | Passing (100%) |
+| **Unity Query Debouncing** | `packages/com.ucsa.unity/Tests/Runtime/QueryDebouncingTests.cs` | 3 | Passing (100%) |
+| **Unity Outbox Rate-Limiting** | `packages/com.ucsa.unity/Tests/Runtime/OutboxRateLimitTests.cs` | 2 | Passing (100%) |
 | **Unity Texture Cache** | `packages/com.ucsa.unity/Tests/Runtime/TextureCacheTests.cs` | 5 | Passing (100%) |
 | **Unity Behaviour Durability** | `packages/com.ucsa.unity/Tests/Runtime/UcsaBehaviourTests.cs` | 4 | Passing (100%) |
 | **Unity Full-Chain E2E Gate** | `packages/com.ucsa.unity/Tests/Runtime/E2EFullChainTests.cs` | 1 | Passing (100%) |
-| **Total** | **30 Test Suites** | **299 Tests** | **299 / 299 Passing (100%) (53 C# Unity + 70 Dart + 1 Flutter + 175 Node/TS/React)** |
+| **Total** | **39 Test Suites** | **321 Tests** | **321 / 321 Passing (100%) (60 C# Unity + 76 Dart + 1 Flutter + 184 Node/TS/React)** |
 
 ### Verification Commands
 
 ```bash
-# Run the complete live Multi-Platform Full Chain across all 4 tiers
+# Run the complete live Multi-Platform Full Chain across all 5 tiers
 pnpm run test:full-chain
 # or directly: ./scripts/e2e-full-chain.sh
 
 # Run type checks and build
 pnpm run typecheck && pnpm run build
 
-# Run complete Vitest suite (175 tests across 15 files, including React DOM)
+# Run complete Vitest suite (184 tests across 18 files, including React DOM)
 pnpm test
 
 # Run Flutter widget test suite
 (cd packages/ucsa_flutter && flutter test)
 
-# Run complete Dart test suite (70 tests across 6 files)
+# Run complete Dart test suite (76 tests across 9 files)
 (cd packages/ucsa_dart && dart test)
 
-# Run complete C# Unity test suite (53 tests across 8 files)
+# Run complete C# Unity test suite (60 tests across 11 files)
 dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
 
 # Run Gate 1 precheck script (cross-platform verification)
 ./scripts/precheck.sh
+
+# Run Gate 2 integration script (real datastore & platform engines)
+./scripts/integration.sh
 ```
 

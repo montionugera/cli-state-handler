@@ -10,6 +10,8 @@ export interface OutboxCommandOptions {
   method?: string;
   payload?: string;
   policy?: 'server-wins' | 'client-wins' | 'merge';
+  rateLimitMs?: number;
+  batchSize?: number;
 }
 
 export async function runOutbox(
@@ -142,7 +144,10 @@ export async function runOutbox(
         return 'rollback' as const;
       };
 
-      const result = await outbox.replay(executor, conflictResolver);
+      const result = await outbox.replay(executor, conflictResolver, {
+        rateLimitMs: options.rateLimitMs,
+        batchSize: options.batchSize,
+      });
 
       console.log(`[ucsa:outbox] Replay complete:`);
       console.log(`[ucsa:outbox] Processed: ${result.processed}`);

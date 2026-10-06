@@ -233,7 +233,7 @@ export class QueryEngine {
           try {
             const data = await this.executeFetch(
               record,
-              record.queryFn as QueryFunction<unknown>,
+              record.queryFn as QueryFunction<T>,
               record.options
             );
             for (const r of resolvers) {

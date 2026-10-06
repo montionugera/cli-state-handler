@@ -92,9 +92,9 @@ describe('MutationOutbox - Batch Replay Rate-Limiting & Pacing', () => {
   });
 
   it('supports combining batchSize and rateLimitMs with conflict resolver', async () => {
-    outbox.enqueue({ mutation_id: 'mut-c1', endpoint: '/test/1' });
-    outbox.enqueue({ mutation_id: 'mut-c2', endpoint: '/test/2' });
-    outbox.enqueue({ mutation_id: 'mut-c3', endpoint: '/test/3' });
+    outbox.enqueue({ mutation_id: 'mut-c1', endpoint: '/test/1', method: 'POST' });
+    outbox.enqueue({ mutation_id: 'mut-c2', endpoint: '/test/2', method: 'POST' });
+    outbox.enqueue({ mutation_id: 'mut-c3', endpoint: '/test/3', method: 'POST' });
 
     const startTime = Date.now();
     const result = await outbox.replay(

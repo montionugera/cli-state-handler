@@ -289,9 +289,21 @@ export async function dispatchCommand(parsed: ParsedCommand): Promise<void> {
     }
     case 'outbox replay': {
       const arg = parsed.args[0] ?? '';
+      const rawRateLimit =
+        parsed.options.rateLimitMs !== undefined
+          ? parsed.options.rateLimitMs
+          : parsed.options.rateLimit;
+      const rawBatchSize =
+        parsed.options.batchSize !== undefined
+          ? parsed.options.batchSize
+          : parsed.options.batch;
       await runOutbox('replay', arg, {
         db: parsed.options.db as string | undefined,
         policy: parsed.options.policy as any,
+        rateLimitMs:
+          rawRateLimit !== undefined ? Number(rawRateLimit) : undefined,
+        batchSize:
+          rawBatchSize !== undefined ? Number(rawBatchSize) : undefined,
       });
       break;
     }

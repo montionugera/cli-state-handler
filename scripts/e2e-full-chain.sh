@@ -16,16 +16,16 @@ START_TOTAL=$(date +%s)
 # ------------------------------------------------------------------------------
 # Phase 1: TypeScript Core & Network Engine Full Chain
 # ------------------------------------------------------------------------------
-echo ">>> [Phase 1/4] TypeScript Core & Transport Engine (packages/core)"
-echo "    Testing: BFF ETag 304 | SWR Engine | SQLite WAL | CAS SHA-256 | WS Push | Outbox"
-pnpm test packages/core/tests/e2e/full-chain.test.ts
+echo ">>> [Phase 1/5] TypeScript Core & Transport Engine (packages/core)"
+echo "    Testing: BFF ETag 304 | SWR Engine | SQLite WAL | CAS SHA-256 | WS Push | Outbox | Timing Controls"
+pnpm test packages/core/tests/e2e/full-chain.test.ts packages/core/tests/consumer/observer-timing.test.ts packages/core/tests/query/query-debouncing.test.ts packages/core/tests/query/outbox-rate-limit.test.ts
 echo "    ✓ TypeScript Core full-chain passed cleanly."
 echo ""
 
 # ------------------------------------------------------------------------------
 # Phase 2: Interactive Terminal CLI POC (apps/cli) Live Execution
 # ------------------------------------------------------------------------------
-echo ">>> [Phase 2/4] Interactive Node/TS CLI Live Full Chain (apps/cli)"
+echo ">>> [Phase 2/5] Interactive Node/TS CLI Live Full Chain (apps/cli)"
 pnpm run build
 CLI_TMP_DIR=$(mktemp -d -t ucsa-cli-live-XXXXXX)
 CLI_DB="$CLI_TMP_DIR/live.db"
@@ -49,9 +49,10 @@ node apps/cli/bin/ucsa.js cas get "$CAS_HASH" --dir "$CLI_CAS" --db "$CLI_DB"
 
 echo "    5. Outbox Queue (Offline Mutation):"
 node apps/cli/bin/ucsa.js outbox queue "/api/v1/packages/100" --db "$CLI_DB" --payload '{"status":"published"}' --policy client-wins
+node apps/cli/bin/ucsa.js outbox queue "/api/v1/packages/101" --db "$CLI_DB" --payload '{"status":"archived"}' --policy client-wins
 
-echo "    6. Outbox Replay (Conflict Policy Resolution):"
-node apps/cli/bin/ucsa.js outbox replay --db "$CLI_DB" --policy client-wins
+echo "    6. Outbox Replay (Paced Rate-Limiting & Batch Chunking):"
+node apps/cli/bin/ucsa.js outbox replay --db "$CLI_DB" --policy client-wins --rateLimit 20 --batchSize 10
 
 echo "    7. Status Inspection:"
 node apps/cli/bin/ucsa.js status --db "$CLI_DB" --casDir "$CLI_CAS"
@@ -65,8 +66,8 @@ echo ""
 # Phase 3: Dart 3+ Reference Package (packages/ucsa_dart)
 # ------------------------------------------------------------------------------
 echo ">>> [Phase 3/5] Dart 3+ Reference Engine Full Chain (packages/ucsa_dart)"
-echo "    Testing: Sealed FSM | SQLite WAL | CAS SHA-256 | Zero-Rebuild Stream Observer"
-(cd packages/ucsa_dart && dart test test/e2e_full_chain_test.dart)
+echo "    Testing: Sealed FSM | SQLite WAL | CAS SHA-256 | Zero-Rebuild Stream Observer | Timing Controls"
+(cd packages/ucsa_dart && dart test test/e2e_full_chain_test.dart test/observer_timing_test.dart test/query_debouncing_test.dart test/outbox_rate_limit_test.dart)
 echo "    ✓ Dart full-chain passed cleanly."
 echo ""
 
@@ -74,8 +75,8 @@ echo ""
 # Phase 4: C# Unity Engine Package (packages/com.ucsa.unity)
 # ------------------------------------------------------------------------------
 echo ">>> [Phase 4/5] C# Unity Engine Reference Engine Full Chain (packages/com.ucsa.unity)"
-echo "    Testing: SWR QueryEngine | Zero-Alloc Observer | TextureCache | Mobile Pause Durability"
-dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj --filter "FullyQualifiedName~E2EFullChainTests"
+echo "    Testing: SWR QueryEngine | Zero-Alloc Observer | TextureCache | Mobile Pause Durability | Timing Controls"
+dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj --filter "FullyQualifiedName~E2EFullChainTests|FullyQualifiedName~StateObserverTimingTests|FullyQualifiedName~QueryDebouncingTests|FullyQualifiedName~OutboxRateLimitTests"
 echo "    ✓ C# Unity full-chain passed cleanly."
 echo ""
 
