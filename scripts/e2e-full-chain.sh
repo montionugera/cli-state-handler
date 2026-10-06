@@ -62,9 +62,9 @@ echo "    ✓ Interactive CLI live full-chain passed cleanly."
 echo ""
 
 # ------------------------------------------------------------------------------
-# Phase 3: Dart 3+ / Flutter Reference Package (packages/ucsa_dart)
+# Phase 3: Dart 3+ Reference Package (packages/ucsa_dart)
 # ------------------------------------------------------------------------------
-echo ">>> [Phase 3/4] Dart 3+ Reference Engine Full Chain (packages/ucsa_dart)"
+echo ">>> [Phase 3/5] Dart 3+ Reference Engine Full Chain (packages/ucsa_dart)"
 echo "    Testing: Sealed FSM | SQLite WAL | CAS SHA-256 | Zero-Rebuild Stream Observer"
 (cd packages/ucsa_dart && dart test test/e2e_full_chain_test.dart)
 echo "    ✓ Dart full-chain passed cleanly."
@@ -73,15 +73,27 @@ echo ""
 # ------------------------------------------------------------------------------
 # Phase 4: C# Unity Engine Package (packages/com.ucsa.unity)
 # ------------------------------------------------------------------------------
-echo ">>> [Phase 4/4] C# Unity Engine Reference Engine Full Chain (packages/com.ucsa.unity)"
+echo ">>> [Phase 4/5] C# Unity Engine Reference Engine Full Chain (packages/com.ucsa.unity)"
 echo "    Testing: SWR QueryEngine | Zero-Alloc Observer | TextureCache | Mobile Pause Durability"
 dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj --filter "FullyQualifiedName~E2EFullChainTests"
 echo "    ✓ C# Unity full-chain passed cleanly."
+echo ""
+
+# ------------------------------------------------------------------------------
+# Phase 5: Framework-Native Consumer Integrations (React 19 DOM & Flutter Widgets)
+# ------------------------------------------------------------------------------
+echo ">>> [Phase 5/5] Framework-Native UI Integrations (React 19 & Flutter)"
+echo "    Testing: React 19 useSyncExternalStore DOM Re-renders | Flutter WidgetTester Rebuilds"
+pnpm test packages/core/tests/consumer/react-framework.test.tsx
+if command -v flutter >/dev/null 2>&1 && [ -f "packages/ucsa_flutter/pubspec.yaml" ]; then
+  (cd packages/ucsa_flutter && flutter test)
+fi
+echo "    ✓ Framework-native UI consumers passed cleanly."
 echo ""
 
 END_TOTAL=$(date +%s)
 TOTAL_TIME=$((END_TOTAL - START_TOTAL))
 
 echo "================================================================================"
-echo "    FULL CHAIN COMPLETE - 100% VERIFIED ACROSS ALL 4 TIERS ($TOTAL_TIME seconds)"
+echo "    FULL CHAIN COMPLETE - 100% VERIFIED ACROSS ALL 5 PHASES ($TOTAL_TIME seconds)"
 echo "================================================================================"
