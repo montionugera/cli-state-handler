@@ -17,6 +17,8 @@ class _InternalQueryRecord {
   final Set<void Function()> subscribers = {};
   CancellationToken? activeToken;
   Future<dynamic>? activeFuture;
+  Timer? debounceTimer;
+  List<Completer<dynamic>>? debounceCompleters;
 
   _InternalQueryRecord({
     required this.queryKey,
@@ -141,6 +143,7 @@ class QueryEngine {
     Duration? gcTime,
     List<String>? tags,
     T Function(dynamic)? dataParser,
+    Duration? debounceDuration,
   }) async {
     final hash = hashQueryKey(queryKey);
     final record = _getOrCreateRecord(
@@ -169,6 +172,40 @@ class QueryEngine {
     if (staleTime != null) record.staleTime = staleTime;
     if (gcTime != null) record.gcTime = gcTime;
     if (dataParser != null) record.dataParser = dataParser;
+
+    if (debounceDuration != null && debounceDuration > Duration.zero) {
+      record.debounceCompleters ??= [];
+      record.debounceTimer?.cancel();
+
+      final completer = Completer<T>();
+      record.debounceCompleters!.add(completer);
+
+      record.debounceTimer = Timer(debounceDuration, () async {
+        record.debounceTimer = null;
+        final completers = List<Completer<dynamic>>.from(record.debounceCompleters ?? []);
+        record.debounceCompleters = null;
+
+        try {
+          final data = await _executeFetch<T>(
+            record,
+            record.queryFn as Future<T> Function(),
+            staleTime: record.staleTime,
+            gcTime: record.gcTime,
+            tags: record.tags,
+            dataParser: record.dataParser as T Function(dynamic)?,
+          );
+          for (final c in completers) {
+            c.complete(data);
+          }
+        } catch (err, stack) {
+          for (final c in completers) {
+            c.completeError(err, stack);
+          }
+        }
+      });
+
+      return completer.future;
+    }
 
     return _executeFetch<T>(
       record,
@@ -292,16 +329,29 @@ class QueryEngine {
     };
   }
 
-  /// Cancels any active in-flight fetch operation for the specified query key.
+  /// Cancels any active in-flight fetch operation or pending debounce timer for the specified query key.
   void cancelQuery(QueryKey queryKey) {
     final hash = hashQueryKey(queryKey);
     final record = _queries[hash];
-    if (record?.activeToken != null) {
-      record!.activeToken!.cancel();
-      record.activeToken = null;
-      record.activeFuture = null;
-      record.state = record.state.copyWith(isFetching: false);
-      _notifySubscribers(record);
+    if (record != null) {
+      if (record.debounceTimer != null) {
+        record.debounceTimer!.cancel();
+        record.debounceTimer = null;
+        final completers = List<Completer<dynamic>>.from(record.debounceCompleters ?? []);
+        record.debounceCompleters = null;
+        for (final c in completers) {
+          if (!c.isCompleted) {
+            c.completeError(Exception('Query was cancelled'));
+          }
+        }
+      }
+      if (record.activeToken != null) {
+        record.activeToken!.cancel();
+        record.activeToken = null;
+        record.activeFuture = null;
+        record.state = record.state.copyWith(isFetching: false);
+        _notifySubscribers(record);
+      }
     }
   }
 

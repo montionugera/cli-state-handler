@@ -27,14 +27,16 @@ namespace Ucsa.Unity.Core
         public long? StaleTime { get; set; }
         public long? GcTime { get; set; }
         public List<string>? Tags { get; set; }
+        public int DebounceMs { get; set; } = 0;
 
         public QueryOptions() { }
 
-        public QueryOptions(long? staleTime = null, long? gcTime = null, List<string>? tags = null)
+        public QueryOptions(long? staleTime = null, long? gcTime = null, List<string>? tags = null, int debounceMs = 0)
         {
             StaleTime = staleTime;
             GcTime = gcTime;
             Tags = tags;
+            DebounceMs = debounceMs;
         }
     }
 

@@ -92,6 +92,8 @@ namespace Ucsa.Unity.Core
             public List<Action<QueryState<T>>> Subscribers { get; } = new();
             public CancellationTokenSource? ActiveCts { get; set; }
             public Task<T>? ActiveTask { get; set; }
+            public Timer? DebounceTimer { get; set; }
+            public List<TaskCompletionSource<T>> DebounceResolvers { get; } = new();
             private readonly QueryEngine _engine;
 
             public int SubscriberCount
@@ -115,6 +117,20 @@ namespace Ucsa.Unity.Core
 
             public void CancelActive()
             {
+                lock (DebounceResolvers)
+                {
+                    if (DebounceTimer != null)
+                    {
+                        DebounceTimer.Dispose();
+                        DebounceTimer = null;
+                        foreach (var tcs in DebounceResolvers)
+                        {
+                            tcs.TrySetCanceled();
+                        }
+                        DebounceResolvers.Clear();
+                    }
+                }
+
                 if (ActiveCts != null)
                 {
                     ActiveCts.Cancel();
@@ -255,7 +271,94 @@ namespace Ucsa.Unity.Core
                 return record.State.Data;
             }
 
+            if (options?.DebounceMs > 0)
+            {
+                int debounceMs = options.DebounceMs;
+                TaskCompletionSource<T> tcs;
+
+                lock (record.DebounceResolvers)
+                {
+                    if (record.DebounceTimer != null)
+                    {
+                        record.DebounceTimer.Dispose();
+                        record.DebounceTimer = null;
+                    }
+
+                    tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    record.DebounceResolvers.Add(tcs);
+
+                    if (ct.CanBeCanceled)
+                    {
+                        ct.Register(() =>
+                        {
+                            lock (record.DebounceResolvers)
+                            {
+                                if (record.DebounceResolvers.Remove(tcs))
+                                {
+                                    tcs.TrySetCanceled(ct);
+                                }
+                            }
+                        });
+                    }
+
+                    record.DebounceTimer = new Timer(async _ =>
+                    {
+                        List<TaskCompletionSource<T>> resolvers;
+                        lock (record.DebounceResolvers)
+                        {
+                            record.DebounceTimer?.Dispose();
+                            record.DebounceTimer = null;
+                            resolvers = new List<TaskCompletionSource<T>>(record.DebounceResolvers);
+                            record.DebounceResolvers.Clear();
+                        }
+
+                        if (resolvers.Count == 0) return;
+
+                        try
+                        {
+                            T result = await ExecuteFetchAsync(record, queryFn, options, CancellationToken.None).ConfigureAwait(false);
+                            foreach (var r in resolvers)
+                            {
+                                r.TrySetResult(result);
+                            }
+                        }
+                        catch (OperationCanceledException oce)
+                        {
+                            foreach (var r in resolvers)
+                            {
+                                r.TrySetCanceled(oce.CancellationToken);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            foreach (var r in resolvers)
+                            {
+                                r.TrySetException(ex);
+                            }
+                        }
+                    }, null, debounceMs, Timeout.Infinite);
+                }
+
+                return await tcs.Task.ConfigureAwait(false);
+            }
+
             return await ExecuteFetchAsync(record, queryFn, options, ct).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Debounces a query fetch execution by the specified delay in milliseconds.
+        /// Collapses rapid calls for the same query key into a single execution.
+        /// </summary>
+        public Task<T> DebounceQueryAsync<T>(
+            object[] queryKey,
+            Func<CancellationToken, Task<T>> queryFn,
+            int debounceMs,
+            QueryOptions? options = null,
+            CancellationToken ct = default)
+        {
+            var opt = options ?? new QueryOptions();
+            opt.DebounceMs = debounceMs;
+            return FetchQueryAsync(queryKey, queryFn, opt, ct);
         }
 
         /// <summary>

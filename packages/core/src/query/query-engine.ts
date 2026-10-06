@@ -33,6 +33,12 @@ export interface QueryOptions {
    * Domain tags associated with this query for fast indexed invalidation.
    */
   tags?: string[];
+
+  /**
+   * Optional debounce delay in milliseconds before executing queryFn.
+   * Subsequent calls within the window reset the timer and share the final result.
+   */
+  debounceMs?: number;
 }
 
 export interface UseQueryResult<T> {
@@ -150,6 +156,11 @@ interface InternalQueryRecord<T = unknown> {
   subscribers: Set<() => void>;
   activeController?: AbortController;
   activePromise?: Promise<T>;
+  debounceTimer?: ReturnType<typeof setTimeout>;
+  debounceResolvers?: Array<{
+    resolve: (data: T) => void;
+    reject: (error: unknown) => void;
+  }>;
 }
 
 /**
@@ -172,6 +183,7 @@ export class QueryEngine {
   /**
    * Fetches and caches a query, returning a Promise resolving to the data.
    * If fresh data is already cached, returns immediately without invoking queryFn.
+   * If debounceMs is specified, delays execution and collapses rapid successive calls.
    */
   async fetchQuery<T>(
     queryKey: QueryKey,
@@ -196,6 +208,44 @@ export class QueryEngine {
     record.options = options;
     if (options?.tags) {
       record.tags = options.tags;
+    }
+
+    if (options?.debounceMs !== undefined && options.debounceMs > 0) {
+      if (!record.debounceResolvers) {
+        record.debounceResolvers = [];
+      }
+
+      if (record.debounceTimer) {
+        clearTimeout(record.debounceTimer);
+      }
+
+      return new Promise<T>((resolve, reject) => {
+        record.debounceResolvers!.push({
+          resolve: resolve as (data: unknown) => void,
+          reject,
+        });
+
+        record.debounceTimer = setTimeout(async () => {
+          record.debounceTimer = undefined;
+          const resolvers = record.debounceResolvers ?? [];
+          record.debounceResolvers = undefined;
+
+          try {
+            const data = await this.executeFetch(
+              record,
+              record.queryFn as QueryFunction<unknown>,
+              record.options
+            );
+            for (const r of resolvers) {
+              r.resolve(data);
+            }
+          } catch (err) {
+            for (const r of resolvers) {
+              r.reject(err);
+            }
+          }
+        }, options.debounceMs);
+      });
     }
 
     return this.executeFetch(record, queryFn, options);
@@ -277,11 +327,23 @@ export class QueryEngine {
   }
 
   /**
-   * Cancels any active in-flight fetch operation for the specified query key.
+   * Cancels any active in-flight fetch operation or pending debounce timer for the specified query key.
    */
   cancelQuery(queryKey: QueryKey): void {
     const hash = hashQueryKey(queryKey);
     const record = this.queries.get(hash);
+
+    if (record?.debounceTimer) {
+      clearTimeout(record.debounceTimer);
+      record.debounceTimer = undefined;
+      const resolvers = record.debounceResolvers ?? [];
+      record.debounceResolvers = undefined;
+      const cancelErr = new Error('Query was cancelled');
+      for (const r of resolvers) {
+        r.reject(cancelErr);
+      }
+    }
+
     if (record?.activeController) {
       record.activeController.abort();
       record.activeController = undefined;
@@ -661,4 +723,17 @@ export class QueryEngine {
       }
     }
   }
+}
+
+/**
+ * Convenient helper to trigger a debounced query fetch.
+ * Collapses rapid invocations for the same queryKey into a single execution after debounceMs of quiet.
+ */
+export function debounceQuery<T>(
+  engine: QueryEngine,
+  queryKey: QueryKey,
+  queryFn: QueryFunction<T>,
+  options?: QueryOptions & { debounceMs: number }
+): Promise<T> {
+  return engine.fetchQuery(queryKey, queryFn, options);
 }

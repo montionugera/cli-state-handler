@@ -56,6 +56,7 @@ export {
 
 export {
   QueryEngine,
+  debounceQuery,
   hashQueryKey,
   matchQueryKey,
 } from './query/query-engine.js';
