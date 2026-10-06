@@ -71,6 +71,7 @@ export { MutationOutbox } from './query/mutation-outbox.js';
 export type {
   MutationOutboxOptions,
   ReplayResult,
+  ReplayOptions,
   ConflictResolution,
   MutationExecutor,
   ConflictResolver,

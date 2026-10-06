@@ -205,6 +205,25 @@ namespace Ucsa.Unity.Core
     }
 
     /// <summary>
+    /// Result of an outbox replay execution.
+    /// </summary>
+    public class ReplayResult
+    {
+        public int Processed { get; set; }
+        public int Successful { get; set; }
+        public int Failed { get; set; }
+
+        public ReplayResult() { }
+
+        public ReplayResult(int processed, int successful, int failed)
+        {
+            Processed = processed;
+            Successful = successful;
+            Failed = failed;
+        }
+    }
+
+    /// <summary>
     /// Deterministic query key hasher producing SHA-256 hex string.
     /// </summary>
     public static class QueryKeyHasher

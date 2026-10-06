@@ -430,6 +430,98 @@ class SqliteAdapter {
     );
   }
 
+  /// Replays pending outbox mutations sequentially via an executor function.
+  /// Supports [rateLimit] delay between mutations and [batchSize] limits.
+  Future<ReplayResult> replayOutbox(
+    Future<Map<String, dynamic>> Function(OutboxMutation<dynamic> mutation)
+        executor, {
+    Duration? rateLimit,
+    int? batchSize,
+    Future<String> Function(
+            OutboxMutation<dynamic> mutation, dynamic conflictData)?
+        conflictResolver,
+  }) async {
+    final pending = getPendingMutations(limit: batchSize ?? 100);
+    int processed = 0;
+    int successful = 0;
+    int failed = 0;
+
+    for (int i = 0; i < pending.length; i++) {
+      final mutation = pending[i];
+      if (i > 0 && rateLimit != null && rateLimit > Duration.zero) {
+        await Future.delayed(rateLimit);
+      }
+      processed++;
+      updateMutationStatus(mutation.mutationId, OutboxMutationStatus.inFlight);
+
+      try {
+        final res = await executor(mutation);
+        final status = res['status'] as int? ?? 200;
+
+        if (status >= 200 && status < 300) {
+          deleteMutation(mutation.mutationId);
+          successful++;
+        } else if (status == 409) {
+          // Conflict
+          String resolution = 'rollback';
+          if (conflictResolver != null) {
+            resolution = await conflictResolver(mutation, res['data']);
+          } else if (mutation.conflictPolicy == ConflictPolicy.clientWins) {
+            resolution = 'force';
+          } else {
+            resolution = 'rollback';
+          }
+
+          if (resolution == 'rollback') {
+            deleteMutation(mutation.mutationId);
+            successful++;
+          } else if (resolution == 'force') {
+            updateMutationStatus(
+                mutation.mutationId, OutboxMutationStatus.pending);
+          }
+        } else if (status >= 400 && status < 500) {
+          updateMutationStatus(
+            mutation.mutationId,
+            OutboxMutationStatus.failed,
+            error: 'HTTP $status',
+          );
+          failed++;
+        } else {
+          // Transient failure
+          final nextRetry = mutation.retryCount + 1;
+          final isPermanent = nextRetry >= 3;
+          updateMutationStatus(
+            mutation.mutationId,
+            isPermanent
+                ? OutboxMutationStatus.failed
+                : OutboxMutationStatus.pending,
+            error: 'HTTP $status',
+            retryCount: nextRetry,
+          );
+          if (isPermanent) failed++;
+        }
+      } catch (e) {
+        final nextRetry = mutation.retryCount + 1;
+        final isPermanent = nextRetry >= 3;
+        updateMutationStatus(
+          mutation.mutationId,
+          isPermanent
+              ? OutboxMutationStatus.failed
+              : OutboxMutationStatus.pending,
+          error: e.toString(),
+          retryCount: nextRetry,
+        );
+        if (isPermanent) failed++;
+      }
+    }
+
+    return ReplayResult(
+      processed: processed,
+      successful: successful,
+      failed: failed,
+    );
+  }
+
   /// Inserts or updates a CAS object record with size and last accessed time.
   void upsertCasObject(
     String hash,

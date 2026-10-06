@@ -19,6 +19,12 @@ export interface ReplayResult {
   failed: number;
 }
 
+export interface ReplayOptions {
+  rateLimitMs?: number;
+  batchSize?: number;
+  conflictResolver?: ConflictResolver;
+}
+
 export type ConflictResolution = 'rollback' | 'force' | 'merged';
 
 export type MutationExecutor = (
@@ -288,17 +294,46 @@ export class MutationOutbox {
    * Replays pending mutations sequentially via an executor function.
    * Handles transient errors with retry count tracking up to maxRetries,
    * and handles 409 Conflict using conflict policies (server-wins, client-wins, merge).
+   * Supports rateLimitMs delay between mutation calls and batchSize limits.
    */
   async replay(
     executor: MutationExecutor,
-    conflictResolver?: ConflictResolver
+    conflictResolverOrOptions?: ConflictResolver | ReplayOptions,
+    options?: ReplayOptions
   ): Promise<ReplayResult> {
-    const pending = this.getPendingMutations();
+    let conflictResolver: ConflictResolver | undefined;
+    let opts: ReplayOptions | undefined;
+
+    if (typeof conflictResolverOrOptions === 'function') {
+      conflictResolver = conflictResolverOrOptions;
+      opts = options;
+    } else if (
+      typeof conflictResolverOrOptions === 'object' &&
+      conflictResolverOrOptions !== null
+    ) {
+      opts = conflictResolverOrOptions;
+      conflictResolver = opts.conflictResolver;
+    } else {
+      opts = options;
+    }
+
+    const rateLimitMs = opts?.rateLimitMs ?? 0;
+    const batchSize = opts?.batchSize;
+
+    let pending = this.getPendingMutations();
+    if (batchSize !== undefined && batchSize > 0) {
+      pending = pending.slice(0, batchSize);
+    }
+
     let processed = 0;
     let successful = 0;
     let failed = 0;
 
-    for (const mutation of pending) {
+    for (let i = 0; i < pending.length; i++) {
+      const mutation = pending[i];
+      if (i > 0 && rateLimitMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, rateLimitMs));
+      }
       processed++;
       this.markStatus(mutation.mutation_id, 'in_flight');
 

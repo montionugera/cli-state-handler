@@ -660,6 +660,98 @@ namespace Ucsa.Unity.Storage
             }
         }
 
+        /// <summary>
+        /// Replays pending outbox mutations sequentially via an executor function.
+        /// Supports rateLimitMs delay between mutation calls and batchSize limits.
+        /// </summary>
+        public async Task<ReplayResult> ReplayOutboxAsync<T>(
+            Func<OutboxMutation<T>, Task<(int status, object? data)>> executor,
+            int rateLimitMs = 0,
+            int batchSize = 10,
+            Func<OutboxMutation<T>, object?, Task<string>>? conflictResolver = null,
+            CancellationToken ct = default)
+        {
+            var pending = GetPendingMutations<T>(batchSize);
+            int processed = 0;
+            int successful = 0;
+            int failed = 0;
+
+            for (int i = 0; i < pending.Count; i++)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var mutation = pending[i];
+                if (i > 0 && rateLimitMs > 0)
+                {
+                    await Task.Delay(rateLimitMs, ct).ConfigureAwait(false);
+                }
+
+                processed++;
+                UpdateMutationStatus(mutation.MutationId, OutboxMutationStatus.InFlight);
+
+                try
+                {
+                    var response = await executor(mutation).ConfigureAwait(false);
+                    if (response.status >= 200 && response.status < 300)
+                    {
+                        DeleteMutation(mutation.MutationId);
+                        successful++;
+                    }
+                    else if (response.status == 409)
+                    {
+                        string resolution = "rollback";
+                        if (conflictResolver != null)
+                        {
+                            resolution = await conflictResolver(mutation, response.data).ConfigureAwait(false);
+                        }
+                        else if (mutation.ConflictPolicy == ConflictPolicy.ClientWins)
+                        {
+                            resolution = "force";
+                        }
+
+                        if (resolution == "rollback")
+                        {
+                            DeleteMutation(mutation.MutationId);
+                            successful++;
+                        }
+                        else if (resolution == "force")
+                        {
+                            UpdateMutationStatus(mutation.MutationId, OutboxMutationStatus.Pending);
+                        }
+                    }
+                    else if (response.status >= 400 && response.status < 500)
+                    {
+                        UpdateMutationStatus(mutation.MutationId, OutboxMutationStatus.Failed, error: $"HTTP {response.status}");
+                        failed++;
+                    }
+                    else
+                    {
+                        int nextRetry = mutation.RetryCount + 1;
+                        bool isPermanent = nextRetry >= 3;
+                        UpdateMutationStatus(
+                            mutation.MutationId,
+                            isPermanent ? OutboxMutationStatus.Failed : OutboxMutationStatus.Pending,
+                            error: $"HTTP {response.status}",
+                            retryCount: nextRetry);
+                        if (isPermanent) failed++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    int nextRetry = mutation.RetryCount + 1;
+                    bool isPermanent = nextRetry >= 3;
+                    UpdateMutationStatus(
+                        mutation.MutationId,
+                        isPermanent ? OutboxMutationStatus.Failed : OutboxMutationStatus.Pending,
+                        error: ex.Message,
+                        retryCount: nextRetry);
+                    if (isPermanent) failed++;
+                }
+            }
+
+            return new ReplayResult(processed, successful, failed);
+        }
+
         #endregion
 
         #region CAS Helpers

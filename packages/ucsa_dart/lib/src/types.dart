@@ -336,6 +336,35 @@ class OutboxMutation<T> {
       'OutboxMutation($mutationId, $method $endpoint, status: ${status.name}, retries: $retryCount)';
 }
 
+/// Result of replaying offline mutations.
+class ReplayResult {
+  final int processed;
+  final int successful;
+  final int failed;
+
+  const ReplayResult({
+    required this.processed,
+    required this.successful,
+    required this.failed,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ReplayResult &&
+          runtimeType == other.runtimeType &&
+          processed == other.processed &&
+          successful == other.successful &&
+          failed == other.failed;
+
+  @override
+  int get hashCode => processed.hashCode ^ successful.hashCode ^ failed.hashCode;
+
+  @override
+  String toString() =>
+      'ReplayResult(processed: $processed, successful: $successful, failed: $failed)';
+}
+
 /// In-memory reactive query state representation.
 class QueryState<T> {
   final QueryStatus status;
