@@ -36,6 +36,18 @@ export interface SelectorObserverOptions<TData, TSelected> {
    * Defaults to deep structural comparison preserving cached reference.
    */
   isEqual?: (prev: TSelected | undefined, next: TSelected | undefined) => boolean;
+
+  /**
+   * Optional throttle window in milliseconds.
+   * Guarantees listener is called at most once every throttleMs (leading edge + trailing update).
+   */
+  throttleMs?: number;
+
+  /**
+   * Optional debounce delay in milliseconds.
+   * Delays listener notification until debounceMs of quiet after the last state change.
+   */
+  debounceMs?: number;
 }
 
 /**
@@ -66,6 +78,7 @@ export function defaultIsEqual<T>(a: T | undefined, b: T | undefined): boolean {
  * 2. Background revalidations with identical payload: listener called 0 additional times.
  * 3. Background revalidations modifying unselected fields: listener called 0 additional times.
  * 4. Background revalidations modifying selected slice: listener called exactly 1 additional time.
+ * 5. Optional throttling and debouncing of dispatches.
  */
 export function createSelectorObserver<TData, TSelected>(
   engine: QueryEngine,
@@ -74,6 +87,8 @@ export function createSelectorObserver<TData, TSelected>(
   options?: SelectorObserverOptions<TData, TSelected>
 ): SelectorObserver<TSelected> {
   const isEqual = options?.isEqual ?? defaultIsEqual;
+  const throttleMs = options?.throttleMs;
+  const debounceMs = options?.debounceMs;
 
   let currentData: TData | undefined = engine.getQueryData<TData>(queryKey);
   let currentSelected: TSelected | undefined =
@@ -81,6 +96,74 @@ export function createSelectorObserver<TData, TSelected>(
 
   const listeners = new Set<() => void>();
   let unsubscribeEngine: (() => void) | undefined;
+
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  let throttleTimer: ReturnType<typeof setTimeout> | undefined;
+  let hasPendingTrailing = false;
+  let lastInvokedTime = 0;
+
+  function clearTimers(): void {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = undefined;
+    }
+    if (throttleTimer) {
+      clearTimeout(throttleTimer);
+      throttleTimer = undefined;
+    }
+    hasPendingTrailing = false;
+  }
+
+  function notifyListeners(): void {
+    for (const listener of Array.from(listeners)) {
+      try {
+        listener();
+      } catch (err) {
+        console.error('Error in selector observer listener:', err);
+      }
+    }
+  }
+
+  function scheduleDebounce(): void {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+    debounceTimer = setTimeout(() => {
+      debounceTimer = undefined;
+      notifyListeners();
+    }, debounceMs);
+  }
+
+  function scheduleThrottle(): void {
+    const now = Date.now();
+    const elapsed = now - lastInvokedTime;
+
+    if (elapsed >= (throttleMs ?? 0) && !throttleTimer) {
+      lastInvokedTime = now;
+      notifyListeners();
+      throttleTimer = setTimeout(() => {
+        throttleTimer = undefined;
+        if (hasPendingTrailing) {
+          hasPendingTrailing = false;
+          lastInvokedTime = Date.now();
+          notifyListeners();
+        }
+      }, throttleMs);
+    } else {
+      hasPendingTrailing = true;
+      if (!throttleTimer) {
+        const remaining = Math.max(0, (throttleMs ?? 0) - elapsed);
+        throttleTimer = setTimeout(() => {
+          throttleTimer = undefined;
+          if (hasPendingTrailing) {
+            hasPendingTrailing = false;
+            lastInvokedTime = Date.now();
+            notifyListeners();
+          }
+        }, remaining);
+      }
+    }
+  }
 
   function updateSelected(freshData: TData | undefined): boolean {
     if (freshData === currentData && currentSelected !== undefined) {
@@ -104,12 +187,12 @@ export function createSelectorObserver<TData, TSelected>(
     const freshData = engine.getQueryData<TData>(queryKey);
     const changed = updateSelected(freshData);
     if (changed) {
-      for (const listener of Array.from(listeners)) {
-        try {
-          listener();
-        } catch (err) {
-          console.error('Error in selector observer listener:', err);
-        }
+      if (debounceMs !== undefined && debounceMs > 0) {
+        scheduleDebounce();
+      } else if (throttleMs !== undefined && throttleMs > 0) {
+        scheduleThrottle();
+      } else {
+        notifyListeners();
       }
     }
   }
@@ -141,9 +224,12 @@ export function createSelectorObserver<TData, TSelected>(
 
       return () => {
         listeners.delete(listener);
-        if (listeners.size === 0 && unsubscribeEngine) {
-          unsubscribeEngine();
-          unsubscribeEngine = undefined;
+        if (listeners.size === 0) {
+          clearTimers();
+          if (unsubscribeEngine) {
+            unsubscribeEngine();
+            unsubscribeEngine = undefined;
+          }
         }
       };
     },

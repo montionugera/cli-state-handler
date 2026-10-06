@@ -14,8 +14,16 @@ namespace Ucsa.Unity.Core
     {
         private readonly Func<TData, TSelected> _selector;
         private readonly IEqualityComparer<TSelected> _comparer;
+        private readonly int _throttleMs;
+        private readonly int _debounceMs;
+        private readonly object _lock = new object();
+
         private TSelected? _currentValue;
         private bool _hasValue;
+        private Timer? _throttleTimer;
+        private Timer? _debounceTimer;
+        private bool _hasPendingTrailing;
+        private long _lastInvokedTick;
 
         /// <summary>
         /// Fires only when the projected slice <typeparamref name="TSelected"/> actually changes.
@@ -39,10 +47,14 @@ namespace Ucsa.Unity.Core
 
         public StateObserver(
             Func<TData, TSelected> selector,
-            IEqualityComparer<TSelected>? comparer = null)
+            IEqualityComparer<TSelected>? comparer = null,
+            int throttleMs = 0,
+            int debounceMs = 0)
         {
             _selector = selector ?? throw new ArgumentNullException(nameof(selector));
             _comparer = comparer ?? EqualityComparer<TSelected>.Default;
+            _throttleMs = Math.Max(0, throttleMs);
+            _debounceMs = Math.Max(0, debounceMs);
         }
 
         /// <summary>
@@ -58,6 +70,95 @@ namespace Ucsa.Unity.Core
             {
                 _currentValue = nextValue;
                 _hasValue = true;
+
+                if (_debounceMs > 0)
+                {
+                    lock (_lock)
+                    {
+                        _debounceTimer?.Dispose();
+                        _debounceTimer = new Timer(_ =>
+                        {
+                            TSelected? val;
+                            lock (_lock)
+                            {
+                                _debounceTimer?.Dispose();
+                                _debounceTimer = null;
+                                val = _currentValue;
+                            }
+                            if (val != null)
+                            {
+                                OnValueChanged?.Invoke(val);
+                            }
+                        }, null, _debounceMs, Timeout.Infinite);
+                    }
+                    return true;
+                }
+
+                if (_throttleMs > 0)
+                {
+                    lock (_lock)
+                    {
+                        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        long elapsed = now - _lastInvokedTick;
+                        if (elapsed >= _throttleMs && _throttleTimer == null)
+                        {
+                            _lastInvokedTick = now;
+                            OnValueChanged?.Invoke(nextValue);
+                            _throttleTimer = new Timer(_ =>
+                            {
+                                TSelected? val = default;
+                                bool shouldFire = false;
+                                lock (_lock)
+                                {
+                                    _throttleTimer?.Dispose();
+                                    _throttleTimer = null;
+                                    if (_hasPendingTrailing)
+                                    {
+                                        _hasPendingTrailing = false;
+                                        _lastInvokedTick = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                                        val = _currentValue;
+                                        shouldFire = true;
+                                    }
+                                }
+                                if (shouldFire && val != null)
+                                {
+                                    OnValueChanged?.Invoke(val);
+                                }
+                            }, null, _throttleMs, Timeout.Infinite);
+                        }
+                        else
+                        {
+                            _hasPendingTrailing = true;
+                            if (_throttleTimer == null)
+                            {
+                                long remaining = Math.Max(0, _throttleMs - elapsed);
+                                _throttleTimer = new Timer(_ =>
+                                {
+                                    TSelected? val = default;
+                                    bool shouldFire = false;
+                                    lock (_lock)
+                                    {
+                                        _throttleTimer?.Dispose();
+                                        _throttleTimer = null;
+                                        if (_hasPendingTrailing)
+                                        {
+                                            _hasPendingTrailing = false;
+                                            _lastInvokedTick = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                                            val = _currentValue;
+                                            shouldFire = true;
+                                        }
+                                    }
+                                    if (shouldFire && val != null)
+                                    {
+                                        OnValueChanged?.Invoke(val);
+                                    }
+                                }, null, (int)remaining, Timeout.Infinite);
+                            }
+                        }
+                    }
+                    return true;
+                }
+
                 OnValueChanged?.Invoke(nextValue);
                 return true;
             }
@@ -75,14 +176,22 @@ namespace Ucsa.Unity.Core
         /// </summary>
         public void Reset()
         {
+            lock (_lock)
+            {
+                _debounceTimer?.Dispose();
+                _debounceTimer = null;
+                _throttleTimer?.Dispose();
+                _throttleTimer = null;
+                _hasPendingTrailing = false;
+            }
             _currentValue = default;
             _hasValue = false;
         }
 
         public void Dispose()
         {
-            OnValueChanged = null;
             Reset();
+            OnValueChanged = null;
         }
     }
 }

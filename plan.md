@@ -1,70 +1,67 @@
-# F-008: CSharp Unity Reference POC Implementation Plan
+# Epic E-003: Timing Controls (Observer Throttling, Query Debouncing, Outbox Rate-Limiting)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Implement this plan phase-by-phase using strict TDD (write tests first -> watch them fail -> implement minimal code -> verify tests pass).
 
-**Goal:** Implement the official Unity C# package reference implementation (`packages/com.ucsa.unity`) of the Unified Client State Architecture (UCSA), tailored for game engine frame loops with zero-allocation reactive state observation, SQLite WAL persistence, Content-Addressable Storage (CAS), asynchronous GPU texture caching, and Unity lifecycle integration.
-
-**Architecture:** `packages/com.ucsa.unity` is a Unity Package Manager (UPM) package:
-- `package.json`: package manifest (`com.ucsa.unity`, version `0.1.0`).
-- `Linker.xml`: IL2CPP bytecode preservation rules preventing stripping of model classes and SQLite metadata.
-- `Runtime/com.ucsa.unity.asmdef`: Unity assembly definition file.
-- `Runtime/Core/LifecycleFsm.cs`: 5-stage deterministic FSM with full jitter backoff.
-- `Runtime/Core/StateObserver.cs`: zero-allocation / DistinctUntilChanged selector to prevent Canvas/UI dirtying.
-- `Runtime/Storage/UnitySqliteAdapter.cs`: executes UCSA SQLite WAL schema with busy timeout and tag index cascade.
-- `Runtime/Storage/UnityCasStore.cs`: SHA-256 CAS package store with atomic file promotion and LRU quota pruning.
-- `Runtime/Core/QueryEngine.cs`: SWR query coordinator with CancellationToken / UniTask async.
-- `Runtime/Transports/TextureCache.cs`: asynchronous texture download using Unity native decoders to bypass main-thread CPU stall.
-- `Runtime/Unity/UcsaBehaviour.cs`: MonoBehaviour lifecycle handler reacting to `OnApplicationPause`.
-- Test suite verifying C# contract behavior and zero-allocation semantics.
+**Goal:** Provide zero-dependency, production-grade timing controls across all three UCSA platforms (TypeScript Core, Dart 3+, and C# Unity):
+1. **F-009**: Observer Throttling & Debouncing (`throttleMs`, `debounceMs`).
+2. **F-010**: Query Execution Debouncing & Superseded Timer Cancellation.
+3. **F-011**: Outbox Batch Replay Rate-Limiting (`rateLimitMs`, `batchSize`).
 
 ---
 
-## Tasks
+## Phases
 
-### Task 1: Unity Package Layout & Reactivity
-**Files:**
-- Create: `packages/com.ucsa.unity/package.json`
-- Create: `packages/com.ucsa.unity/Linker.xml`
-- Create: `packages/com.ucsa.unity/Runtime/com.ucsa.unity.asmdef`
-- Create: `packages/com.ucsa.unity/Runtime/Core/Types.cs`
-- Create: `packages/com.ucsa.unity/Runtime/Core/LifecycleFsm.cs`
-- Create: `packages/com.ucsa.unity/Runtime/Core/StateObserver.cs`
-- Create: `packages/com.ucsa.unity/Tests/Runtime/LifecycleFsmTests.cs`
-- Create: `packages/com.ucsa.unity/Tests/Runtime/StateObserverTests.cs`
+### Phase 1: Feature F-009 — Observer Throttling & Debouncing
+- [ ] **TypeScript Core TDD Tests** (`packages/core/tests/consumer/observer-timing.test.ts`):
+  - Test `throttleMs`: leading edge fires immediately; 10 rapid bursts within window result in exactly 2 dispatches (leading + trailing with latest value).
+  - Test `debounceMs`: 10 rapid bursts reset timer; listener fires exactly once after quiet period with final value.
+  - Test combined or fallback behavior.
+- [ ] **TypeScript Core Implementation** (`packages/core/src/consumer/observer.ts`):
+  - Add `throttleMs?: number` and `debounceMs?: number` to `SelectorObserverOptions`.
+  - Implement throttle leading/trailing state and debounce timer scheduling with clean unsubscribe disposal.
+- [ ] **Dart Core TDD & Implementation** (`packages/ucsa_dart/lib/src/selector_observer.dart`, `test/observer_timing_test.dart`):
+  - Add `Duration? throttleDuration` and `Duration? debounceDuration`.
+  - Verify zero redundant dispatches during high-frequency bursts.
+- [ ] **C# Unity TDD & Implementation** (`packages/com.ucsa.unity/Runtime/Core/StateObserver.cs`, `Tests/Runtime/StateObserverTimingTests.cs`):
+  - Add `int throttleMs = 0` and `int debounceMs = 0` support with zero-allocation dirty checking.
+- [ ] **Verify Phase 1**: Run tests across all 3 platforms. Commit: `feat(consumer): implement observer throttling and debouncing across TS, Dart, and C#`.
 
-- [x] Create package layout (`package.json`, `Linker.xml`, `asmdef`).
-- [x] Implement `Runtime/Core/Types.cs` and `Runtime/Core/LifecycleFsm.cs`.
-- [x] Implement `Runtime/Core/StateObserver.cs` with zero-allocation dirty checking to prevent UI rebuilds.
-- [x] Write unit tests verifying FSM transitions, backoff jitter, and observer notification suppression.
-- [x] Run test verification.
-- [x] Commit: `feat(unity): scaffold com.ucsa.unity package, lifecycle FSM, and state observer`.
+### Phase 2: Feature F-010 — Query Execution Debouncing & Cancellation
+- [ ] **TypeScript Core TDD Tests** (`packages/core/tests/query/query-debouncing.test.ts`):
+  - Test `engine.fetchQuery(key, queryFn, { debounceMs: 50 })`: rapid calls collapse into one network fetch.
+  - Test `engine.cancelQuery(key)` cancels pending debounce timer without firing `queryFn`.
+  - Test standalone `debounceQuery` helper function.
+- [ ] **TypeScript Core Implementation** (`packages/core/src/query/query-engine.ts`, `packages/core/src/index.ts`):
+  - Add `debounceMs?: number` to `QueryOptions`.
+  - Maintain `debounceTimer?: NodeJS.Timeout` on `InternalQueryRecord`.
+  - Export `debounceQuery`.
+- [ ] **Dart Core TDD & Implementation** (`packages/ucsa_dart/lib/src/query_engine.dart`, `test/query_debouncing_test.dart`):
+  - Add `Duration? debounceDuration` to `fetchQuery`.
+  - Verify timer cancellation when new calls arrive or `cancelQuery()` is invoked.
+- [ ] **C# Unity TDD & Implementation** (`packages/com.ucsa.unity/Runtime/Core/QueryEngine.cs`, `Tests/Runtime/QueryDebouncingTests.cs`):
+  - Add `int debounceMs = 0` to `QueryOptions` and `CancellationToken` integration.
+- [ ] **Verify Phase 2**: Run tests across all 3 platforms. Commit: `feat(query): implement query execution debouncing and timer cancellation across TS, Dart, and C#`.
 
-### Task 2: Unity Persistence, CAS Store & SWR Engine
-**Files:**
-- Create: `packages/com.ucsa.unity/Runtime/Storage/UnitySqliteAdapter.cs`
-- Create: `packages/com.ucsa.unity/Runtime/Storage/UnityCasStore.cs`
-- Create: `packages/com.ucsa.unity/Runtime/Core/QueryEngine.cs`
-- Create: `packages/com.ucsa.unity/Tests/Runtime/SqliteAdapterTests.cs`
-- Create: `packages/com.ucsa.unity/Tests/Runtime/CasStoreTests.cs`
-- Create: `packages/com.ucsa.unity/Tests/Runtime/QueryEngineTests.cs`
+### Phase 3: Feature F-011 — Outbox Batch Replay Rate-Limiting
+- [ ] **TypeScript Core TDD Tests** (`packages/core/tests/query/outbox-rate-limit.test.ts`):
+  - Test replaying 5 mutations with `rateLimitMs: 25`: takes >= 100ms total, orderly sequential execution.
+  - Test replaying with `batchSize: 2`: processes in chunks of 2.
+- [ ] **TypeScript Core Implementation** (`packages/core/src/query/mutation-outbox.ts`):
+  - Add `rateLimitMs?: number` and `batchSize?: number` to `replay()` options.
+  - Implement async batch delay pacing.
+- [ ] **Dart Core TDD & Implementation** (`packages/ucsa_dart/lib/src/sqlite_adapter.dart`, `test/outbox_rate_limit_test.dart`):
+  - Add `Duration? rateLimit` and `int? batchSize` to outbox replay.
+- [ ] **C# Unity TDD & Implementation** (`packages/com.ucsa.unity/Runtime/Storage/UnitySqliteAdapter.cs`, `Tests/Runtime/OutboxRateLimitTests.cs`):
+  - Add `int rateLimitMs = 0` and `int batchSize = 10` to `ReplayOutboxAsync`.
+- [ ] **Verify Phase 3**: Run tests across all 3 platforms. Commit: `feat(outbox): implement outbox batch replay rate-limiting across TS, Dart, and C#`.
 
-- [x] Implement `Runtime/Storage/UnitySqliteAdapter.cs` executing UCSA schema in WAL mode.
-- [x] Implement `Runtime/Storage/UnityCasStore.cs` with SHA-256 and atomic `File.Move`.
-- [x] Implement `Runtime/Core/QueryEngine.cs` with SWR, CancellationToken, and tag invalidation.
-- [x] Write tests verifying persistence, CAS atomic operations, SWR cache hits, and tag invalidations.
-- [x] Run test verification.
-- [x] Commit: `feat(unity): implement SQLite WAL adapter, CAS store, and SWR query engine`.
-
-### Task 3: GPU Texture Cache, Behaviour & Ship
-**Files:**
-- Create: `packages/com.ucsa.unity/Runtime/Transports/TextureCache.cs`
-- Create: `packages/com.ucsa.unity/Runtime/Unity/UcsaBehaviour.cs`
-- Create: `packages/com.ucsa.unity/Tests/Runtime/TextureCacheTests.cs`
-- Modify: `README.md`
-- Run: `./scripts/precheck.sh`
-
-- [x] Implement `Runtime/Transports/TextureCache.cs` with off-thread download and GPU upload logic.
-- [x] Implement `Runtime/Unity/UcsaBehaviour.cs` handling `OnApplicationPause` backgrounding and foreground revalidation.
-- [x] Update `README.md` with Unity C# installation, UPM configuration, and code examples.
-- [x] Run `./scripts/precheck.sh` ensuring Gate 1 passes cleanly (`Gate 1: ok`).
-- [x] Commit: `chore(release): verify Gate 1 precheck for F-008`.
+### Phase 4: Full-Chain Integration & Verification Gate
+- [ ] **Update Full-Chain Script** (`scripts/e2e-full-chain.sh`):
+  - Exercise observer throttling, debounced queries, and rate-limited outbox in the E2E script.
+- [ ] **Update README.md**:
+  - Document all timing control options with code examples and verified test count metrics.
+- [ ] **Run All Gates**:
+  - Run `scripts/precheck.sh` (Gate 1).
+  - Run `scripts/integration.sh` (Gate 2).
+  - Run `scripts/e2e-full-chain.sh` (5-phase E2E runner).
+- [ ] **Commit & Release**: Commit: `chore(release): verify Gate 1 and Gate 2 for Epic E-003 timing controls`.

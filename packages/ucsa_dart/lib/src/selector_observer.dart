@@ -15,6 +15,8 @@ class SelectorObserver<TData, TSelected> {
   final List<String>? tags;
   final bool Function(TSelected? prev, TSelected? next)? isEqual;
   final TData Function(dynamic)? dataParser;
+  final Duration? throttleDuration;
+  final Duration? debounceDuration;
 
   TData? _currentData;
   TSelected? _currentSelected;
@@ -22,6 +24,11 @@ class SelectorObserver<TData, TSelected> {
   final StreamController<TSelected?> _streamController =
       StreamController<TSelected?>.broadcast();
   void Function()? _engineUnsubscribe;
+
+  Timer? _debounceTimer;
+  Timer? _throttleTimer;
+  bool _hasPendingTrailing = false;
+  int _lastInvokedTime = 0;
 
   SelectorObserver({
     required this.engine,
@@ -33,6 +40,8 @@ class SelectorObserver<TData, TSelected> {
     this.tags,
     this.isEqual,
     this.dataParser,
+    this.throttleDuration,
+    this.debounceDuration,
   }) {
     _initCurrent();
   }
@@ -80,18 +89,79 @@ class SelectorObserver<TData, TSelected> {
     return false;
   }
 
+  void _clearTimers() {
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
+    _throttleTimer?.cancel();
+    _throttleTimer = null;
+    _hasPendingTrailing = false;
+  }
+
+  void _notifyListeners() {
+    for (final listener in List<void Function()>.from(_listeners)) {
+      try {
+        listener();
+      } catch (_) {}
+    }
+    if (!_streamController.isClosed) {
+      _streamController.add(_currentSelected);
+    }
+  }
+
+  void _scheduleDebounce() {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(debounceDuration!, () {
+      _debounceTimer = null;
+      _notifyListeners();
+    });
+  }
+
+  void _scheduleThrottle() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final elapsed = now - _lastInvokedTime;
+    final windowMs = throttleDuration!.inMilliseconds;
+
+    if (elapsed >= windowMs && _throttleTimer == null) {
+      _lastInvokedTime = now;
+      _notifyListeners();
+      _throttleTimer = Timer(throttleDuration!, () {
+        _throttleTimer = null;
+        if (_hasPendingTrailing) {
+          _hasPendingTrailing = false;
+          _lastInvokedTime = DateTime.now().millisecondsSinceEpoch;
+          _notifyListeners();
+        }
+      });
+    } else {
+      _hasPendingTrailing = true;
+      if (_throttleTimer == null) {
+        final remaining = windowMs - elapsed;
+        _throttleTimer = Timer(
+          Duration(milliseconds: remaining > 0 ? remaining : 0),
+          () {
+            _throttleTimer = null;
+            if (_hasPendingTrailing) {
+              _hasPendingTrailing = false;
+              _lastInvokedTime = DateTime.now().millisecondsSinceEpoch;
+              _notifyListeners();
+            }
+          },
+        );
+      }
+    }
+  }
+
   void _handleEngineUpdate() {
     final freshData =
         engine.getQueryData<TData>(queryKey, dataParser: dataParser);
     final changed = _updateSelected(freshData);
     if (changed) {
-      for (final listener in List<void Function()>.from(_listeners)) {
-        try {
-          listener();
-        } catch (_) {}
-      }
-      if (!_streamController.isClosed) {
-        _streamController.add(_currentSelected);
+      if (debounceDuration != null) {
+        _scheduleDebounce();
+      } else if (throttleDuration != null) {
+        _scheduleThrottle();
+      } else {
+        _notifyListeners();
       }
     }
   }
@@ -125,15 +195,19 @@ class SelectorObserver<TData, TSelected> {
 
     return () {
       _listeners.remove(listener);
-      if (_listeners.isEmpty && _engineUnsubscribe != null) {
-        _engineUnsubscribe!();
-        _engineUnsubscribe = null;
+      if (_listeners.isEmpty) {
+        _clearTimers();
+        if (_engineUnsubscribe != null) {
+          _engineUnsubscribe!();
+          _engineUnsubscribe = null;
+        }
       }
     };
   }
 
   /// Cleans up listeners and closes streams.
   void dispose() {
+    _clearTimers();
     _listeners.clear();
     _engineUnsubscribe?.call();
     _engineUnsubscribe = null;
@@ -152,6 +226,8 @@ SelectorObserver<TData, TSelected> createSelectorObserver<TData, TSelected>(
   List<String>? tags,
   bool Function(TSelected? prev, TSelected? next)? isEqual,
   TData Function(dynamic)? dataParser,
+  Duration? throttleDuration,
+  Duration? debounceDuration,
 }) {
   return SelectorObserver<TData, TSelected>(
     engine: engine,
@@ -163,5 +239,7 @@ SelectorObserver<TData, TSelected> createSelectorObserver<TData, TSelected>(
     tags: tags,
     isEqual: isEqual,
     dataParser: dataParser,
+    throttleDuration: throttleDuration,
+    debounceDuration: debounceDuration,
   );
 }
