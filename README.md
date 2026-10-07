@@ -1343,6 +1343,16 @@ Displays comprehensive cache, CAS, and outbox metrics:
   - `--db <path>`: Path to SQLite cache database (default: `.ucsa-cache.db`).
   - `--dir <path>` / `--casDir <path>`: Base CAS directory (default: `.ucsa-cas`).
 
+#### 9. `ucsa tutorial` / `ucsa docs`
+Launches the interactive Storybook-like tutorial and live documentation studio (`apps/docs`):
+- Checks port availability with automatic collision fallback (silently resolves 6006 to 6007 if port 6006 is occupied).
+- Spawns Vite development server serving the live interactive studio.
+- Supports `--dry-run` validation flag.
+- **Options**:
+  - `--port <port>`: Desired HTTP port (default: 6006, fallback: 6007).
+  - `--host <host>`: Bind host address (default: `localhost`).
+  - `--dry-run`: Validates environment, resolves port, and prints target URL without spawning background server.
+
 ---
 
 ### Sample Terminal Transcript
@@ -1413,7 +1423,67 @@ $ node apps/cli/bin/ucsa.js cas prune 10
 [ucsa:cas] Prune complete
 [ucsa:cas] Pruned count: 1
 [ucsa:cas] Bytes freed: 24
+
+# 10. Launch interactive Storybook documentation studio (dry-run check)
+$ node apps/cli/bin/ucsa.js tutorial --dry-run
+⚡ UCSA Live Studio & Interactive Documentation
+📡 Local server URL: http://localhost:6006
+[ucsa] Dry-run validated cleanly. Server ready to launch.
 ```
+
+---
+
+## Interactive Storybook Tutorial & Live Documentation Studio (`apps/docs`)
+
+`apps/docs` provides a standalone, interactive Storybook-like documentation and tutorial studio built with React 19 and Vite. It offers interactive, real-time sandboxes to visualize, experiment with, and master every UCSA core concept without writing boilerplate.
+
+```
+       ┌────────────────────────────────────────────────────────┐
+       │   ⚡ UCSA Live Studio & Interactive Documentation       │
+       │   [⚡ SWR Cache] [⏱️ Timing] [📦 Outbox] [🗄️ CAS] [🌐 Code] │
+       └────────────────────────────────────────────────────────┘
+```
+
+### Launching the Studio
+
+You can launch the studio using pnpm or directly via the UCSA CLI:
+
+```bash
+# Via pnpm script:
+pnpm dev:docs
+
+# Or via UCSA CLI (automatically resolves port collisions, falling back from 6006 to 6007):
+ucsa tutorial
+# or alias:
+ucsa docs --port 6006
+```
+
+### Studio Playgrounds & Features
+
+1. **⚡ Live SWR Playground (`<SwrPlayground />`)**:
+   - **Real-Time Lifecycle Tracking**: Visualizes queries through `idle`, `loading`, `success`, and `revalidating` states with millisecond telemetry.
+   - **Structural Sharing Diff Visualizer**: Displays live referential equality status (`prevData === nextData`) alongside JSON payload diffs, demonstrating how `replaceEqualDeep` eliminates component re-renders.
+   - **Tag Invalidation Trigger**: One-click tag invalidation buttons (`users`, `orders`, `profile`) demonstrating $O(\log N)$ cascade purges.
+
+2. **⏱️ Timing Controls Simulator (`<TimingPlayground />`)**:
+   - **Dynamic Observer Throttling**: Interactive slider adjusting `throttleMs` (0ms to 1000ms).
+   - **Rapid Burst Generator**: Fires 30 consecutive updates to visually prove render suppression and telemetry reduction (e.g. 30 incoming events suppressed to 3 renders).
+   - **Debounced Search Typeahead**: Interactive search bar with configurable `debounceMs` demonstrating query cancellation and debounced SWR execution.
+
+3. **📦 Offline Mutation Outbox Simulator (`<OutboxPlayground />`)**:
+   - **Network Offline/Online Switch**: Toggle network connectivity in real time.
+   - **Pending Mutation Queue**: Enqueues and inspects queued mutations with status badges (`pending`, `in_flight`, `failed`).
+   - **Paced Replay**: Demonstrates rate-limited replays (`rateLimitMs`, `batchSize`) to prevent server overload.
+   - **Conflict Resolution Matrix**: Demonstrates and tests `server-wins`, `client-wins`, and custom `merge` policies when encountering HTTP 409 conflicts.
+
+4. **🗄️ Content-Addressable Storage (CAS) Inspector (`<CasPlayground />`)**:
+   - **Cryptographic Hash Engine**: Calculates and displays SHA-256 digests in real time.
+   - **Storage Quota Utilization Gauge**: Real-time progress bar showing byte quota consumption against high-watermark thresholds.
+   - **LRU Eviction Visualizer**: Interactive "Prune" trigger showcasing deterministic pruning down to 70% of quota based on explicit SQLite access timestamps.
+
+5. **🌐 Multi-Platform Code Tutorial (`<MultiPlatformDocs />`)**:
+   - **Side-by-Side Comparison**: Tabbed interface comparing idiomatic code implementations across **TypeScript Core**, **Dart 3+**, and **C# Unity**.
+   - **5 Core Architectural Patterns**: Covers SWR queries, zero-rebuild observers, timing controls, offline outbox, and CAS storage with copyable code snippets.
 
 ---
 
@@ -1589,6 +1659,12 @@ public class AvatarLoader : MonoBehaviour
 | **Full-Chain E2E Gate** | `packages/core/tests/e2e/full-chain.test.ts` | 1 | Passing (100%) |
 | **CLI Argument Router** | `apps/cli/tests/router.test.ts` | 10 | Passing (100%) |
 | **CLI Commands Integration** | `apps/cli/tests/cli-commands.test.ts` | 11 | Passing (100%) |
+| **CLI Tutorial & Docs** | `apps/cli/tests/tutorial-command.test.ts` | 7 | Passing (100%) |
+| **Live SWR Playground** | `apps/docs/tests/swr-playground.test.tsx` | 4 | Passing (100%) |
+| **Timing Controls Simulator** | `apps/docs/tests/timing-playground.test.tsx` | 3 | Passing (100%) |
+| **Offline Outbox Simulator** | `apps/docs/tests/outbox-playground.test.tsx` | 2 | Passing (100%) |
+| **CAS Package Inspector** | `apps/docs/tests/cas-playground.test.tsx` | 3 | Passing (100%) |
+| **Multi-Platform Code Docs** | `apps/docs/tests/multiplatform-docs.test.tsx` | 5 | Passing (100%) |
 | **Dart Lifecycle FSM** | `packages/ucsa_dart/test/lifecycle_test.dart` | 15 | Passing (100%) |
 | **Dart SQLite WAL Storage** | `packages/ucsa_dart/test/sqlite_test.dart` | 19 | Passing (100%) |
 | **Dart CAS Store & SHA-256** | `packages/ucsa_dart/test/cas_test.dart` | 11 | Passing (100%) |
@@ -1610,7 +1686,7 @@ public class AvatarLoader : MonoBehaviour
 | **Unity Texture Cache** | `packages/com.ucsa.unity/Tests/Runtime/TextureCacheTests.cs` | 5 | Passing (100%) |
 | **Unity Behaviour Durability** | `packages/com.ucsa.unity/Tests/Runtime/UcsaBehaviourTests.cs` | 4 | Passing (100%) |
 | **Unity Full-Chain E2E Gate** | `packages/com.ucsa.unity/Tests/Runtime/E2EFullChainTests.cs` | 1 | Passing (100%) |
-| **Total** | **39 Test Suites** | **321 Tests** | **321 / 321 Passing (100%) (60 C# Unity + 76 Dart + 1 Flutter + 184 Node/TS/React)** |
+| **Total** | **45 Test Suites** | **345 Tests** | **345 / 345 Passing (100%) (60 C# Unity + 76 Dart + 1 Flutter + 208 Node/TS/React/CLI/Docs)** |
 
 ### Verification Commands
 
@@ -1622,7 +1698,7 @@ pnpm run test:full-chain
 # Run type checks and build
 pnpm run typecheck && pnpm run build
 
-# Run complete Vitest suite (184 tests across 18 files, including React DOM)
+# Run complete Vitest suite (208 tests across 24 files, including React DOM, CLI & Docs)
 pnpm test
 
 # Run Flutter widget test suite

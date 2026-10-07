@@ -4,6 +4,7 @@ import {
   runOutbox,
   runDurability,
   runStatus,
+  runTutorial,
 } from './commands/index.js';
 
 export interface ParsedCommand {
@@ -187,6 +188,14 @@ export function parseArgs(argv: string[]): ParsedCommand {
     };
   }
 
+  if (first === 'tutorial' || first === 'docs') {
+    return {
+      command: 'tutorial',
+      args: positionals.slice(1),
+      options,
+    };
+  }
+
   return {
     command: first,
     args: positionals.slice(1),
@@ -209,6 +218,8 @@ Subcommands:
   outbox replay [--policy <policy>] Replay pending mutations (server-wins, client-wins, merge)
   durability                        Verify WAL truncate checkpointing on exit
   status                            Display cache, CAS, and outbox metrics
+  tutorial [--port <port>]          Launch interactive Storybook tutorial & live docs
+  docs                              Alias for tutorial
   help, --help, -h                  Display this help message
 
 Options:
@@ -320,6 +331,16 @@ export async function dispatchCommand(parsed: ParsedCommand): Promise<void> {
           | string
           | undefined,
       });
+      break;
+    }
+    case 'tutorial':
+    case 'docs': {
+      const rawPort = parsed.options.port;
+      const port = rawPort !== undefined ? Number(rawPort) : undefined;
+      const host = parsed.options.host as string | undefined;
+      const dryRun = Boolean(parsed.options.dryRun || parsed.options['dry-run']);
+      const open = parsed.options.open !== undefined ? Boolean(parsed.options.open) : true;
+      await runTutorial({ port, host, dryRun, open });
       break;
     }
     default:

@@ -152,5 +152,44 @@
     "shipped_at": "2026-10-06T00:42:00.000000+00:00",
     "shipped_sha": "8f3759d",
     "promoted_at": "2026-10-06T00:47:49.719409+00:00"
+  },
+  {
+    "id": "F-012",
+    "title": "live-swr-playground",
+    "from_idea": "I-012",
+    "created_at": "2026-10-07T01:19:19.854060+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "1.4",
+    "epic": "E-004",
+    "claimed_at": "2026-10-07T01:19:36.227395+00:00",
+    "shipped_at": "2026-10-07T01:26:11.159963+00:00",
+    "shipped_sha": "c904cdd8151b2e2be2fab35b30d0b60cd9232cf5"
+  },
+  {
+    "id": "F-013",
+    "title": "timing-controls-simulator",
+    "from_idea": "I-013",
+    "created_at": "2026-10-07T01:19:22.231742+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "1.4",
+    "epic": "E-004",
+    "claimed_at": "2026-10-07T01:26:24.878832+00:00",
+    "shipped_at": "2026-10-07T01:30:34.973672+00:00",
+    "shipped_sha": "b1e2297b2870b447b030585672962f78fb6d1a1e"
+  },
+  {
+    "id": "F-014",
+    "title": "multiplatform-tutorial-docs",
+    "from_idea": "I-014",
+    "created_at": "2026-10-07T01:19:22.352596+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "1.4",
+    "epic": "E-004",
+    "claimed_at": "2026-10-07T01:30:47.806454+00:00",
+    "shipped_at": "2026-10-07T01:36:37.930145+00:00",
+    "shipped_sha": "0e18a32b6408f67aa410c1baf88d9b2f989cb371"
   }
 ]

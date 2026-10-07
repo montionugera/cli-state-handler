@@ -31,5 +31,16 @@
     "verified_at": "2026-10-06T00:47:42.638803+00:00",
     "split_approved_by": null,
     "verifying_sha": null
+  },
+  {
+    "id": "E-004",
+    "title": "Interactive Storybook Tutorial & Live Documentation System",
+    "created_at": "2026-10-07T01:18:33.446480+00:00",
+    "status": "verified",
+    "release_version": "1.4",
+    "verified_sha": "9c86436376e9405f8994399f40c88a745dfc8ca3",
+    "verified_at": "2026-10-07T01:36:38.093907+00:00",
+    "split_approved_by": null,
+    "verifying_sha": null
   }
 ]

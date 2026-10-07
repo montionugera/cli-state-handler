@@ -59,6 +59,10 @@ node apps/cli/bin/ucsa.js status --db "$CLI_DB" --casDir "$CLI_CAS"
 
 echo "    8. Durability Checkpoint (PRAGMA wal_checkpoint TRUNCATE on exit):"
 node apps/cli/bin/ucsa.js durability --db "$CLI_DB"
+
+echo "    9. Tutorial & Docs CLI Launcher Verification:"
+node apps/cli/bin/ucsa.js tutorial --dry-run --port 6006
+node apps/cli/bin/ucsa.js docs --dry-run --port 6007
 echo "    ✓ Interactive CLI live full-chain passed cleanly."
 echo ""
 
@@ -81,15 +85,17 @@ echo "    ✓ C# Unity full-chain passed cleanly."
 echo ""
 
 # ------------------------------------------------------------------------------
-# Phase 5: Framework-Native Consumer Integrations (React 19 DOM & Flutter Widgets)
+# Phase 5: Framework-Native Consumer Integrations (React 19 DOM, Docs Studio & Flutter)
 # ------------------------------------------------------------------------------
-echo ">>> [Phase 5/5] Framework-Native UI Integrations (React 19 & Flutter)"
-echo "    Testing: React 19 useSyncExternalStore DOM Re-renders | Flutter WidgetTester Rebuilds"
+echo ">>> [Phase 5/5] Framework-Native UI Integrations (React 19 DOM, Docs Studio & Flutter)"
+echo "    Testing: React 19 useSyncExternalStore DOM Re-renders | Interactive Docs Studio | Flutter WidgetTester Rebuilds"
 pnpm test packages/core/tests/consumer/react-framework.test.tsx
+pnpm --filter @ucsa/docs test
+pnpm --filter @ucsa/docs build
 if command -v flutter >/dev/null 2>&1 && [ -f "packages/ucsa_flutter/pubspec.yaml" ]; then
   (cd packages/ucsa_flutter && flutter test)
 fi
-echo "    ✓ Framework-native UI consumers passed cleanly."
+echo "    ✓ Framework-native UI consumers and interactive docs studio passed cleanly."
 echo ""
 
 END_TOTAL=$(date +%s)
