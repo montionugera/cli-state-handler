@@ -110,58 +110,24 @@ namespace Ucsa.Unity.Storage
         }
 
         /// <summary>
-        /// Creates UCSA schema tables and indexes if they do not exist.
+        /// Creates UCSA schema tables and indexes by applying canonical migrations.
         /// </summary>
         public void InitSchema()
         {
             lock (_lock)
             {
-                using var cmd = _connection.CreateCommand();
-                cmd.CommandText = @"
-                    CREATE TABLE IF NOT EXISTS ucsa_query_cache (
-                        query_hash TEXT PRIMARY KEY,
-                        query_key TEXT NOT NULL,
-                        data_payload TEXT NOT NULL,
-                        etag TEXT,
-                        created_at INTEGER NOT NULL,
-                        stale_at INTEGER NOT NULL,
-                        expires_at INTEGER NOT NULL
-                    );
-                    CREATE INDEX IF NOT EXISTS idx_ucsa_cache_expires ON ucsa_query_cache(expires_at);
+                MigrationRunner.Migrate(_connection);
+            }
+        }
 
-                    CREATE TABLE IF NOT EXISTS ucsa_cache_tags (
-                        tag TEXT NOT NULL,
-                        query_hash TEXT NOT NULL,
-                        PRIMARY KEY (tag, query_hash),
-                        FOREIGN KEY (query_hash) REFERENCES ucsa_query_cache(query_hash) ON DELETE CASCADE
-                    );
-                    CREATE INDEX IF NOT EXISTS idx_ucsa_tags_hash ON ucsa_cache_tags(query_hash);
-                    CREATE INDEX IF NOT EXISTS idx_ucsa_tags_tag ON ucsa_cache_tags(tag);
-
-                    CREATE TABLE IF NOT EXISTS ucsa_mutation_outbox (
-                        mutation_id TEXT PRIMARY KEY,
-                        endpoint TEXT NOT NULL,
-                        method TEXT NOT NULL,
-                        headers TEXT,
-                        payload TEXT,
-                        status TEXT NOT NULL,
-                        retry_count INTEGER NOT NULL DEFAULT 0,
-                        created_at INTEGER NOT NULL,
-                        last_attempt_at INTEGER,
-                        error TEXT,
-                        forced INTEGER DEFAULT 0,
-                        conflict_policy TEXT
-                    );
-                    CREATE INDEX IF NOT EXISTS idx_ucsa_outbox_status ON ucsa_mutation_outbox(status, created_at);
-
-                    CREATE TABLE IF NOT EXISTS ucsa_cas_objects (
-                        hash TEXT PRIMARY KEY,
-                        size INTEGER NOT NULL,
-                        last_accessed_at INTEGER NOT NULL
-                    );
-                    CREATE INDEX IF NOT EXISTS idx_ucsa_cas_access ON ucsa_cas_objects(last_accessed_at);
-                ";
-                cmd.ExecuteNonQuery();
+        /// <summary>
+        /// Returns the current schema version from SQLite PRAGMA user_version.
+        /// </summary>
+        public int GetSchemaVersion()
+        {
+            lock (_lock)
+            {
+                return MigrationRunner.GetUserVersion(_connection);
             }
         }
 
@@ -421,6 +387,27 @@ namespace Ucsa.Unity.Storage
 
         #region Outbox Methods
 
+        private static string FormatStatus(OutboxMutationStatus status) => status switch
+        {
+            OutboxMutationStatus.InFlight => "in_flight",
+            OutboxMutationStatus.Failed => "failed",
+            _ => "pending"
+        };
+
+        private static OutboxMutationStatus ParseStatus(string statusStr)
+        {
+            if (string.Equals(statusStr, "in_flight", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(statusStr, "InFlight", StringComparison.OrdinalIgnoreCase))
+            {
+                return OutboxMutationStatus.InFlight;
+            }
+            if (string.Equals(statusStr, "failed", StringComparison.OrdinalIgnoreCase))
+            {
+                return OutboxMutationStatus.Failed;
+            }
+            return OutboxMutationStatus.Pending;
+        }
+
         /// <summary>
         /// Persists or updates an outbox mutation.
         /// </summary>
@@ -464,7 +451,7 @@ namespace Ucsa.Unity.Storage
                 cmd.Parameters.AddWithValue("$method", mutation.Method);
                 cmd.Parameters.AddWithValue("$headers", (object?)headersJson ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$payload", (object?)payloadJson ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("$status", mutation.Status.ToString());
+                cmd.Parameters.AddWithValue("$status", FormatStatus(mutation.Status));
                 cmd.Parameters.AddWithValue("$retry", mutation.RetryCount);
                 cmd.Parameters.AddWithValue("$created", mutation.CreatedAt);
                 cmd.Parameters.AddWithValue("$lastAttempt", (object?)mutation.LastAttemptAt ?? DBNull.Value);
@@ -517,7 +504,7 @@ namespace Ucsa.Unity.Storage
                     ? JsonSerializer.Deserialize<T>(payloadJson, SerializerOptions)
                     : default;
 
-                Enum.TryParse<OutboxMutationStatus>(statusStr, true, out var status);
+                var status = ParseStatus(statusStr);
                 ConflictPolicy? policy = null;
                 if (!string.IsNullOrEmpty(policyStr) && Enum.TryParse<ConflictPolicy>(policyStr, true, out var p))
                 {
@@ -584,7 +571,7 @@ namespace Ucsa.Unity.Storage
                         ? JsonSerializer.Deserialize<T>(payloadJson, SerializerOptions)
                         : default;
 
-                    Enum.TryParse<OutboxMutationStatus>(statusStr, true, out var status);
+                    var status = ParseStatus(statusStr);
                     ConflictPolicy? policy = null;
                     if (!string.IsNullOrEmpty(policyStr) && Enum.TryParse<ConflictPolicy>(policyStr, true, out var p))
                     {
@@ -634,7 +621,7 @@ namespace Ucsa.Unity.Storage
                         retry_count = COALESCE($retry, retry_count)
                     WHERE mutation_id = $id;
                 ";
-                cmd.Parameters.AddWithValue("$status", status.ToString());
+                cmd.Parameters.AddWithValue("$status", FormatStatus(status));
                 cmd.Parameters.AddWithValue("$lastAttempt", (object?)lastAttemptAt ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$error", (object?)error ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$retry", (object?)retryCount ?? DBNull.Value);

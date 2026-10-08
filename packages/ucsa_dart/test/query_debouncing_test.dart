@@ -18,7 +18,7 @@ void main() {
       final f1 = engine.fetchQuery(
         queryKey,
         () => fetchFn('a'),
-        debounceDuration: const Duration(milliseconds: 60),
+        debounceDuration: const Duration(milliseconds: 120),
       );
       expect(executionCount, equals(0));
 
@@ -27,7 +27,7 @@ void main() {
       final f2 = engine.fetchQuery(
         queryKey,
         () => fetchFn('ab'),
-        debounceDuration: const Duration(milliseconds: 60),
+        debounceDuration: const Duration(milliseconds: 120),
       );
       expect(executionCount, equals(0));
 
@@ -36,16 +36,16 @@ void main() {
       final f3 = engine.fetchQuery(
         queryKey,
         () => fetchFn('abc'),
-        debounceDuration: const Duration(milliseconds: 60),
+        debounceDuration: const Duration(milliseconds: 120),
       );
       expect(executionCount, equals(0));
 
-      // Wait 30ms (still within quiet period)
-      await Future.delayed(const Duration(milliseconds: 30));
+      // Wait 40ms (still within quiet period)
+      await Future.delayed(const Duration(milliseconds: 40));
       expect(executionCount, equals(0));
 
-      // Wait remaining 40ms (exceeding 60ms quiet period)
-      await Future.delayed(const Duration(milliseconds: 40));
+      // Wait remaining 100ms (exceeding 120ms quiet period)
+      await Future.delayed(const Duration(milliseconds: 100));
       expect(executionCount, equals(1));
 
       final results = await Future.wait([f1, f2, f3]);
@@ -65,7 +65,7 @@ void main() {
           executed = true;
           return {'status': 'ok'};
         },
-        debounceDuration: const Duration(milliseconds: 60),
+        debounceDuration: const Duration(milliseconds: 150),
       );
       final expectFuture = expectLater(f, throwsA(anything));
 

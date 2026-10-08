@@ -1,0 +1,18 @@
+{
+  "$schema": "./manifest.schema.json",
+  "version": 2,
+  "migrations": [
+    {
+      "version": 1,
+      "name": "baseline",
+      "file": "0001_baseline.sql",
+      "sha256": "fff0ce5e68c0644c5f61b60a05d9f50f6992392ad671abd06685da5a8c34f55c"
+    },
+    {
+      "version": 2,
+      "name": "payload_version",
+      "file": "0002_payload_version.sql",
+      "sha256": "ab2fb5ac83e34e2b7a13de446cb3cf37778dafddbce0c3c65b22906015712dc1"
+    }
+  ]
+}

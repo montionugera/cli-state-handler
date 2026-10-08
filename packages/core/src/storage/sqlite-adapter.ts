@@ -15,10 +15,12 @@ import {
   getLruCasObjects,
   type CasObjectRecord,
 } from './cas-lru.js';
+import { MigrationRunner, TARGET_SCHEMA_VERSION } from './migration-runner.js';
 
 export interface SqliteAdapterOptions {
   journalMode?: 'WAL' | 'MEMORY' | 'DELETE' | 'TRUNCATE' | 'PERSIST' | 'OFF';
   busyTimeout?: number;
+  targetSchemaVersion?: number;
 }
 
 export type SqliteCheckpointMode = 'PASSIVE' | 'FULL' | 'RESTART' | 'TRUNCATE';
@@ -32,6 +34,7 @@ interface QueryCacheRow {
   created_at: number;
   stale_at: number;
   expires_at: number;
+  payload_version?: number;
 }
 
 export class SqliteAdapter {
@@ -39,10 +42,11 @@ export class SqliteAdapter {
   private _isClosed = false;
 
   private _upsertQueryStmt!: Database.Statement<
-    [string, string, string, string | null, number, number, number]
+    [string, string, string, string | null, number, number, number, number]
   >;
   private _getQueryStmt!: Database.Statement<[string]>;
   private _deleteQueryStmt!: Database.Statement<[string]>;
+  private _updateQueryPayloadStmt!: Database.Statement<[string, number, string]>;
   private _getExpiredQueriesStmt!: Database.Statement<[number]>;
 
   constructor(dbPath: string = ':memory:', options?: SqliteAdapterOptions) {
@@ -60,7 +64,7 @@ export class SqliteAdapter {
     this._db.pragma(`journal_mode = ${journal}`);
     this._db.pragma('synchronous = NORMAL');
 
-    this.initSchema();
+    this.initSchema(options?.targetSchemaVersion);
   }
 
   /**
@@ -71,70 +75,37 @@ export class SqliteAdapter {
   }
 
   /**
-   * Initializes tables and indexes if they do not exist.
+   * Returns current user_version from SQLite schema.
+   */
+  getSchemaVersion(): number {
+    return MigrationRunner.getUserVersion(this._db);
+  }
+
+  /**
+   * Initializes tables and indexes by running migrations.
    * Compiles and caches prepared statements.
    */
-  initSchema(): void {
-    this._db.exec(`
-      CREATE TABLE IF NOT EXISTS ucsa_query_cache (
-        query_hash TEXT PRIMARY KEY,
-        query_key TEXT NOT NULL,
-        data_payload TEXT NOT NULL,
-        etag TEXT,
-        created_at INTEGER NOT NULL,
-        stale_at INTEGER NOT NULL,
-        expires_at INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_ucsa_cache_expires ON ucsa_query_cache(expires_at);
-
-      CREATE TABLE IF NOT EXISTS ucsa_cache_tags (
-        tag TEXT NOT NULL,
-        query_hash TEXT NOT NULL,
-        PRIMARY KEY (tag, query_hash),
-        FOREIGN KEY (query_hash) REFERENCES ucsa_query_cache(query_hash) ON DELETE CASCADE
-      );
-      CREATE INDEX IF NOT EXISTS idx_ucsa_tags_hash ON ucsa_cache_tags(query_hash);
-
-      CREATE TABLE IF NOT EXISTS ucsa_mutation_outbox (
-        mutation_id TEXT PRIMARY KEY,
-        endpoint TEXT NOT NULL,
-        method TEXT NOT NULL,
-        headers TEXT,
-        payload TEXT,
-        status TEXT NOT NULL CHECK(status IN ('pending', 'in_flight', 'failed')),
-        retry_count INTEGER NOT NULL DEFAULT 0,
-        created_at INTEGER NOT NULL,
-        last_attempt_at INTEGER,
-        error TEXT,
-        forced INTEGER DEFAULT 0
-      );
-      CREATE INDEX IF NOT EXISTS idx_ucsa_outbox_status ON ucsa_mutation_outbox(status, created_at);
-
-      CREATE TABLE IF NOT EXISTS ucsa_cas_objects (
-        hash TEXT PRIMARY KEY,
-        size INTEGER NOT NULL,
-        last_accessed_at INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_ucsa_cas_access ON ucsa_cas_objects(last_accessed_at);
-    `);
+  initSchema(targetVersion?: number): void {
+    MigrationRunner.migrate(this._db, targetVersion ?? TARGET_SCHEMA_VERSION);
 
     this._upsertQueryStmt = this._db.prepare<
-      [string, string, string, string | null, number, number, number]
+      [string, string, string, string | null, number, number, number, number]
     >(`
       INSERT INTO ucsa_query_cache (
-        query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at, payload_version
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(query_hash) DO UPDATE SET
         query_key = excluded.query_key,
         data_payload = excluded.data_payload,
         etag = excluded.etag,
         created_at = excluded.created_at,
         stale_at = excluded.stale_at,
-        expires_at = excluded.expires_at;
+        expires_at = excluded.expires_at,
+        payload_version = excluded.payload_version;
     `);
 
     this._getQueryStmt = this._db.prepare<[string]>(`
-      SELECT query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at
+      SELECT query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at, payload_version
       FROM ucsa_query_cache
       WHERE query_hash = ?;
     `);
@@ -143,8 +114,14 @@ export class SqliteAdapter {
       DELETE FROM ucsa_query_cache WHERE query_hash = ?;
     `);
 
+    this._updateQueryPayloadStmt = this._db.prepare<[string, number, string]>(`
+      UPDATE ucsa_query_cache
+      SET data_payload = ?, payload_version = ?
+      WHERE query_hash = ?;
+    `);
+
     this._getExpiredQueriesStmt = this._db.prepare<[number]>(`
-      SELECT query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at
+      SELECT query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at, payload_version
       FROM ucsa_query_cache
       WHERE expires_at <= ?;
     `);
@@ -157,6 +134,7 @@ export class SqliteAdapter {
     const serializedKey = JSON.stringify(entry.query_key);
     const serializedPayload = JSON.stringify(entry.data_payload);
     const etag = entry.etag ?? null;
+    const payloadVersion = entry.payload_version ?? 1;
 
     if (tags !== undefined) {
       const setWithTags = this._db.transaction(() => {
@@ -167,7 +145,8 @@ export class SqliteAdapter {
           etag,
           entry.created_at,
           entry.stale_at,
-          entry.expires_at
+          entry.expires_at,
+          payloadVersion
         );
         deleteTagsForQuery(this._db, entry.query_hash);
         if (tags.length > 0) {
@@ -183,9 +162,22 @@ export class SqliteAdapter {
         etag,
         entry.created_at,
         entry.stale_at,
-        entry.expires_at
+        entry.expires_at,
+        payloadVersion
       );
     }
+  }
+
+  /**
+   * Updates only the data payload and payload version for an existing query entry in SQLite.
+   */
+  updateQueryPayload(
+    queryHash: string,
+    dataPayload: unknown,
+    payloadVersion: number
+  ): void {
+    const serializedPayload = JSON.stringify(dataPayload);
+    this._updateQueryPayloadStmt.run(serializedPayload, payloadVersion, queryHash);
   }
 
   /**
@@ -203,6 +195,7 @@ export class SqliteAdapter {
       created_at: row.created_at,
       stale_at: row.stale_at,
       expires_at: row.expires_at,
+      payload_version: row.payload_version ?? 1,
     };
   }
 
@@ -252,6 +245,7 @@ export class SqliteAdapter {
       created_at: row.created_at,
       stale_at: row.stale_at,
       expires_at: row.expires_at,
+      payload_version: row.payload_version ?? 1,
     }));
   }
 

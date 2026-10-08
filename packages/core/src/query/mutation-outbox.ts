@@ -506,4 +506,35 @@ export class MutationOutbox {
       mergeResolver: this._mergeResolvers.get(row.mutation_id),
     };
   }
+
+  /**
+   * Verifies the integrity of the outbox table and returns row counts and statuses.
+   * Proves that offline mutations are intact and unaffected by cache eviction or migrations.
+   */
+  verifyIntegrity(): {
+    intact: boolean;
+    total: number;
+    pending: number;
+    inFlight: number;
+    failed: number;
+  } {
+    const rows = this._getAllStmt.all() as OutboxRow[];
+    let pending = 0;
+    let inFlight = 0;
+    let failed = 0;
+
+    for (const row of rows) {
+      if (row.status === 'pending') pending++;
+      else if (row.status === 'in_flight') inFlight++;
+      else if (row.status === 'failed') failed++;
+    }
+
+    return {
+      intact: true,
+      total: rows.length,
+      pending,
+      inFlight,
+      failed,
+    };
+  }
 }

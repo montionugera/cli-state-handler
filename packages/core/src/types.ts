@@ -24,6 +24,7 @@ export interface CacheEntry<TData = unknown> {
   created_at: number;
   stale_at: number;
   expires_at: number;
+  payload_version?: number;
 }
 
 /**

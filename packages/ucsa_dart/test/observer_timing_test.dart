@@ -17,7 +17,7 @@ void main() {
         engine,
         queryKey,
         (data) => data['price'] as int,
-        throttleDuration: const Duration(milliseconds: 100),
+        throttleDuration: const Duration(milliseconds: 200),
       );
 
       final unsubscribe = observer.subscribe(() {
@@ -32,7 +32,7 @@ void main() {
       expect(listenerCount, equals(1));
       expect(lastPrice, equals(151));
 
-      // 2. Rapid updates within 100ms window are suppressed
+      // 2. Rapid updates within 200ms window are suppressed
       await Future.delayed(const Duration(milliseconds: 20));
       engine.setQueryData(queryKey, {'symbol': 'AAPL', 'price': 152});
 
@@ -45,8 +45,8 @@ void main() {
       expect(listenerCount, equals(1));
       expect(lastPrice, equals(151));
 
-      // 3. Wait until throttle window expires (100ms total): trailing edge fires once with latest price (154)
-      await Future.delayed(const Duration(milliseconds: 60));
+      // 3. Wait until throttle window expires (200ms total): trailing edge fires once with latest price (154)
+      await Future.delayed(const Duration(milliseconds: 160));
       expect(listenerCount, equals(2));
       expect(lastPrice, equals(154));
 

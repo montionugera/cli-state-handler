@@ -20,6 +20,20 @@ export type {
   CheckpointMode,
 } from './storage/sqlite-adapter.js';
 export {
+  MigrationRunner,
+  DatabaseVersionTooNewError,
+  MigrationChecksumMismatchError,
+  MigrationError,
+  TARGET_SCHEMA_VERSION,
+  BASELINE_SQL,
+  CANONICAL_MIGRATIONS,
+  computeSqlChecksum,
+} from './storage/migration-runner.js';
+export type {
+  MigrationDefinition,
+  AppliedMigrationRecord,
+} from './storage/migration-runner.js';
+export {
   insertTags,
   getQueryHashesByTag,
   deleteTagsForQuery,
@@ -146,4 +160,16 @@ export type {
   ProcessLike,
   CliDurabilityManagerOptions,
 } from './cli/durability.js';
+
+export {
+  PayloadRegistry,
+  MissingUpcasterError,
+  InvalidVersionError,
+  IncompatiblePayloadError,
+} from './query/payload-upcaster.js';
+export type {
+  PayloadUpcaster,
+  UpcastContext,
+  UpcastResult,
+} from './query/payload-upcaster.js';
 

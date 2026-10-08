@@ -8,3 +8,4 @@ export 'src/structural_sharing.dart';
 export 'src/cas_store.dart';
 export 'src/query_engine.dart';
 export 'src/selector_observer.dart';
+export 'src/migration_runner.dart';

@@ -1,6 +1,10 @@
 import type { CacheEntry, QueryKey, QueryState } from '../types.js';
 import type { SqliteAdapter } from '../storage/sqlite-adapter.js';
 import { replaceEqualDeep, isPlainObject } from './structural-sharing.js';
+import {
+  type PayloadRegistry,
+  IncompatiblePayloadError,
+} from './payload-upcaster.js';
 
 export interface QueryEngineOptions {
   /**
@@ -21,6 +25,27 @@ export interface QueryEngineOptions {
    * @default 300000 (5 minutes)
    */
   defaultGcTime?: number;
+
+  /**
+   * Optional payload registry for automatic schema and payload upcasting.
+   */
+  payloadRegistry?: PayloadRegistry;
+
+  /**
+   * Target payload version for cached entries.
+   * If an entry's payload_version is lower than targetPayloadVersion,
+   * it will be lazily upcasted on cache read and written back to SQLite.
+   */
+  targetPayloadVersion?: number;
+
+  /**
+   * Optional callback triggered when an incompatible, un-upcastable,
+   * or corrupt cached payload is selectively evicted.
+   */
+  onIncompatiblePayload?: (
+    err: Error,
+    entry: CacheEntry<unknown> | { query_hash: string; query_key?: QueryKey }
+  ) => void;
 }
 
 export interface QueryOptions {
@@ -171,6 +196,12 @@ export class QueryEngine {
   private readonly sqliteAdapter?: SqliteAdapter;
   private readonly defaultStaleTime: number;
   private readonly defaultGcTime: number;
+  private readonly payloadRegistry?: PayloadRegistry;
+  private readonly targetPayloadVersion?: number;
+  private readonly onIncompatiblePayload?: (
+    err: Error,
+    entry: CacheEntry<unknown> | { query_hash: string; query_key?: QueryKey }
+  ) => void;
 
   private readonly queries = new Map<string, InternalQueryRecord<unknown>>();
 
@@ -178,6 +209,9 @@ export class QueryEngine {
     this.sqliteAdapter = options?.sqliteAdapter;
     this.defaultStaleTime = options?.defaultStaleTime ?? 0;
     this.defaultGcTime = options?.defaultGcTime ?? 300000;
+    this.payloadRegistry = options?.payloadRegistry;
+    this.targetPayloadVersion = options?.targetPayloadVersion;
+    this.onIncompatiblePayload = options?.onIncompatiblePayload;
   }
 
   /**
@@ -475,26 +509,38 @@ export class QueryEngine {
     const hash = hashQueryKey(queryKey);
     const record = this.queries.get(hash) as InternalQueryRecord<T> | undefined;
     if (record) {
-      return record.state;
+      try {
+        this.maybeUpcastRecord(record);
+        return record.state;
+      } catch (err) {
+        this.handleIncompatibleEntry(hash, queryKey, record.entry, err);
+        return undefined;
+      }
     }
 
     if (this.sqliteAdapter) {
-      const entry = this.sqliteAdapter.getQuery<T>(hash);
-      if (entry && Date.now() <= entry.expires_at) {
-        const newRecord: InternalQueryRecord<T> = {
-          queryKey,
-          hash,
-          entry,
-          subscribers: new Set(),
-          state: {
-            status: 'success',
-            data: entry.data_payload,
-            dataUpdatedAt: entry.created_at,
-            isFetching: false,
-          },
-        };
-        this.queries.set(hash, newRecord as InternalQueryRecord<unknown>);
-        return newRecord.state;
+      try {
+        let entry = this.sqliteAdapter.getQuery<T>(hash);
+        if (entry && Date.now() <= entry.expires_at) {
+          entry = this.maybeUpcastEntry(queryKey, hash, entry);
+          const newRecord: InternalQueryRecord<T> = {
+            queryKey,
+            hash,
+            entry,
+            subscribers: new Set(),
+            state: {
+              status: 'success',
+              data: entry.data_payload,
+              dataUpdatedAt: entry.created_at,
+              isFetching: false,
+            },
+          };
+          this.queries.set(hash, newRecord as InternalQueryRecord<unknown>);
+          return newRecord.state;
+        }
+      } catch (err) {
+        this.handleIncompatibleEntry(hash, queryKey, undefined, err);
+        return undefined;
       }
     }
 
@@ -543,6 +589,7 @@ export class QueryEngine {
       created_at: now,
       stale_at: now + staleTime,
       expires_at: now + gcTime,
+      payload_version: this.targetPayloadVersion ?? 1,
     };
     record.entry = entry;
 
@@ -614,6 +661,7 @@ export class QueryEngine {
           created_at: now,
           stale_at: now + staleTime,
           expires_at: now + gcTime,
+          payload_version: this.targetPayloadVersion ?? 1,
         };
         record.entry = entry;
 
@@ -668,32 +716,42 @@ export class QueryEngine {
   ): InternalQueryRecord<T> {
     let record = this.queries.get(hash) as InternalQueryRecord<T> | undefined;
     if (record) {
-      return record;
+      try {
+        this.maybeUpcastRecord(record);
+        return record;
+      } catch (err) {
+        this.handleIncompatibleEntry(hash, queryKey, record.entry, err);
+      }
     }
 
     if (this.sqliteAdapter) {
-      const entry = this.sqliteAdapter.getQuery<T>(hash);
-      if (entry) {
-        if (Date.now() <= entry.expires_at) {
-          record = {
-            queryKey,
-            hash,
-            entry,
-            tags: options?.tags,
-            options,
-            subscribers: new Set(),
-            state: {
-              status: 'success',
-              data: entry.data_payload,
-              dataUpdatedAt: entry.created_at,
-              isFetching: false,
-            },
-          };
-          this.queries.set(hash, record as InternalQueryRecord<unknown>);
-          return record;
-        } else {
-          this.sqliteAdapter.deleteQuery(hash);
+      try {
+        let entry = this.sqliteAdapter.getQuery<T>(hash);
+        if (entry) {
+          if (Date.now() <= entry.expires_at) {
+            entry = this.maybeUpcastEntry(queryKey, hash, entry);
+            record = {
+              queryKey,
+              hash,
+              entry,
+              tags: options?.tags,
+              options,
+              subscribers: new Set(),
+              state: {
+                status: 'success',
+                data: entry.data_payload,
+                dataUpdatedAt: entry.created_at,
+                isFetching: false,
+              },
+            };
+            this.queries.set(hash, record as InternalQueryRecord<unknown>);
+            return record;
+          } else {
+            this.sqliteAdapter.deleteQuery(hash);
+          }
         }
+      } catch (err) {
+        this.handleIncompatibleEntry(hash, queryKey, undefined, err);
       }
     }
 
@@ -714,12 +772,133 @@ export class QueryEngine {
     return record;
   }
 
+  private handleIncompatibleEntry(
+    hash: string,
+    queryKey: QueryKey,
+    entry: CacheEntry<unknown> | undefined,
+    err: unknown
+  ): void {
+    this.queries.delete(hash);
+    if (this.sqliteAdapter) {
+      try {
+        this.sqliteAdapter.deleteQuery(hash);
+      } catch {
+        // ignore
+      }
+    }
+    const normalizedError =
+      err instanceof Error ? err : new IncompatiblePayloadError(String(err));
+    if (this.onIncompatiblePayload) {
+      try {
+        this.onIncompatiblePayload(
+          normalizedError,
+          entry ?? { query_hash: hash, query_key: queryKey }
+        );
+      } catch {
+        // ignore telemetry errors
+      }
+    }
+  }
+
   private notifySubscribers(record: InternalQueryRecord<unknown>): void {
     for (const sub of Array.from(record.subscribers)) {
       try {
         sub();
       } catch (err) {
         console.error('Error in query subscriber:', err);
+      }
+    }
+  }
+
+  private maybeUpcastEntry<T>(
+    queryKey: QueryKey,
+    hash: string,
+    entry: CacheEntry<T>
+  ): CacheEntry<T> {
+    const currentVersion = entry.payload_version ?? 1;
+    if (
+      this.payloadRegistry &&
+      this.targetPayloadVersion !== undefined &&
+      currentVersion < this.targetPayloadVersion
+    ) {
+      try {
+        const upcastResult = this.payloadRegistry.upcast<T>(
+          queryKey,
+          entry.data_payload,
+          currentVersion,
+          this.targetPayloadVersion
+        );
+        entry.data_payload = upcastResult.data;
+        entry.payload_version = this.targetPayloadVersion;
+
+        if (this.sqliteAdapter) {
+          try {
+            this.sqliteAdapter.updateQueryPayload(
+              hash,
+              entry.data_payload,
+              entry.payload_version
+            );
+          } catch {
+            // Resilience: do not fail cache read if background write-back fails
+          }
+        }
+      } catch (err) {
+        throw new IncompatiblePayloadError(
+          `Payload cannot be upcasted from version ${currentVersion} to ${this.targetPayloadVersion}: ${err instanceof Error ? err.message : String(err)}`,
+          {
+            queryKey,
+            payloadVersion: currentVersion,
+            targetVersion: this.targetPayloadVersion,
+            cause: err,
+          }
+        );
+      }
+    }
+    return entry;
+  }
+
+  private maybeUpcastRecord<T>(record: InternalQueryRecord<T>): void {
+    if (!record.entry) return;
+    const currentVersion = record.entry.payload_version ?? 1;
+    if (
+      this.payloadRegistry &&
+      this.targetPayloadVersion !== undefined &&
+      currentVersion < this.targetPayloadVersion
+    ) {
+      try {
+        const upcastResult = this.payloadRegistry.upcast<T>(
+          record.queryKey,
+          record.entry.data_payload,
+          currentVersion,
+          this.targetPayloadVersion
+        );
+        record.entry.data_payload = upcastResult.data;
+        record.entry.payload_version = this.targetPayloadVersion;
+        if (record.state.data !== undefined) {
+          record.state.data = upcastResult.data;
+        }
+
+        if (this.sqliteAdapter) {
+          try {
+            this.sqliteAdapter.updateQueryPayload(
+              record.hash,
+              record.entry.data_payload,
+              record.entry.payload_version
+            );
+          } catch {
+            // Resilience: do not fail cache read
+          }
+        }
+      } catch (err) {
+        throw new IncompatiblePayloadError(
+          `Payload cannot be upcasted from version ${currentVersion} to ${this.targetPayloadVersion}: ${err instanceof Error ? err.message : String(err)}`,
+          {
+            queryKey: record.queryKey,
+            payloadVersion: currentVersion,
+            targetVersion: this.targetPayloadVersion,
+            cause: err,
+          }
+        );
       }
     }
   }

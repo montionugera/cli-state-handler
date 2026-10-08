@@ -5,6 +5,7 @@ import {
   runDurability,
   runStatus,
   runTutorial,
+  runMigrate,
 } from './commands/index.js';
 
 export interface ParsedCommand {
@@ -51,14 +52,26 @@ export function parseArgs(argv: string[]): ParsedCommand {
         const key = optionBody.slice(0, eqIndex);
         const value = optionBody.slice(eqIndex + 1);
         options[key] = value;
+        if (key.includes('-')) {
+          const camel = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+          options[camel] = value;
+        }
       } else {
         const key = optionBody;
         const nextToken = argv[i + 1];
         if (nextToken !== undefined && !nextToken.startsWith('-')) {
           options[key] = nextToken;
+          if (key.includes('-')) {
+            const camel = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+            options[camel] = nextToken;
+          }
           i++;
         } else {
           options[key] = true;
+          if (key.includes('-')) {
+            const camel = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+            options[camel] = true;
+          }
         }
       }
       continue;
@@ -196,6 +209,30 @@ export function parseArgs(argv: string[]): ParsedCommand {
     };
   }
 
+  if (first === 'migrate') {
+    if (second !== undefined) {
+      return {
+        command: `migrate ${second}`,
+        args: rest,
+        options,
+      };
+    }
+    return {
+      command: 'migrate status',
+      args: [],
+      options,
+    };
+  }
+
+  if (first.startsWith('migrate:')) {
+    const subAction = first.slice(8);
+    return {
+      command: `migrate ${subAction}`,
+      args: positionals.slice(1),
+      options,
+    };
+  }
+
   return {
     command: first,
     args: positionals.slice(1),
@@ -218,6 +255,7 @@ Subcommands:
   outbox replay [--policy <policy>] Replay pending mutations (server-wins, client-wins, merge)
   durability                        Verify WAL truncate checkpointing on exit
   status                            Display cache, CAS, and outbox metrics
+  migrate [status|up|check|clean]   Inspect/apply schema migrations & evict incompatible cache
   tutorial [--port <port>]          Launch interactive Storybook tutorial & live docs
   docs                              Alias for tutorial
   help, --help, -h                  Display this help message
@@ -227,6 +265,7 @@ Options:
   --version, -v                     Show version
   --policy <policy>                 Conflict resolution policy (default: server-wins)
   --max <bytes>                     Maximum byte threshold for storage operations
+  --target-version <v>              Target schema/payload version for migrations
 `;
 }
 
@@ -341,6 +380,35 @@ export async function dispatchCommand(parsed: ParsedCommand): Promise<void> {
       const dryRun = Boolean(parsed.options.dryRun || parsed.options['dry-run']);
       const open = parsed.options.open !== undefined ? Boolean(parsed.options.open) : true;
       await runTutorial({ port, host, dryRun, open });
+      break;
+    }
+    case 'migrate':
+    case 'migrate status': {
+      await runMigrate('status', {
+        db: parsed.options.db as string | undefined,
+      });
+      break;
+    }
+    case 'migrate up': {
+      await runMigrate('up', {
+        db: parsed.options.db as string | undefined,
+      });
+      break;
+    }
+    case 'migrate check': {
+      await runMigrate('check', {
+        db: parsed.options.db as string | undefined,
+      });
+      break;
+    }
+    case 'migrate clean-incompatible': {
+      const rawTarget =
+        parsed.options.targetVersion ?? parsed.options['target-version'];
+      await runMigrate('clean-incompatible', {
+        db: parsed.options.db as string | undefined,
+        targetVersion:
+          rawTarget !== undefined ? Number(rawTarget) : undefined,
+      });
       break;
     }
     default:

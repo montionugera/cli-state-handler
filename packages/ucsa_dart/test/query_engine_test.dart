@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:test/test.dart';
 import 'package:ucsa_dart/ucsa_dart.dart';
 
@@ -650,6 +651,35 @@ void main() {
       expect(engine.getQueryData(queryKey), {'count': 2});
 
       unsubscribe();
+    });
+
+    test('selectively evicts corrupted JSON payload from SQLite on fetchQuery',
+        () async {
+      final adapter = SqliteAdapter.inMemory();
+      final queryKey = ['corrupt', 'user'];
+      final hash = hashQueryKey(queryKey);
+
+      // Insert corrupted JSON directly
+      adapter.db.execute(
+        'INSERT INTO ucsa_query_cache (query_hash, query_key, data_payload, created_at, stale_at, expires_at, payload_version) VALUES (?, ?, ?, ?, ?, ?, ?);',
+        [hash, jsonEncode(queryKey), 'INVALID_JSON_CORRUPT', 1000, 2000, 3000, 1],
+      );
+
+      final engine = QueryEngine(sqliteAdapter: adapter);
+
+      // fetchQuery should not throw, should evict corrupt row and fetch fresh data
+      final result = await engine.fetchQuery<Map<String, dynamic>>(
+        queryKey,
+        () async => {'id': 1, 'name': 'Alice'},
+      );
+
+      expect(result, {'id': 1, 'name': 'Alice'});
+
+      // Direct inspection of SQLite should now have valid entry
+      final updated = adapter.getQuery<dynamic>(hash);
+      expect(updated, isNotNull);
+      expect(updated!.dataPayload, {'id': 1, 'name': 'Alice'});
+      adapter.close();
     });
   });
 }

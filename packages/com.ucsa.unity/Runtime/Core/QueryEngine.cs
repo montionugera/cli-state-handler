@@ -596,25 +596,37 @@ namespace Ucsa.Unity.Core
 
             if (_sqliteAdapter != null)
             {
-                var entry = _sqliteAdapter.GetQuery<T>(hash);
-                if (entry != null && !entry.IsExpired())
+                try
                 {
-                    var record = new InternalQueryRecord<T>(this, queryKey, hash)
+                    var entry = _sqliteAdapter.GetQuery<T>(hash);
+                    if (entry != null && !entry.IsExpired())
                     {
-                        Entry = entry,
-                        State = new QueryState<T>(
-                            QueryStatus.Success,
-                            entry.DataPayload,
-                            dataUpdatedAt: entry.CreatedAt,
-                            isFetching: false)
-                    };
+                        var record = new InternalQueryRecord<T>(this, queryKey, hash)
+                        {
+                            Entry = entry,
+                            State = new QueryState<T>(
+                                QueryStatus.Success,
+                                entry.DataPayload,
+                                dataUpdatedAt: entry.CreatedAt,
+                                isFetching: false)
+                        };
 
+                        lock (_lock)
+                        {
+                            _queries[hash] = record;
+                        }
+
+                        return record.State.Clone();
+                    }
+                }
+                catch
+                {
                     lock (_lock)
                     {
-                        _queries[hash] = record;
+                        _queries.Remove(hash);
                     }
-
-                    return record.State.Clone();
+                    try { _sqliteAdapter.DeleteQuery(hash); } catch { }
+                    return null;
                 }
             }
 
@@ -823,29 +835,37 @@ namespace Ucsa.Unity.Core
             // Check SQLite on cold start
             if (_sqliteAdapter != null)
             {
-                var entry = _sqliteAdapter.GetQuery<T>(hash);
-                if (entry != null)
+                try
                 {
-                    if (!entry.IsExpired())
+                    var entry = _sqliteAdapter.GetQuery<T>(hash);
+                    if (entry != null)
                     {
-                        var rec = new InternalQueryRecord<T>(this, queryKey, hash)
+                        if (!entry.IsExpired())
                         {
-                            Entry = entry,
-                            Tags = options?.Tags,
-                            Options = options,
-                            State = new QueryState<T>(
-                                QueryStatus.Success,
-                                entry.DataPayload,
-                                dataUpdatedAt: entry.CreatedAt,
-                                isFetching: false)
-                        };
-                        _queries[hash] = rec;
-                        return rec;
+                            var rec = new InternalQueryRecord<T>(this, queryKey, hash)
+                            {
+                                Entry = entry,
+                                Tags = options?.Tags,
+                                Options = options,
+                                State = new QueryState<T>(
+                                    QueryStatus.Success,
+                                    entry.DataPayload,
+                                    dataUpdatedAt: entry.CreatedAt,
+                                    isFetching: false)
+                            };
+                            _queries[hash] = rec;
+                            return rec;
+                        }
+                        else
+                        {
+                            _sqliteAdapter.DeleteQuery(hash);
+                        }
                     }
-                    else
-                    {
-                        _sqliteAdapter.DeleteQuery(hash);
-                    }
+                }
+                catch
+                {
+                    _queries.Remove(hash);
+                    try { _sqliteAdapter.DeleteQuery(hash); } catch { }
                 }
             }
 

@@ -36,6 +36,12 @@ Abstracted via the `TransportAdapter` interface:
 - **GraphQL**: Query document hashing and schema-driven entity tagging.
 - **gRPC / WebSockets / SSE**: Unified async subscription protocol with real-time push invalidations.
 
+### 6. Deterministic Schema Versioning & Migrations
+- **`PRAGMA user_version`**: Explicit SQLite schema version tracking with transactional guarantees.
+- **`ucsa_migrations`**: Immutable ledger recording migration version, name, applied timestamp, and SHA-256 checksum.
+- **Canonical Contracts (`contracts/migrations/`)**: Language-neutral baseline SQL definitions shared across TypeScript, Dart, and C#.
+- **Zero-Data-Loss Legacy Adoption**: Seamlessly upgrades unversioned databases to version 1 while preserving 100% of cached data.
+
 ---
 
 ## Architecture Overview
@@ -258,6 +264,57 @@ Queries can be tagged with domain identifiers (e.g. `users`, `repo:42`). `invali
 // Invalidate all queries tagged with 'users'
 const invalidatedHashes = await queryEngine.invalidateByTag('users');
 console.log(`Invalidated ${invalidatedHashes.length} queries`);
+```
+
+### 6. Payload Versioning Pipeline & On-Read Upcasting (`PayloadRegistry`)
+
+When application data models evolve across releases, cached payloads on disk may reflect older schemas. UCSA provides `PayloadRegistry` and lazy on-read upcasting integrated directly into `QueryEngine`:
+
+- **Canonical Migration `0002_payload_version.sql`**: Introduces a dedicated `payload_version INTEGER NOT NULL DEFAULT 1` column to `ucsa_query_cache` with an index, tracking version numbers per cached query row across TypeScript, Dart, and C#.
+- **Sequential Multi-Version Chaining**: Define discrete step transformations (e.g. `v1 -> v2` and `v2 -> v3`). The engine uses breadth-first search (BFS) to automatically discover the shortest chained transformation path (e.g. `1 -> 2 -> 3`).
+- **Lazy On-Read Elevation**: When `getQueryData`, `fetchQuery`, or `useQuery` reads a cache entry whose `payload_version < targetPayloadVersion`, it transforms the payload transparently into the target structure without blocking or requiring bulk offline database rewrites.
+- **Immediate Write-Back**: Upcasted payloads and their updated version numbers are persisted back to SQLite without adding latency to the consumer read path.
+- **Prefix & Wildcard Routing**: Upcasters are registered by query key prefixes or patterns (e.g. `['users', '*']`), allowing fine-grained domain payload transformations.
+
+```typescript
+import { QueryEngine, SqliteAdapter, PayloadRegistry } from 'cli-state-handler';
+
+// 1. Define transformation steps in the payload registry
+const registry = new PayloadRegistry();
+
+// Step 1 -> 2: Flatten user profile name
+registry.register<{ name: string }, { fullName: string; migrated: boolean }>(
+  'users',
+  1,
+  2,
+  (v1, ctx) => ({
+    fullName: v1.name,
+    migrated: true,
+  })
+);
+
+// Step 2 -> 3: Nest into structured user object
+registry.register<{ fullName: string; migrated: boolean }, { profile: { fullName: string }; v: 3 }>(
+  'users',
+  2,
+  3,
+  (v2, ctx) => ({
+    profile: { fullName: v2.fullName },
+    v: 3,
+  })
+);
+
+// 2. Configure QueryEngine with registry and target version
+const sqliteAdapter = new SqliteAdapter('./.cache/state.db');
+const engine = new QueryEngine({
+  sqliteAdapter,
+  payloadRegistry: registry,
+  targetPayloadVersion: 3,
+});
+
+// 3. Read cached entry - automatically chains 1 -> 2 -> 3 and writes back to SQLite
+const user = engine.getQueryData<{ profile: { fullName: string }; v: 3 }>(['users', 42]);
+console.log(user?.profile.fullName);
 ```
 
 ---
@@ -1252,6 +1309,33 @@ void main() async {
 }
 ```
 
+### 5. Schema Migration Runner & Version Parity (`MigrationRunner`)
+
+`MigrationRunner` in `packages/ucsa_dart` ensures binary-level database compatibility with TypeScript and C# Unity:
+
+```dart
+import 'package:sqlite3/sqlite3.dart';
+import 'package:ucsa_dart/ucsa_dart.dart';
+
+void main() {
+  final db = sqlite3.open('./.cache/app_state.db');
+
+  // Inspect current schema version (PRAGMA user_version)
+  final initialVersion = MigrationRunner.getUserVersion(db);
+  print('Current schema version: $initialVersion');
+
+  // Execute pending migrations up to targetSchemaVersion (version 1)
+  final result = MigrationRunner.migrate(db);
+  print('Migrated to version ${result.currentVersion} (${result.appliedCount} applied)');
+
+  // Verify applied migration ledger
+  final ledger = MigrationRunner.getAppliedMigrations(db);
+  print('Baseline checksum: ${ledger[1]?.checksum}');
+
+  db.dispose();
+}
+```
+
 ---
 
 ## Interactive CLI POC (`apps/cli`)
@@ -1633,6 +1717,88 @@ public class AvatarLoader : MonoBehaviour
 }
 ```
 
+#### 4. Schema Migration Runner & Parity (`MigrationRunner`)
+
+`MigrationRunner` in `packages/com.ucsa.unity` guarantees identical SQLite database compatibility across platforms:
+
+```csharp
+using Microsoft.Data.Sqlite;
+using Ucsa.Unity.Storage;
+
+public class StorageInitializer
+{
+    public void InitializeDatabase(string dbPath)
+    {
+        using var conn = new SqliteConnection($"Data Source={dbPath}");
+        conn.Open();
+
+        // Check user_version PRAGMA
+        int currentVersion = MigrationRunner.GetUserVersion(conn);
+        UnityEngine.Debug.Log($"Current schema version: {currentVersion}");
+
+        // Execute pending migrations up to TargetSchemaVersion (version 1)
+        var result = MigrationRunner.Migrate(conn);
+        UnityEngine.Debug.Log($"Migrated to version {result.CurrentVersion} ({result.AppliedCount} applied)");
+    }
+}
+```
+
+---
+
+## Incompatibility Selective Eviction & Outbox Salvage Protection
+
+When client applications upgrade across releases, local cache entries may become obsolete, corrupted, or incompatible with newer entity definitions. Rather than failing queries, crashing the client process, or wiping the entire SQLite database, UCSA employs **Incompatibility Selective Eviction**:
+
+### 1. Transparent Resilience on Read
+
+- **Isolated Error Catching:** During cache reads (`getQueryData`, `fetchQuery`, `useQuery`), if JSON parsing fails or `PayloadRegistry.upcast()` cannot find an upgrade path, `IncompatiblePayloadError` is handled gracefully.
+- **Selective Row Eviction:** Only the specific corrupted or un-upcastable record (and its associated tags in `ucsa_cache_tags`) is evicted via `deleteQuery(queryHash)` from SQLite and memory. Valid cache entries remain intact.
+- **Telemetry Hook:** An optional `onIncompatiblePayload?: (err: Error, entry: CacheEntry) => void` callback is triggered for error tracking or analytics.
+- **Automatic Network Fallback:** `fetchQuery` and `useQuery` immediately proceed with a fresh fetch from the network via `queryFn` and persist the new payload at the current schema version.
+
+```typescript
+const engine = new QueryEngine({
+  sqliteAdapter,
+  payloadRegistry,
+  targetPayloadVersion: 2,
+  onIncompatiblePayload: (err, entry) => {
+    console.warn(`[telemetry] Selectively evicted cache entry ${entry.query_hash}:`, err.message);
+  },
+});
+
+// If the cached payload in SQLite is corrupted or cannot be upcasted:
+// 1. It is purged from SQLite and memory without crashing.
+// 2. Fresh data is fetched from the network and saved.
+const freshUser = await engine.fetchQuery(['users', 42], async () => {
+  return fetchUserFromServer(42);
+});
+```
+
+### 2. Outbox Salvage Protection (Zero Data Loss)
+
+Pending offline mutations in `ucsa_mutation_outbox` represent uncommitted user intent. Even under mass cache corruption, catastrophic decoding failures, or database migration upgrades:
+- **Foreign Key Isolation:** `ucsa_mutation_outbox` operates independently of `ucsa_query_cache`.
+- **Zero Rows Deleted:** Cache cleanup and selective eviction routines strictly verify that zero mutations are dropped or modified.
+- **Outbox Integrity Check:** `mutationOutbox.verifyIntegrity()` verifies that pending, in-flight, and failed mutations remain 100% intact.
+
+### 3. Migration CLI Suite (`ucsa migrate`)
+
+The UCSA CLI provides a dedicated management command suite for database inspections, migrations, and cache hygiene:
+
+```bash
+# 1. Inspect current schema version, applied migrations, and pending migrations
+ucsa migrate status [--db <path>]
+
+# 2. Apply all pending migrations sequentially in an atomic transaction
+ucsa migrate up [--db <path>]
+
+# 3. Check schema integrity (exits 0 if up-to-date, 1 if migrations are pending)
+ucsa migrate check [--db <path>]
+
+# 4. Scan cache, purge corrupted/un-upcastable entries, and verify outbox integrity
+ucsa migrate clean-incompatible [--db <path>] [--target-version <v>]
+```
+
 ---
 
 ## Development & Verification
@@ -1643,12 +1809,17 @@ public class AvatarLoader : MonoBehaviour
 | :--- | :--- | :--- | :--- |
 | **Types & Contracts** | `packages/core/tests/types.test.ts` | 7 | Passing (100%) |
 | **SQLite WAL Storage** | `packages/core/tests/storage/sqlite.test.ts` | 13 | Passing (100%) |
+| **Schema Migration Engine** | `packages/core/tests/storage/migration-runner.test.ts` | 9 | Passing (100%) |
+| **Cross-Language Fixtures** | `packages/core/tests/storage/cross-language-fixtures.test.ts` | 2 | Passing (100%) |
 | **CAS Store (SHA-256)** | `packages/core/tests/storage/cas.test.ts` | 13 | Passing (100%) |
 | **CAS LRU & Quotas** | `packages/core/tests/storage/cas-lru.test.ts` | 8 | Passing (100%) |
 | **Concurrency Safety** | `packages/core/tests/storage/concurrency.test.ts` | 3 | Passing (100%) |
 | **Query Lifecycle FSM** | `packages/core/tests/query/lifecycle.test.ts` | 20 | Passing (100%) |
 | **Query Engine & SWR** | `packages/core/tests/query/query-engine.test.ts` | 24 | Passing (100%) |
 | **Query Debouncing & Cancel** | `packages/core/tests/query/query-debouncing.test.ts` | 3 | Passing (100%) |
+| **Payload Registry Engine** | `packages/core/tests/query/payload-upcaster.test.ts` | 8 | Passing (100%) |
+| **Payload Versioning Integration** | `packages/core/tests/query/payload-versioning-integration.test.ts` | 4 | Passing (100%) |
+| **Selective Cache Eviction** | `packages/core/tests/query/selective-eviction.test.ts` | 6 | Passing (100%) |
 | **Mutation Outbox** | `packages/core/tests/query/outbox.test.ts` | 16 | Passing (100%) |
 | **Outbox Rate-Limit & Batch** | `packages/core/tests/query/outbox-rate-limit.test.ts` | 3 | Passing (100%) |
 | **Network Transports** | `packages/core/tests/network/transports.test.ts` | 23 | Passing (100%) |
@@ -1660,6 +1831,7 @@ public class AvatarLoader : MonoBehaviour
 | **CLI Argument Router** | `apps/cli/tests/router.test.ts` | 10 | Passing (100%) |
 | **CLI Commands Integration** | `apps/cli/tests/cli-commands.test.ts` | 11 | Passing (100%) |
 | **CLI Tutorial & Docs** | `apps/cli/tests/tutorial-command.test.ts` | 7 | Passing (100%) |
+| **CLI Migration Suite** | `apps/cli/tests/migrate-command.test.ts` | 6 | Passing (100%) |
 | **Live SWR Playground** | `apps/docs/tests/swr-playground.test.tsx` | 4 | Passing (100%) |
 | **Timing Controls Simulator** | `apps/docs/tests/timing-playground.test.tsx` | 3 | Passing (100%) |
 | **Offline Outbox Simulator** | `apps/docs/tests/outbox-playground.test.tsx` | 2 | Passing (100%) |
@@ -1667,8 +1839,9 @@ public class AvatarLoader : MonoBehaviour
 | **Multi-Platform Code Docs** | `apps/docs/tests/multiplatform-docs.test.tsx` | 5 | Passing (100%) |
 | **Dart Lifecycle FSM** | `packages/ucsa_dart/test/lifecycle_test.dart` | 15 | Passing (100%) |
 | **Dart SQLite WAL Storage** | `packages/ucsa_dart/test/sqlite_test.dart` | 19 | Passing (100%) |
+| **Dart Schema Migrations** | `packages/ucsa_dart/test/migration_test.dart` | 6 | Passing (100%) |
 | **Dart CAS Store & SHA-256** | `packages/ucsa_dart/test/cas_test.dart` | 11 | Passing (100%) |
-| **Dart SWR Query Engine** | `packages/ucsa_dart/test/query_engine_test.dart` | 20 | Passing (100%) |
+| **Dart SWR Query Engine** | `packages/ucsa_dart/test/query_engine_test.dart` | 21 | Passing (100%) |
 | **Dart Query Debouncing** | `packages/ucsa_dart/test/query_debouncing_test.dart` | 2 | Passing (100%) |
 | **Dart Zero-Rebuild Observer** | `packages/ucsa_dart/test/observer_test.dart` | 4 | Passing (100%) |
 | **Dart Observer Throttling** | `packages/ucsa_dart/test/observer_timing_test.dart` | 2 | Passing (100%) |
@@ -1679,14 +1852,15 @@ public class AvatarLoader : MonoBehaviour
 | **Unity State Observer** | `packages/com.ucsa.unity/Tests/Runtime/StateObserverTests.cs` | 8 | Passing (100%) |
 | **Unity State Observer Timing** | `packages/com.ucsa.unity/Tests/Runtime/StateObserverTimingTests.cs` | 2 | Passing (100%) |
 | **Unity SQLite WAL Storage** | `packages/com.ucsa.unity/Tests/Runtime/SqliteAdapterTests.cs` | 15 | Passing (100%) |
+| **Unity Schema Migrations** | `packages/com.ucsa.unity/Tests/Runtime/MigrationTests.cs` | 8 | Passing (100%) |
 | **Unity CAS Store & Prune** | `packages/com.ucsa.unity/Tests/Runtime/CasStoreTests.cs` | 14 | Passing (100%) |
-| **Unity SWR Query Engine** | `packages/com.ucsa.unity/Tests/Runtime/QueryEngineTests.cs` | 14 | Passing (100%) |
+| **Unity SWR Query Engine** | `packages/com.ucsa.unity/Tests/Runtime/QueryEngineTests.cs` | 15 | Passing (100%) |
 | **Unity Query Debouncing** | `packages/com.ucsa.unity/Tests/Runtime/QueryDebouncingTests.cs` | 3 | Passing (100%) |
 | **Unity Outbox Rate-Limiting** | `packages/com.ucsa.unity/Tests/Runtime/OutboxRateLimitTests.cs` | 2 | Passing (100%) |
 | **Unity Texture Cache** | `packages/com.ucsa.unity/Tests/Runtime/TextureCacheTests.cs` | 5 | Passing (100%) |
 | **Unity Behaviour Durability** | `packages/com.ucsa.unity/Tests/Runtime/UcsaBehaviourTests.cs` | 4 | Passing (100%) |
 | **Unity Full-Chain E2E Gate** | `packages/com.ucsa.unity/Tests/Runtime/E2EFullChainTests.cs` | 1 | Passing (100%) |
-| **Total** | **45 Test Suites** | **345 Tests** | **345 / 345 Passing (100%) (60 C# Unity + 76 Dart + 1 Flutter + 208 Node/TS/React/CLI/Docs)** |
+| **Total** | **53 Test Suites** | **396 Tests** | **396 / 396 Passing (100%) (69 C# Unity + 83 Dart + 1 Flutter + 243 Node/TS/React/CLI/Docs)** |
 
 ### Verification Commands
 
@@ -1698,16 +1872,16 @@ pnpm run test:full-chain
 # Run type checks and build
 pnpm run typecheck && pnpm run build
 
-# Run complete Vitest suite (208 tests across 24 files, including React DOM, CLI & Docs)
+# Run complete Vitest suite (243 tests across 30 files, including React DOM, CLI & Docs)
 pnpm test
 
 # Run Flutter widget test suite
 (cd packages/ucsa_flutter && flutter test)
 
-# Run complete Dart test suite (76 tests across 9 files)
+# Run complete Dart test suite (83 tests across 10 files)
 (cd packages/ucsa_dart && dart test)
 
-# Run complete C# Unity test suite (60 tests across 11 files)
+# Run complete C# Unity test suite (69 tests across 12 files)
 dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
 
 # Run Gate 1 precheck script (cross-platform verification)
@@ -1716,4 +1890,5 @@ dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
 # Run Gate 2 integration script (real datastore & platform engines)
 ./scripts/integration.sh
 ```
+
 

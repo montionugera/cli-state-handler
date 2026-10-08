@@ -96,5 +96,33 @@
     "created_at": "2026-10-07T01:18:51.932293+00:00",
     "promoted_to": "F-014",
     "epic": "E-004"
+  },
+  {
+    "id": "I-015",
+    "title": "schema-migration-engine",
+    "created_at": "2026-10-08T14:46:54.318480+00:00",
+    "promoted_to": "F-015",
+    "epic": "E-005"
+  },
+  {
+    "id": "I-016",
+    "title": "cross-language-migration-parity",
+    "created_at": "2026-10-08T14:46:54.320051+00:00",
+    "promoted_to": "F-016",
+    "epic": "E-005"
+  },
+  {
+    "id": "I-017",
+    "title": "payload-versioning-pipeline",
+    "created_at": "2026-10-08T14:46:54.320565+00:00",
+    "promoted_to": "F-017",
+    "epic": "E-005"
+  },
+  {
+    "id": "I-018",
+    "title": "incompatibility-selective-eviction",
+    "created_at": "2026-10-08T14:46:54.321232+00:00",
+    "promoted_to": "F-018",
+    "epic": "E-005"
   }
 ]

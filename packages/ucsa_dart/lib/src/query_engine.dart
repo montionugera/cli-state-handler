@@ -483,31 +483,39 @@ class QueryEngine {
     }
 
     if (sqliteAdapter != null) {
-      final entry = sqliteAdapter!.getQuery<T>(
-        hash,
-        dataParser: dataParser,
-      );
-      if (entry != null &&
-          DateTime.now().millisecondsSinceEpoch <= entry.expiresAt) {
-        final newRecord = _InternalQueryRecord(
-          queryKey: queryKey,
-          hash: hash,
-          entry: entry,
+      try {
+        final entry = sqliteAdapter!.getQuery<T>(
+          hash,
           dataParser: dataParser,
-          state: QueryState<dynamic>(
+        );
+        if (entry != null &&
+            DateTime.now().millisecondsSinceEpoch <= entry.expiresAt) {
+          final newRecord = _InternalQueryRecord(
+            queryKey: queryKey,
+            hash: hash,
+            entry: entry,
+            dataParser: dataParser,
+            state: QueryState<dynamic>(
+              status: QueryStatus.success,
+              data: entry.dataPayload,
+              dataUpdatedAt: entry.createdAt,
+              isFetching: false,
+            ),
+          );
+          _queries[hash] = newRecord;
+          return QueryState<T>(
             status: QueryStatus.success,
             data: entry.dataPayload,
             dataUpdatedAt: entry.createdAt,
             isFetching: false,
-          ),
-        );
-        _queries[hash] = newRecord;
-        return QueryState<T>(
-          status: QueryStatus.success,
-          data: entry.dataPayload,
-          dataUpdatedAt: entry.createdAt,
-          isFetching: false,
-        );
+          );
+        }
+      } catch (_) {
+        _queries.remove(hash);
+        try {
+          sqliteAdapter!.deleteQuery(hash);
+        } catch (_) {}
+        return null;
       }
     }
 
@@ -719,33 +727,40 @@ class QueryEngine {
     }
 
     if (sqliteAdapter != null) {
-      final entry = sqliteAdapter!.getQuery<dynamic>(
-        hash,
-        dataParser: dataParser != null ? (j) => dataParser(j) : null,
-      );
-      if (entry != null) {
-        final now = DateTime.now().millisecondsSinceEpoch;
-        if (now <= entry.expiresAt) {
-          record = _InternalQueryRecord(
-            queryKey: queryKey,
-            hash: hash,
-            entry: entry,
-            tags: tags,
-            staleTime: staleTime,
-            gcTime: gcTime,
-            dataParser: dataParser,
-            state: QueryState<dynamic>(
-              status: QueryStatus.success,
-              data: entry.dataPayload,
-              dataUpdatedAt: entry.createdAt,
-              isFetching: false,
-            ),
-          );
-          _queries[hash] = record;
-          return record;
-        } else {
-          sqliteAdapter!.deleteQuery(hash);
+      try {
+        final entry = sqliteAdapter!.getQuery<dynamic>(
+          hash,
+          dataParser: dataParser != null ? (j) => dataParser(j) : null,
+        );
+        if (entry != null) {
+          final now = DateTime.now().millisecondsSinceEpoch;
+          if (now <= entry.expiresAt) {
+            record = _InternalQueryRecord(
+              queryKey: queryKey,
+              hash: hash,
+              entry: entry,
+              tags: tags,
+              staleTime: staleTime,
+              gcTime: gcTime,
+              dataParser: dataParser,
+              state: QueryState<dynamic>(
+                status: QueryStatus.success,
+                data: entry.dataPayload,
+                dataUpdatedAt: entry.createdAt,
+                isFetching: false,
+              ),
+            );
+            _queries[hash] = record;
+            return record;
+          } else {
+            sqliteAdapter!.deleteQuery(hash);
+          }
         }
+      } catch (_) {
+        _queries.remove(hash);
+        try {
+          sqliteAdapter!.deleteQuery(hash);
+        } catch (_) {}
       }
     }
 

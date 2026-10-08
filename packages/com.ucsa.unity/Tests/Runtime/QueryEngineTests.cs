@@ -319,5 +319,38 @@ namespace Ucsa.Unity.Tests.Runtime
 
             _engine.InvalidateQueries(new object[] { "zone" });
         }
+
+        [Test]
+        public async Task SelectivelyEvictsCorruptedCacheEntry_AndFetchesFresh()
+        {
+            var key = new object[] { "corrupted_zone" };
+            string hash = QueryKeyHasher.Hash(key);
+
+            // Directly insert corrupted JSON payload into SQLite
+            using (var cmd = _adapter.Connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    INSERT INTO ucsa_query_cache (
+                        query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at
+                    ) VALUES ($hash, $key, $payload, null, $now, $stale, $expires);
+                ";
+                cmd.Parameters.AddWithValue("$hash", hash);
+                cmd.Parameters.AddWithValue("$key", "[\"corrupted_zone\"]");
+                cmd.Parameters.AddWithValue("$payload", "NOT_VALID_JSON_{{");
+                cmd.Parameters.AddWithValue("$now", 1000L);
+                cmd.Parameters.AddWithValue("$stale", 2000L);
+                cmd.Parameters.AddWithValue("$expires", 3000L);
+                cmd.ExecuteNonQuery();
+            }
+
+            // Fresh fetch should not throw, should evict corrupted row and return fresh data
+            var data = await _engine.FetchQueryAsync<string>(key, ct => Task.FromResult("repaired_fresh_data"));
+            Assert.That(data, Is.EqualTo("repaired_fresh_data"));
+
+            // Verify entry in SQLite is now valid
+            var updated = _adapter.GetQuery<string>(hash);
+            Assert.That(updated, Is.Not.Null);
+            Assert.That(updated!.DataPayload, Is.EqualTo("repaired_fresh_data"));
+        }
     }
 }
