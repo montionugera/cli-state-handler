@@ -202,6 +202,8 @@ class OutboxMutation<T> {
   final String? error;
   final bool forced;
   final ConflictPolicy? conflictPolicy;
+  final String? leaseOwner;
+  final int? leaseUntil;
 
   const OutboxMutation({
     required this.mutationId,
@@ -216,6 +218,8 @@ class OutboxMutation<T> {
     this.error,
     this.forced = false,
     this.conflictPolicy,
+    this.leaseOwner,
+    this.leaseUntil,
   });
 
   bool get isPending => status == OutboxMutationStatus.pending;
@@ -235,6 +239,8 @@ class OutboxMutation<T> {
     String? error,
     bool? forced,
     ConflictPolicy? conflictPolicy,
+    String? leaseOwner,
+    int? leaseUntil,
   }) {
     return OutboxMutation<T>(
       mutationId: mutationId ?? this.mutationId,
@@ -249,6 +255,8 @@ class OutboxMutation<T> {
       error: error ?? this.error,
       forced: forced ?? this.forced,
       conflictPolicy: conflictPolicy ?? this.conflictPolicy,
+      leaseOwner: leaseOwner ?? this.leaseOwner,
+      leaseUntil: leaseUntil ?? this.leaseUntil,
     );
   }
 
@@ -266,6 +274,8 @@ class OutboxMutation<T> {
         if (forced) 'forced': forced,
         if (conflictPolicy != null)
           'conflict_policy': conflictPolicy!.toWireString(),
+        if (leaseOwner != null) 'lease_owner': leaseOwner,
+        if (leaseUntil != null) 'lease_until': leaseUntil,
       };
 
   factory OutboxMutation.fromJson(
@@ -306,6 +316,8 @@ class OutboxMutation<T> {
       error: json['error'] as String?,
       forced: (json['forced'] == true || json['forced'] == 1),
       conflictPolicy: parsedPolicy,
+      leaseOwner: json['lease_owner'] as String?,
+      leaseUntil: json['lease_until'] as int?,
     );
   }
 
@@ -319,7 +331,9 @@ class OutboxMutation<T> {
           method == other.method &&
           status == other.status &&
           retryCount == other.retryCount &&
-          createdAt == other.createdAt;
+          createdAt == other.createdAt &&
+          leaseOwner == other.leaseOwner &&
+          leaseUntil == other.leaseUntil;
 
   @override
   int get hashCode => Object.hash(
@@ -329,11 +343,13 @@ class OutboxMutation<T> {
         status,
         retryCount,
         createdAt,
+        leaseOwner,
+        leaseUntil,
       );
 
   @override
   String toString() =>
-      'OutboxMutation($mutationId, $method $endpoint, status: ${status.name}, retries: $retryCount)';
+      'OutboxMutation($mutationId, $method $endpoint, status: ${status.name}, retries: $retryCount, leaseOwner: $leaseOwner, leaseUntil: $leaseUntil)';
 }
 
 /// Result of replaying offline mutations.
@@ -459,4 +475,67 @@ class CancellationToken {
       _listeners.add(listener);
     }
   }
+}
+
+/// Category of persistent event logged to ucsa_change_log.
+enum ChangeLogKind {
+  invalidate,
+  mutation,
+  stream,
+  reset;
+
+  String toWireString() => name;
+
+  static ChangeLogKind fromString(String value) => switch (value) {
+        'invalidate' => invalidate,
+        'mutation' => mutation,
+        'stream' => stream,
+        'reset' => reset,
+        _ => throw ArgumentError('Unknown ChangeLogKind: $value'),
+      };
+}
+
+/// Authoritative row in ucsa_change_log table.
+class ChangeLogRow {
+  final int seq;
+  final String origin;
+  final ChangeLogKind kind;
+  final List<String>? tags;
+  final List<String>? queryHashes;
+  final Map<String, dynamic>? detail;
+  final int createdAt;
+
+  const ChangeLogRow({
+    required this.seq,
+    required this.origin,
+    required this.kind,
+    this.tags,
+    this.queryHashes,
+    this.detail,
+    required this.createdAt,
+  });
+
+  List<String>? get query_hashes => queryHashes;
+  int get created_at => createdAt;
+
+  @override
+  String toString() =>
+      'ChangeLogRow(seq: $seq, origin: $origin, kind: ${kind.name}, tags: $tags, queryHashes: $queryHashes)';
+}
+
+/// Result of reading changes from ucsa_change_log with gap/truncation detection.
+class ReadChangesResult {
+  final List<ChangeLogRow> rows;
+  final bool truncated;
+  final int headSeq;
+
+  const ReadChangesResult({
+    required this.rows,
+    required this.truncated,
+    required this.headSeq,
+  });
+
+  @override
+  String toString() =>
+      'ReadChangesResult(rows: ${rows.length}, truncated: $truncated, headSeq: $headSeq)';
 }

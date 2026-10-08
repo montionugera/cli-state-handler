@@ -7,6 +7,7 @@ vi.mock('../src/commands/index.js', () => ({
   runOutbox: vi.fn(async () => console.log('[mock:outbox]')),
   runDurability: vi.fn(async () => console.log('[mock:durability]')),
   runStatus: vi.fn(async () => console.log('[mock:status]')),
+  runDaemon: vi.fn(async () => console.log('[mock:daemon]')),
 }));
 
 describe('CLI Router', () => {
@@ -74,6 +75,11 @@ describe('CLI Router', () => {
       const statusParsed = parseArgs(['status']);
       expect(statusParsed.command).toBe('status');
       expect(statusParsed.args).toEqual([]);
+
+      const daemonParsed = parseArgs(['daemon', '--db', '.ucsa/cache.db']);
+      expect(daemonParsed.command).toBe('daemon');
+      expect(daemonParsed.args).toEqual([]);
+      expect(daemonParsed.options).toEqual({ db: '.ucsa/cache.db' });
     });
 
     it('handles various option formats: key=value, boolean flags, negated flags, -- terminator', () => {
@@ -107,6 +113,7 @@ describe('CLI Router', () => {
       expect(help).toContain('outbox replay');
       expect(help).toContain('durability');
       expect(help).toContain('status');
+      expect(help).toContain('daemon');
       expect(help).toContain('--help');
       expect(help).toContain('--policy');
       expect(help).toContain('--max');
@@ -128,7 +135,8 @@ describe('CLI Router', () => {
       await dispatchCommand({ command: 'outbox replay', args: [], options: {} });
       await dispatchCommand({ command: 'durability', args: [], options: {} });
       await dispatchCommand({ command: 'status', args: [], options: {} });
-      expect(consoleSpy).toHaveBeenCalledTimes(5);
+      await dispatchCommand({ command: 'daemon', args: [], options: {} });
+      expect(consoleSpy).toHaveBeenCalledTimes(6);
       consoleSpy.mockRestore();
     });
   });

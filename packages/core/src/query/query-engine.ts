@@ -1,5 +1,6 @@
 import type { CacheEntry, QueryKey, QueryState } from '../types.js';
-import type { SqliteAdapter } from '../storage/sqlite-adapter.js';
+import type { SqliteAdapter, ChangeLogRow } from '../storage/sqlite-adapter.js';
+import type { BusClient } from '../ipc/bus-client.js';
 import { replaceEqualDeep, isPlainObject } from './structural-sharing.js';
 import {
   type PayloadRegistry,
@@ -11,6 +12,11 @@ export interface QueryEngineOptions {
    * Optional SQLite adapter for persistent disk-backed caching.
    */
   sqliteAdapter?: SqliteAdapter;
+
+  /**
+   * Optional IPC bus client for zero-polling cross-process cache invalidation.
+   */
+  busClient?: BusClient;
 
   /**
    * Default stale time in milliseconds.
@@ -194,6 +200,7 @@ interface InternalQueryRecord<T = unknown> {
  */
 export class QueryEngine {
   private readonly sqliteAdapter?: SqliteAdapter;
+  private readonly busClient?: BusClient;
   private readonly defaultStaleTime: number;
   private readonly defaultGcTime: number;
   private readonly payloadRegistry?: PayloadRegistry;
@@ -207,11 +214,16 @@ export class QueryEngine {
 
   constructor(options?: QueryEngineOptions) {
     this.sqliteAdapter = options?.sqliteAdapter;
+    this.busClient = options?.busClient;
     this.defaultStaleTime = options?.defaultStaleTime ?? 0;
     this.defaultGcTime = options?.defaultGcTime ?? 300000;
     this.payloadRegistry = options?.payloadRegistry;
     this.targetPayloadVersion = options?.targetPayloadVersion;
     this.onIncompatiblePayload = options?.onIncompatiblePayload;
+
+    if (this.busClient) {
+      this.busClient.subscribeEvents((event) => this.handleRemoteEvent(event));
+    }
   }
 
   /**
@@ -446,6 +458,17 @@ export class QueryEngine {
       }
     }
 
+    if (this.busClient) {
+      const hashes =
+        matchedHashes.size > 0
+          ? Array.from(matchedHashes)
+          : [hashQueryKey(queryKeyOrPrefix)];
+      this.busClient.publish({
+        kind: 'invalidate',
+        queryHashes: hashes,
+      });
+    }
+
     if (revalidations.length > 0) {
       await Promise.allSettled(revalidations);
     }
@@ -495,11 +518,74 @@ export class QueryEngine {
       }
     }
 
+    if (this.busClient) {
+      this.busClient.publish({
+        kind: 'invalidate',
+        tags: [tag],
+        queryHashes: Array.from(invalidatedHashes),
+      });
+    }
+
     if (revalidations.length > 0) {
       await Promise.allSettled(revalidations);
     }
 
     return Array.from(invalidatedHashes);
+  }
+
+  /**
+   * Handles incoming IPC bus events (with echo suppression).
+   */
+  private handleRemoteEvent(event: ChangeLogRow): void {
+    if (this.sqliteAdapter?.origin && event.origin === this.sqliteAdapter.origin) {
+      return;
+    }
+    if (this.busClient?.clientId && event.origin === this.busClient.clientId) {
+      return;
+    }
+
+    if (event.kind === 'invalidate') {
+      const affectedRecords = new Set<InternalQueryRecord<unknown>>();
+
+      if (event.tags && event.tags.length > 0) {
+        const eventTags = new Set(event.tags);
+        for (const record of this.queries.values()) {
+          if (record.tags?.some((t) => eventTags.has(t))) {
+            affectedRecords.add(record);
+          }
+        }
+      }
+
+      if (event.query_hashes && event.query_hashes.length > 0) {
+        for (const hash of event.query_hashes) {
+          const record = this.queries.get(hash);
+          if (record) {
+            affectedRecords.add(record);
+          }
+        }
+      }
+
+      for (const record of affectedRecords) {
+        if (record.entry) {
+          record.entry.stale_at = 0;
+        }
+        record.state = {
+          ...record.state,
+          dataUpdatedAt: 0,
+        };
+
+        if (record.queryFn) {
+          record.state = {
+            ...record.state,
+            isFetching: true,
+          };
+          this.notifySubscribers(record);
+          this.executeFetch(record, record.queryFn, record.options).catch(() => {});
+        } else if (record.subscribers.size > 0) {
+          this.notifySubscribers(record);
+        }
+      }
+    }
   }
 
   /**

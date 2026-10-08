@@ -36,13 +36,13 @@ namespace Ucsa.Unity.Tests.Runtime
             Assert.That(initialVersion, Is.EqualTo(0));
 
             var result = MigrationRunner.Migrate(conn);
-            Assert.That(result.CurrentVersion, Is.EqualTo(2));
-            Assert.That(result.AppliedCount, Is.EqualTo(2));
+            Assert.That(result.CurrentVersion, Is.EqualTo(3));
+            Assert.That(result.AppliedCount, Is.EqualTo(3));
 
             int newVersion = MigrationRunner.GetUserVersion(conn);
-            Assert.That(newVersion, Is.EqualTo(2));
+            Assert.That(newVersion, Is.EqualTo(3));
 
-            // Verify ucsa_migrations table has records for v1 and v2
+            // Verify ucsa_migrations table has records for v1, v2, v3
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT version, name, checksum FROM ucsa_migrations WHERE version = 1;";
             using (var reader = cmd.ExecuteReader())
@@ -62,12 +62,29 @@ namespace Ucsa.Unity.Tests.Runtime
                 Assert.That(reader.GetString(2), Is.EqualTo(MigrationRunner.CanonicalMigrations[1].Sha256));
             }
 
-            // Verify ucsa_meta and ucsa_query_cache tables exist
+            cmd.CommandText = "SELECT version, name, checksum FROM ucsa_migrations WHERE version = 3;";
+            using (var reader = cmd.ExecuteReader())
+            {
+                Assert.That(reader.Read(), Is.True);
+                Assert.That(reader.GetInt32(0), Is.EqualTo(3));
+                Assert.That(reader.GetString(1), Is.EqualTo("change_log_and_bus"));
+                Assert.That(reader.GetString(2), Is.EqualTo(MigrationRunner.CanonicalMigrations[2].Sha256));
+            }
+
+            // Verify ucsa_meta, ucsa_query_cache, ucsa_change_log, and ucsa_bus_hub tables exist
             cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='ucsa_meta';";
             var metaName = cmd.ExecuteScalar() as string;
             Assert.That(metaName, Is.EqualTo("ucsa_meta"));
 
-            // Verify payload_version column exists
+            cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='ucsa_change_log';";
+            var changeLogName = cmd.ExecuteScalar() as string;
+            Assert.That(changeLogName, Is.EqualTo("ucsa_change_log"));
+
+            cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='ucsa_bus_hub';";
+            var busHubName = cmd.ExecuteScalar() as string;
+            Assert.That(busHubName, Is.EqualTo("ucsa_bus_hub"));
+
+            // Verify payload_version column exists on ucsa_query_cache
             cmd.CommandText = "PRAGMA table_info(ucsa_query_cache);";
             bool hasPayloadVersion = false;
             using (var reader = cmd.ExecuteReader())
@@ -82,6 +99,22 @@ namespace Ucsa.Unity.Tests.Runtime
                 }
             }
             Assert.That(hasPayloadVersion, Is.True);
+
+            // Verify lease columns on ucsa_mutation_outbox
+            cmd.CommandText = "PRAGMA table_info(ucsa_mutation_outbox);";
+            bool hasLeaseOwner = false;
+            bool hasLeaseUntil = false;
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    string colName = reader.GetString(1);
+                    if (colName == "lease_owner") hasLeaseOwner = true;
+                    if (colName == "lease_until") hasLeaseUntil = true;
+                }
+            }
+            Assert.That(hasLeaseOwner, Is.True);
+            Assert.That(hasLeaseUntil, Is.True);
         }
 
         [Test]
@@ -127,12 +160,12 @@ namespace Ucsa.Unity.Tests.Runtime
             conn.Open();
 
             var firstResult = MigrationRunner.Migrate(conn);
-            Assert.That(firstResult.AppliedCount, Is.EqualTo(2));
-            Assert.That(firstResult.CurrentVersion, Is.EqualTo(2));
+            Assert.That(firstResult.AppliedCount, Is.EqualTo(3));
+            Assert.That(firstResult.CurrentVersion, Is.EqualTo(3));
 
             var secondResult = MigrationRunner.Migrate(conn);
             Assert.That(secondResult.AppliedCount, Is.EqualTo(0));
-            Assert.That(secondResult.CurrentVersion, Is.EqualTo(2));
+            Assert.That(secondResult.CurrentVersion, Is.EqualTo(3));
         }
 
         [Test]
@@ -143,29 +176,30 @@ namespace Ucsa.Unity.Tests.Runtime
 
             var badMigration = new MigrationDefinition
             {
-                Version = 3,
+                Version = 4,
                 Name = "bad_migration",
                 Sql = "CREATE TABLE broken_table (id INT; INVALID SYNTAX HERE"
             };
 
-            // Migrate to version 2 first
-            MigrationRunner.Migrate(conn, targetVersion: 2);
-            Assert.That(MigrationRunner.GetUserVersion(conn), Is.EqualTo(2));
+            // Migrate to version 3 first
+            MigrationRunner.Migrate(conn, targetVersion: 3);
+            Assert.That(MigrationRunner.GetUserVersion(conn), Is.EqualTo(3));
 
             var customMigrations = new[]
             {
                 MigrationRunner.CanonicalMigrations[0],
                 MigrationRunner.CanonicalMigrations[1],
+                MigrationRunner.CanonicalMigrations[2],
                 badMigration
             };
 
             var ex = Assert.Throws<MigrationException>(() =>
             {
-                MigrationRunner.Migrate(conn, targetVersion: 3, availableMigrations: customMigrations);
+                MigrationRunner.Migrate(conn, targetVersion: 4, availableMigrations: customMigrations);
             });
 
-            Assert.That(ex!.Version, Is.EqualTo(3));
-            Assert.That(MigrationRunner.GetUserVersion(conn), Is.EqualTo(2));
+            Assert.That(ex!.Version, Is.EqualTo(4));
+            Assert.That(MigrationRunner.GetUserVersion(conn), Is.EqualTo(3));
 
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='broken_table';";
@@ -183,11 +217,11 @@ namespace Ucsa.Unity.Tests.Runtime
 
             var ex = Assert.Throws<DatabaseVersionTooNewException>(() =>
             {
-                MigrationRunner.Migrate(conn, targetVersion: 2);
+                MigrationRunner.Migrate(conn, targetVersion: MigrationRunner.TargetSchemaVersion);
             });
 
             Assert.That(ex!.CurrentVersion, Is.EqualTo(99));
-            Assert.That(ex.SupportedVersion, Is.EqualTo(2));
+            Assert.That(ex.SupportedVersion, Is.EqualTo(3));
         }
 
         [Test]
@@ -245,9 +279,9 @@ namespace Ucsa.Unity.Tests.Runtime
             Assert.That(MigrationRunner.GetUserVersion(conn), Is.EqualTo(0));
 
             var result = MigrationRunner.Migrate(conn);
-            Assert.That(result.CurrentVersion, Is.EqualTo(2));
-            Assert.That(result.AppliedCount, Is.EqualTo(2));
-            Assert.That(MigrationRunner.GetUserVersion(conn), Is.EqualTo(2));
+            Assert.That(result.CurrentVersion, Is.EqualTo(3));
+            Assert.That(result.AppliedCount, Is.EqualTo(3));
+            Assert.That(MigrationRunner.GetUserVersion(conn), Is.EqualTo(3));
 
             // Verify legacy row is preserved intact
             using var checkCmd = conn.CreateCommand();
@@ -263,13 +297,13 @@ namespace Ucsa.Unity.Tests.Runtime
         {
             using var adapter = new UnitySqliteAdapter(_tempDbPath);
 
-            Assert.That(adapter.GetSchemaVersion(), Is.EqualTo(2));
+            Assert.That(adapter.GetSchemaVersion(), Is.EqualTo(3));
 
             // Verify tables and migration ledger exist
             using var cmd = adapter.Connection.CreateCommand();
             cmd.CommandText = "SELECT COUNT(*) FROM ucsa_migrations;";
             long count = Convert.ToInt64(cmd.ExecuteScalar());
-            Assert.That(count, Is.EqualTo(2));
+            Assert.That(count, Is.EqualTo(3));
         }
     }
 }

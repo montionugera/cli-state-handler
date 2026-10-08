@@ -42,6 +42,7 @@ namespace Ucsa.Unity.Storage
         private readonly object _lock = new();
         private readonly SqliteConnection _connection;
         private readonly bool _isInMemory;
+        private readonly string _origin;
         private bool _isDisposed;
 
         /// <summary>
@@ -55,12 +56,23 @@ namespace Ucsa.Unity.Storage
         public bool IsInMemory => _isInMemory;
 
         /// <summary>
+        /// Unique origin identifier for this adapter.
+        /// </summary>
+        public string Origin => _origin;
+
+        /// <summary>
         /// Indicates if the connection is closed or disposed.
         /// </summary>
         public bool IsClosed => _isDisposed || _connection.State != ConnectionState.Open;
 
-        public UnitySqliteAdapter(string connectionStringOrPath = ":memory:", int busyTimeout = 5000)
+        public UnitySqliteAdapter(
+            string connectionStringOrPath = ":memory:",
+            int busyTimeout = 5000,
+            string? origin = null,
+            int? targetVersion = null)
         {
+            _origin = origin ?? Guid.NewGuid().ToString();
+
             string connStr;
             if (string.IsNullOrEmpty(connectionStringOrPath) || connectionStringOrPath == ":memory:")
             {
@@ -106,17 +118,17 @@ namespace Ucsa.Unity.Storage
                 }
             }
 
-            InitSchema();
+            InitSchema(targetVersion);
         }
 
         /// <summary>
         /// Creates UCSA schema tables and indexes by applying canonical migrations.
         /// </summary>
-        public void InitSchema()
+        public void InitSchema(int? targetVersion = null)
         {
             lock (_lock)
             {
-                MigrationRunner.Migrate(_connection);
+                MigrationRunner.Migrate(_connection, targetVersion ?? MigrationRunner.TargetSchemaVersion);
             }
         }
 
@@ -249,32 +261,53 @@ namespace Ucsa.Unity.Storage
         /// <summary>
         /// Deletes a cached query entry by hash.
         /// Cascade delete automatically cleans up all associated tags in ucsa_cache_tags.
+        /// If schema version >= 3, atomically journals an invalidate change log entry.
+        /// Returns true if a row was deleted.
         /// </summary>
-        public void DeleteQuery(string queryHash)
+        public bool DeleteQuery(string queryHash, string? origin = null)
         {
-            if (string.IsNullOrEmpty(queryHash)) return;
+            if (string.IsNullOrEmpty(queryHash)) return false;
 
             lock (_lock)
             {
+                int schemaVersion = GetSchemaVersion();
+                using var tx = _connection.BeginTransaction();
                 using var cmd = _connection.CreateCommand();
+                cmd.Transaction = tx;
                 cmd.CommandText = "DELETE FROM ucsa_query_cache WHERE query_hash = $hash;";
                 cmd.Parameters.AddWithValue("$hash", queryHash);
-                cmd.ExecuteNonQuery();
+                int rowsAffected = cmd.ExecuteNonQuery();
+
+                if (rowsAffected > 0 && schemaVersion >= 3)
+                {
+                    AppendChangeLogInternal(
+                        tx,
+                        ChangeLogKind.Invalidate,
+                        origin ?? _origin,
+                        null,
+                        new List<string> { queryHash },
+                        null
+                    );
+                }
+
+                tx.Commit();
+                return rowsAffected > 0;
             }
         }
 
         /// <summary>
         /// Invalidates all queries associated with the given tag.
         /// Returns the list of query hashes that were deleted.
+        /// If schema version >= 3, atomically journals an invalidate change log entry.
         /// </summary>
-        public List<string> InvalidateByTag(string tag)
+        public List<string> InvalidateByTag(string tag, string? origin = null)
         {
             if (string.IsNullOrEmpty(tag)) return new List<string>();
 
             lock (_lock)
             {
                 var hashes = GetQueryHashesByTag(tag);
-                if (hashes.Count == 0) return hashes;
+                int schemaVersion = GetSchemaVersion();
 
                 using var tx = _connection.BeginTransaction();
                 foreach (var hash in hashes)
@@ -285,11 +318,205 @@ namespace Ucsa.Unity.Storage
                     cmd.Parameters.AddWithValue("$hash", hash);
                     cmd.ExecuteNonQuery();
                 }
-                tx.Commit();
 
+                if (schemaVersion >= 3)
+                {
+                    AppendChangeLogInternal(
+                        tx,
+                        ChangeLogKind.Invalidate,
+                        origin ?? _origin,
+                        new List<string> { tag },
+                        hashes,
+                        null
+                    );
+                }
+
+                tx.Commit();
                 return hashes;
             }
         }
+
+        #region Change Log Methods
+
+        /// <summary>
+        /// Appends an entry to ucsa_change_log and returns the generated seq number.
+        /// </summary>
+        public long AppendChangeLog(
+            ChangeLogKind kind,
+            string? origin = null,
+            List<string>? tags = null,
+            List<string>? queryHashes = null,
+            Dictionary<string, object>? detail = null)
+        {
+            lock (_lock)
+            {
+                return AppendChangeLogInternal(null, kind, origin ?? _origin, tags, queryHashes, detail);
+            }
+        }
+
+        private long AppendChangeLogInternal(
+            SqliteTransaction? tx,
+            ChangeLogKind kind,
+            string origin,
+            List<string>? tags,
+            List<string>? queryHashes,
+            Dictionary<string, object>? detail)
+        {
+            using var cmd = _connection.CreateCommand();
+            if (tx != null) cmd.Transaction = tx;
+
+            cmd.CommandText = @"
+                INSERT INTO ucsa_change_log (
+                    origin, kind, tags, query_hashes, detail, created_at
+                ) VALUES ($origin, $kind, $tags, $query_hashes, $detail, $created_at);
+                SELECT last_insert_rowid();
+            ";
+
+            cmd.Parameters.AddWithValue("$origin", origin);
+            cmd.Parameters.AddWithValue("$kind", kind.ToWireString());
+            cmd.Parameters.AddWithValue("$tags", tags != null ? JsonSerializer.Serialize(tags, SerializerOptions) : (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("$query_hashes", queryHashes != null ? JsonSerializer.Serialize(queryHashes, SerializerOptions) : (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("$detail", detail != null ? JsonSerializer.Serialize(detail, SerializerOptions) : (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("$created_at", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
+            var result = cmd.ExecuteScalar();
+            return result != null && result != DBNull.Value ? Convert.ToInt64(result) : 0;
+        }
+
+        /// <summary>
+        /// Reads change log entries created since lastSeq in ascending sequence order up to limit.
+        /// Detects gaps caused by pruning (Truncated: true).
+        /// </summary>
+        public ReadChangesResult ReadChangesSince(long lastSeq, int limit = 1000)
+        {
+            lock (_lock)
+            {
+                long headSeq = 0;
+                long? minSeq = null;
+
+                using (var headCmd = _connection.CreateCommand())
+                {
+                    headCmd.CommandText = "SELECT MAX(seq) FROM ucsa_change_log;";
+                    var maxObj = headCmd.ExecuteScalar();
+                    if (maxObj != null && maxObj != DBNull.Value)
+                    {
+                        headSeq = Convert.ToInt64(maxObj);
+                    }
+                }
+
+                using (var minCmd = _connection.CreateCommand())
+                {
+                    minCmd.CommandText = "SELECT MIN(seq) FROM ucsa_change_log;";
+                    var minObj = minCmd.ExecuteScalar();
+                    if (minObj != null && minObj != DBNull.Value)
+                    {
+                        minSeq = Convert.ToInt64(minObj);
+                    }
+                }
+
+                bool truncated = false;
+                if (lastSeq > 0 && minSeq.HasValue && lastSeq < minSeq.Value - 1)
+                {
+                    truncated = true;
+                }
+
+                var rows = new List<ChangeLogRow>();
+                using (var queryCmd = _connection.CreateCommand())
+                {
+                    queryCmd.CommandText = @"
+                        SELECT seq, origin, kind, tags, query_hashes, detail, created_at
+                        FROM ucsa_change_log
+                        WHERE seq > $lastSeq
+                        ORDER BY seq ASC
+                        LIMIT $limit;
+                    ";
+                    queryCmd.Parameters.AddWithValue("$lastSeq", lastSeq);
+                    queryCmd.Parameters.AddWithValue("$limit", limit);
+
+                    using var reader = queryCmd.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        long seq = reader.GetInt64(0);
+                        string origin = reader.GetString(1);
+                        string kindStr = reader.GetString(2);
+                        string? tagsJson = reader.IsDBNull(3) ? null : reader.GetString(3);
+                        string? hashesJson = reader.IsDBNull(4) ? null : reader.GetString(4);
+                        string? detailJson = reader.IsDBNull(5) ? null : reader.GetString(5);
+                        long createdAt = reader.GetInt64(6);
+
+                        var tags = !string.IsNullOrEmpty(tagsJson)
+                            ? JsonSerializer.Deserialize<List<string>>(tagsJson, SerializerOptions)
+                            : null;
+                        var queryHashes = !string.IsNullOrEmpty(hashesJson)
+                            ? JsonSerializer.Deserialize<List<string>>(hashesJson, SerializerOptions)
+                            : null;
+                        var detail = !string.IsNullOrEmpty(detailJson)
+                            ? JsonSerializer.Deserialize<Dictionary<string, object>>(detailJson, SerializerOptions)
+                            : null;
+
+                        rows.Add(new ChangeLogRow(
+                            seq,
+                            origin,
+                            ChangeLogKindExtensions.FromString(kindStr),
+                            tags,
+                            queryHashes,
+                            detail,
+                            createdAt
+                        ));
+                    }
+                }
+
+                return new ReadChangesResult(rows, truncated, headSeq);
+            }
+        }
+
+        /// <summary>
+        /// Prunes old change log entries beyond retention window (retentionMs)
+        /// or beyond maxRows ceiling (retaining newest maxRows).
+        /// </summary>
+        public int PruneChangeLog(long retentionMs = 86400000, int maxRows = 10000)
+        {
+            long cutoff = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - retentionMs;
+
+            lock (_lock)
+            {
+                using var tx = _connection.BeginTransaction();
+
+                long? seqThreshold = null;
+                if (maxRows > 0)
+                {
+                    using var seqCmd = _connection.CreateCommand();
+                    seqCmd.Transaction = tx;
+                    seqCmd.CommandText = "SELECT seq FROM ucsa_change_log ORDER BY seq DESC LIMIT 1 OFFSET $offset;";
+                    seqCmd.Parameters.AddWithValue("$offset", maxRows);
+                    var seqObj = seqCmd.ExecuteScalar();
+                    if (seqObj != null && seqObj != DBNull.Value)
+                    {
+                        seqThreshold = Convert.ToInt64(seqObj);
+                    }
+                }
+
+                using var deleteCmd = _connection.CreateCommand();
+                deleteCmd.Transaction = tx;
+                if (seqThreshold.HasValue)
+                {
+                    deleteCmd.CommandText = "DELETE FROM ucsa_change_log WHERE created_at < $cutoff OR seq <= $seqThreshold;";
+                    deleteCmd.Parameters.AddWithValue("$cutoff", cutoff);
+                    deleteCmd.Parameters.AddWithValue("$seqThreshold", seqThreshold.Value);
+                }
+                else
+                {
+                    deleteCmd.CommandText = "DELETE FROM ucsa_change_log WHERE created_at < $cutoff;";
+                    deleteCmd.Parameters.AddWithValue("$cutoff", cutoff);
+                }
+
+                int deleted = deleteCmd.ExecuteNonQuery();
+                tx.Commit();
+                return deleted;
+            }
+        }
+
+        #endregion
 
         /// <summary>
         /// Returns all query hashes associated with a tag without deleting them.
@@ -428,10 +655,12 @@ namespace Ucsa.Unity.Storage
                 cmd.CommandText = @"
                     INSERT INTO ucsa_mutation_outbox (
                         mutation_id, endpoint, method, headers, payload, status,
-                        retry_count, created_at, last_attempt_at, error, forced, conflict_policy
+                        retry_count, created_at, last_attempt_at, error, forced, conflict_policy,
+                        lease_owner, lease_until
                     ) VALUES (
                         $id, $endpoint, $method, $headers, $payload, $status,
-                        $retry, $created, $lastAttempt, $error, $forced, $policy
+                        $retry, $created, $lastAttempt, $error, $forced, $policy,
+                        $leaseOwner, $leaseUntil
                     )
                     ON CONFLICT(mutation_id) DO UPDATE SET
                         endpoint = excluded.endpoint,
@@ -444,7 +673,9 @@ namespace Ucsa.Unity.Storage
                         last_attempt_at = excluded.last_attempt_at,
                         error = excluded.error,
                         forced = excluded.forced,
-                        conflict_policy = excluded.conflict_policy;
+                        conflict_policy = excluded.conflict_policy,
+                        lease_owner = excluded.lease_owner,
+                        lease_until = excluded.lease_until;
                 ";
                 cmd.Parameters.AddWithValue("$id", mutation.MutationId);
                 cmd.Parameters.AddWithValue("$endpoint", mutation.Endpoint);
@@ -458,9 +689,60 @@ namespace Ucsa.Unity.Storage
                 cmd.Parameters.AddWithValue("$error", (object?)mutation.Error ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$forced", mutation.Forced ? 1 : 0);
                 cmd.Parameters.AddWithValue("$policy", (object?)mutation.ConflictPolicy?.ToString() ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("$leaseOwner", (object?)mutation.LeaseOwner ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("$leaseUntil", (object?)mutation.LeaseUntil ?? DBNull.Value);
 
                 cmd.ExecuteNonQuery();
             }
+        }
+
+        private OutboxMutation<T> ReadMutationFromReader<T>(SqliteDataReader reader)
+        {
+            string id = reader.GetString(0);
+            string endpoint = reader.GetString(1);
+            string method = reader.GetString(2);
+            string? headersJson = reader.IsDBNull(3) ? null : reader.GetString(3);
+            string? payloadJson = reader.IsDBNull(4) ? null : reader.GetString(4);
+            string statusStr = reader.GetString(5);
+            int retryCount = reader.GetInt32(6);
+            long createdAt = reader.GetInt64(7);
+            long? lastAttemptAt = reader.IsDBNull(8) ? null : reader.GetInt64(8);
+            string? error = reader.IsDBNull(9) ? null : reader.GetString(9);
+            bool forced = reader.GetInt32(10) == 1;
+            string? policyStr = reader.IsDBNull(11) ? null : reader.GetString(11);
+            string? leaseOwner = reader.IsDBNull(12) ? null : reader.GetString(12);
+            long? leaseUntil = reader.IsDBNull(13) ? null : reader.GetInt64(13);
+
+            Dictionary<string, string>? headers = headersJson != null
+                ? JsonSerializer.Deserialize<Dictionary<string, string>>(headersJson, SerializerOptions)
+                : null;
+            T? payload = payloadJson != null
+                ? JsonSerializer.Deserialize<T>(payloadJson, SerializerOptions)
+                : default;
+
+            var status = ParseStatus(statusStr);
+            ConflictPolicy? policy = null;
+            if (!string.IsNullOrEmpty(policyStr) && Enum.TryParse<ConflictPolicy>(policyStr, true, out var p))
+            {
+                policy = p;
+            }
+
+            return new OutboxMutation<T>(
+                id,
+                endpoint,
+                method,
+                createdAt,
+                payload,
+                headers,
+                status,
+                retryCount,
+                lastAttemptAt,
+                error,
+                forced,
+                policy,
+                leaseOwner,
+                leaseUntil
+            );
         }
 
         /// <summary>
@@ -475,7 +757,8 @@ namespace Ucsa.Unity.Storage
                 using var cmd = _connection.CreateCommand();
                 cmd.CommandText = @"
                     SELECT mutation_id, endpoint, method, headers, payload, status,
-                           retry_count, created_at, last_attempt_at, error, forced, conflict_policy
+                           retry_count, created_at, last_attempt_at, error, forced, conflict_policy,
+                           lease_owner, lease_until
                     FROM ucsa_mutation_outbox
                     WHERE mutation_id = $id;
                 ";
@@ -484,47 +767,7 @@ namespace Ucsa.Unity.Storage
                 using var reader = cmd.ExecuteReader();
                 if (!reader.Read()) return null;
 
-                string id = reader.GetString(0);
-                string endpoint = reader.GetString(1);
-                string method = reader.GetString(2);
-                string? headersJson = reader.IsDBNull(3) ? null : reader.GetString(3);
-                string? payloadJson = reader.IsDBNull(4) ? null : reader.GetString(4);
-                string statusStr = reader.GetString(5);
-                int retryCount = reader.GetInt32(6);
-                long createdAt = reader.GetInt64(7);
-                long? lastAttemptAt = reader.IsDBNull(8) ? null : reader.GetInt64(8);
-                string? error = reader.IsDBNull(9) ? null : reader.GetString(9);
-                bool forced = reader.GetInt32(10) == 1;
-                string? policyStr = reader.IsDBNull(11) ? null : reader.GetString(11);
-
-                Dictionary<string, string>? headers = headersJson != null
-                    ? JsonSerializer.Deserialize<Dictionary<string, string>>(headersJson, SerializerOptions)
-                    : null;
-                T? payload = payloadJson != null
-                    ? JsonSerializer.Deserialize<T>(payloadJson, SerializerOptions)
-                    : default;
-
-                var status = ParseStatus(statusStr);
-                ConflictPolicy? policy = null;
-                if (!string.IsNullOrEmpty(policyStr) && Enum.TryParse<ConflictPolicy>(policyStr, true, out var p))
-                {
-                    policy = p;
-                }
-
-                return new OutboxMutation<T>(
-                    id,
-                    endpoint,
-                    method,
-                    createdAt,
-                    payload,
-                    headers,
-                    status,
-                    retryCount,
-                    lastAttemptAt,
-                    error,
-                    forced,
-                    policy
-                );
+                return ReadMutationFromReader<T>(reader);
             }
         }
 
@@ -540,7 +783,8 @@ namespace Ucsa.Unity.Storage
                 using var cmd = _connection.CreateCommand();
                 cmd.CommandText = @"
                     SELECT mutation_id, endpoint, method, headers, payload, status,
-                           retry_count, created_at, last_attempt_at, error, forced, conflict_policy
+                           retry_count, created_at, last_attempt_at, error, forced, conflict_policy,
+                           lease_owner, lease_until
                     FROM ucsa_mutation_outbox
                     WHERE status = 'Pending' OR status = 'pending'
                     ORDER BY created_at ASC
@@ -551,52 +795,109 @@ namespace Ucsa.Unity.Storage
                 using var reader = cmd.ExecuteReader();
                 while (reader.Read())
                 {
-                    string id = reader.GetString(0);
-                    string endpoint = reader.GetString(1);
-                    string method = reader.GetString(2);
-                    string? headersJson = reader.IsDBNull(3) ? null : reader.GetString(3);
-                    string? payloadJson = reader.IsDBNull(4) ? null : reader.GetString(4);
-                    string statusStr = reader.GetString(5);
-                    int retryCount = reader.GetInt32(6);
-                    long createdAt = reader.GetInt64(7);
-                    long? lastAttemptAt = reader.IsDBNull(8) ? null : reader.GetInt64(8);
-                    string? error = reader.IsDBNull(9) ? null : reader.GetString(9);
-                    bool forced = reader.GetInt32(10) == 1;
-                    string? policyStr = reader.IsDBNull(11) ? null : reader.GetString(11);
-
-                    Dictionary<string, string>? headers = headersJson != null
-                        ? JsonSerializer.Deserialize<Dictionary<string, string>>(headersJson, SerializerOptions)
-                        : null;
-                    T? payload = payloadJson != null
-                        ? JsonSerializer.Deserialize<T>(payloadJson, SerializerOptions)
-                        : default;
-
-                    var status = ParseStatus(statusStr);
-                    ConflictPolicy? policy = null;
-                    if (!string.IsNullOrEmpty(policyStr) && Enum.TryParse<ConflictPolicy>(policyStr, true, out var p))
-                    {
-                        policy = p;
-                    }
-
-                    list.Add(new OutboxMutation<T>(
-                        id,
-                        endpoint,
-                        method,
-                        createdAt,
-                        payload,
-                        headers,
-                        status,
-                        retryCount,
-                        lastAttemptAt,
-                        error,
-                        forced,
-                        policy
-                    ));
+                    list.Add(ReadMutationFromReader<T>(reader));
                 }
             }
 
             return list;
         }
+
+        /// <summary>
+        /// Atomically claims pending or expired in-flight mutations for a specific worker.
+        /// </summary>
+        public List<OutboxMutation<T>> ClaimPendingMutations<T>(string workerId, long leaseDurationMs, int limit = 50)
+        {
+            var list = new List<OutboxMutation<T>>();
+            lock (_lock)
+            {
+                using var tx = _connection.BeginTransaction();
+                long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                long leaseUntil = now + leaseDurationMs;
+
+                var candidateIds = new List<string>();
+                using (var cmd = _connection.CreateCommand())
+                {
+                    cmd.Transaction = tx;
+                    cmd.CommandText = @"
+                        SELECT mutation_id
+                        FROM ucsa_mutation_outbox
+                        WHERE status = 'Pending' OR status = 'pending'
+                           OR ((status = 'InFlight' OR status = 'in_flight') AND lease_until IS NOT NULL AND lease_until < $now)
+                        ORDER BY created_at ASC
+                        LIMIT $limit;
+                    ";
+                    cmd.Parameters.AddWithValue("$now", now);
+                    cmd.Parameters.AddWithValue("$limit", limit);
+                    using var reader = cmd.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        candidateIds.Add(reader.GetString(0));
+                    }
+                }
+
+                if (candidateIds.Count == 0)
+                {
+                    tx.Commit();
+                    return list;
+                }
+
+                var paramNames = candidateIds.Select((_, i) => $"$id{i}").ToList();
+                string inClause = string.Join(", ", paramNames);
+
+                using (var updateCmd = _connection.CreateCommand())
+                {
+                    updateCmd.Transaction = tx;
+                    updateCmd.CommandText = $@"
+                        UPDATE ucsa_mutation_outbox
+                        SET status = 'in_flight',
+                            lease_owner = $workerId,
+                            lease_until = $leaseUntil,
+                            last_attempt_at = $now
+                        WHERE mutation_id IN ({inClause});
+                    ";
+                    updateCmd.Parameters.AddWithValue("$workerId", workerId);
+                    updateCmd.Parameters.AddWithValue("$leaseUntil", leaseUntil);
+                    updateCmd.Parameters.AddWithValue("$now", now);
+                    for (int i = 0; i < candidateIds.Count; i++)
+                    {
+                        updateCmd.Parameters.AddWithValue(paramNames[i], candidateIds[i]);
+                    }
+                    updateCmd.ExecuteNonQuery();
+                }
+
+                using (var selectCmd = _connection.CreateCommand())
+                {
+                    selectCmd.Transaction = tx;
+                    selectCmd.CommandText = $@"
+                        SELECT mutation_id, endpoint, method, headers, payload, status,
+                               retry_count, created_at, last_attempt_at, error, forced, conflict_policy,
+                               lease_owner, lease_until
+                        FROM ucsa_mutation_outbox
+                        WHERE mutation_id IN ({inClause})
+                        ORDER BY created_at ASC;
+                    ";
+                    for (int i = 0; i < candidateIds.Count; i++)
+                    {
+                        selectCmd.Parameters.AddWithValue(paramNames[i], candidateIds[i]);
+                    }
+                    using var reader = selectCmd.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        list.Add(ReadMutationFromReader<T>(reader));
+                    }
+                }
+
+                tx.Commit();
+            }
+
+            return list;
+        }
+
+        /// <summary>
+        /// Non-generic convenience overload claiming pending mutations with object payload.
+        /// </summary>
+        public List<OutboxMutation<object>> ClaimPendingMutations(string workerId, long leaseDurationMs, int limit = 50)
+            => ClaimPendingMutations<object>(workerId, leaseDurationMs, limit);
 
         /// <summary>
         /// Updates status and retry metadata for an outbox mutation.
@@ -606,10 +907,13 @@ namespace Ucsa.Unity.Storage
             OutboxMutationStatus status,
             long? lastAttemptAt = null,
             string? error = null,
-            int? retryCount = null)
+            int? retryCount = null,
+            string? leaseOwner = null,
+            long? leaseUntil = null)
         {
             if (string.IsNullOrEmpty(mutationId)) return;
 
+            string statusStr = FormatStatus(status);
             lock (_lock)
             {
                 using var cmd = _connection.CreateCommand();
@@ -618,13 +922,17 @@ namespace Ucsa.Unity.Storage
                     SET status = $status,
                         last_attempt_at = COALESCE($lastAttempt, last_attempt_at),
                         error = $error,
-                        retry_count = COALESCE($retry, retry_count)
+                        retry_count = COALESCE($retry, retry_count),
+                        lease_owner = CASE WHEN $status = 'pending' THEN NULL ELSE COALESCE($leaseOwner, lease_owner) END,
+                        lease_until = CASE WHEN $status = 'pending' THEN NULL ELSE COALESCE($leaseUntil, lease_until) END
                     WHERE mutation_id = $id;
                 ";
-                cmd.Parameters.AddWithValue("$status", FormatStatus(status));
+                cmd.Parameters.AddWithValue("$status", statusStr);
                 cmd.Parameters.AddWithValue("$lastAttempt", (object?)lastAttemptAt ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$error", (object?)error ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$retry", (object?)retryCount ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("$leaseOwner", (object?)leaseOwner ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("$leaseUntil", (object?)leaseUntil ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("$id", mutationId);
 
                 cmd.ExecuteNonQuery();
@@ -649,16 +957,19 @@ namespace Ucsa.Unity.Storage
 
         /// <summary>
         /// Replays pending outbox mutations sequentially via an executor function.
-        /// Supports rateLimitMs delay between mutation calls and batchSize limits.
+        /// Supports rateLimitMs delay between mutation calls, batchSize limits, and distributed leases.
         /// </summary>
         public async Task<ReplayResult> ReplayOutboxAsync<T>(
             Func<OutboxMutation<T>, Task<(int status, object? data)>> executor,
             int rateLimitMs = 0,
             int batchSize = 10,
+            string? workerId = null,
+            long leaseDurationMs = 30000,
             Func<OutboxMutation<T>, object?, Task<string>>? conflictResolver = null,
             CancellationToken ct = default)
         {
-            var pending = GetPendingMutations<T>(batchSize);
+            string effectiveWorkerId = workerId ?? $"worker-{Guid.NewGuid():N}";
+            var pending = ClaimPendingMutations<T>(effectiveWorkerId, leaseDurationMs, batchSize);
             int processed = 0;
             int successful = 0;
             int failed = 0;
@@ -674,7 +985,6 @@ namespace Ucsa.Unity.Storage
                 }
 
                 processed++;
-                UpdateMutationStatus(mutation.MutationId, OutboxMutationStatus.InFlight);
 
                 try
                 {

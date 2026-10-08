@@ -9,3 +9,5 @@ export 'src/cas_store.dart';
 export 'src/query_engine.dart';
 export 'src/selector_observer.dart';
 export 'src/migration_runner.dart';
+export 'src/frame_codec.dart';
+export 'src/bus_hub.dart';

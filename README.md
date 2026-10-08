@@ -42,6 +42,17 @@ Abstracted via the `TransportAdapter` interface:
 - **Canonical Contracts (`contracts/migrations/`)**: Language-neutral baseline SQL definitions shared across TypeScript, Dart, and C#.
 - **Zero-Data-Loss Legacy Adoption**: Seamlessly upgrades unversioned databases to version 1 while preserving 100% of cached data.
 
+### 7. Durable Change Log & Cross-Process Reactivity
+- **`ucsa_change_log`**: Append-only ledger recording all state invalidations, mutations, streams, and resets with monotonic sequence IDs (`seq`).
+- **Atomic Journaling**: Cache deletions and tag invalidations (`invalidateByTag`) execute inside the exact same ACID transaction as the change log insert.
+- **Catch-up Reader (`readChangesSince`)**: Lightweight, gap-detecting reader enabling subscriber processes to catch up on missed invalidations without continuous polling or lost events.
+- **Opportunistic Pruning**: Safe retention management (`pruneChangeLog`) maintaining the newest 10,000 rows or 24-hour time window.
+
+### 8. Elected Hub, IPC Daemon & Token Authentication
+- **In-Process Hub Election**: Dynamic leadership election via SQLite `ucsa_bus_hub` epoch locking with zero lock-file churn.
+- **Dedicated Daemon (`ucsa daemon`)**: Standalone background service providing persistent IPC event routing and graceful shutdown handling.
+- **Token Authentication & Slow-Consumer Safety**: Mutual auth using database-level tokens, echo-suppressed broadcasts, and automatic `RESYNC` backpressure fallback.
+
 ---
 
 ## Architecture Overview
@@ -1801,6 +1812,411 @@ ucsa migrate clean-incompatible [--db <path>] [--target-version <v>]
 
 ---
 
+## 8. Durable Change Log & Cross-Process Reactivity
+
+When multiple processes, background workers, CLI daemons, or desktop runtimes interact with a shared UCSA SQLite database in WAL mode, cross-process reactivity and event synchronization become critical. Rather than relying on fragile IPC file locks or high-frequency query polling that degrades battery and CPU, UCSA provides a **Durable Change Log & Catch-up Reader**:
+
+### 1. Monotonic Change Journaling (`ucsa_change_log`)
+
+All cache invalidations, background mutations, and real-time streams are recorded to the append-only `ucsa_change_log` table:
+
+```sql
+CREATE TABLE IF NOT EXISTS ucsa_change_log (
+  seq          INTEGER PRIMARY KEY AUTOINCREMENT,
+  origin       TEXT    NOT NULL,
+  kind         TEXT    NOT NULL CHECK (kind IN ('invalidate','mutation','stream','reset')),
+  tags         TEXT,
+  query_hashes TEXT,
+  detail       TEXT,
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ucsa_change_log_created ON ucsa_change_log(created_at);
+```
+
+- **Monotonic Sequence Numbers (`seq`)**: Every event receives an autoincrementing 64-bit integer, providing strict linear ordering across all emitter processes.
+- **Process Origin Tracking**: Every adapter instance carries a unique `origin` identifier (UUID v4 or process label), allowing subscribers to cleanly filter out self-emitted notifications.
+- **Transactional Atomicity**: Cache deletions and tag invalidations (`invalidateByTag`, `deleteQuery`) are committed in the **exact same SQLite transaction** as the change log row. If either operation fails, both are rolled back.
+
+### 2. Automatic Journaling & Append Example
+
+```typescript
+import { SqliteAdapter } from 'cli-state-handler';
+
+// Initialize adapter with process identity
+const adapter = new SqliteAdapter('./.cache/state.db', {
+  origin: 'worker-process-alpha',
+});
+
+// 1. Invalidate queries by tag - atomically writes to ucsa_change_log in the same transaction
+const affectedHashes = adapter.invalidateByTag('category:electronics');
+// -> ucsa_query_cache rows deleted
+// -> ucsa_change_log receives row:
+//    { seq: 101, origin: 'worker-process-alpha', kind: 'invalidate', tags: ['category:electronics'], query_hashes: [...] }
+
+// 2. Explicitly append custom events or mutation milestones
+const seq = adapter.appendChangeLog('mutation', {
+  origin: 'worker-process-alpha',
+  detail: { mutationId: 'mut-987', entity: 'order', status: 'completed' },
+});
+```
+
+### 3. Catch-up Reader with Gap Detection (`readChangesSince`)
+
+External processes or UI subscribers can read changes sequentially starting from their last observed sequence number without polling individual queries:
+
+```typescript
+// Read changes since sequence 100 up to limit 500
+const { rows, truncated, headSeq } = adapter.readChangesSince(100, 500);
+
+if (truncated) {
+  // Gap detected: sequence numbers have been pruned beyond reader's position
+  // Safe fallback: trigger full query cache reset
+  console.warn('[ucsa:sync] Log truncated; performing full cache reconciliation');
+} else {
+  // Process incremental events in ascending sequence order
+  for (const row of rows) {
+    if (row.origin === adapter.origin) continue; // Skip self-emitted events
+    
+    if (row.kind === 'invalidate' && row.tags) {
+      console.log(`[ucsa:sync] Invalidated tags from ${row.origin}:`, row.tags);
+    }
+  }
+}
+```
+
+### 4. Zero-Polling Cross-Process Reactivity
+
+By coupling `readChangesSince()` with SQLite WAL change notifications or Unix domain socket / bus hubs:
+1. Emitter process invalidates data via `invalidateByTag(tag)`.
+2. SQLite atomically writes cache deletions and `ucsa_change_log` entries in WAL mode.
+3. Subscriber processes receive an IPC wake signal or periodic checkpoint, reading only `WHERE seq > lastSeq`.
+4. Zero events are lost even if a subscriber process was suspended, busy, or restarted.
+
+### 5. Opportunistic Retention Pruning
+
+To keep the change log bounded without impacting active readers, `pruneChangeLog` maintains a high-water retention window:
+
+```typescript
+// Prune entries older than 24 hours while preserving the newest 10,000 rows
+const { prunedCount } = adapter.pruneChangeLog(86_400_000, 10_000);
+```
+
+---
+
+## 9. UCB1 Wire Protocol & IPC Codec
+
+UCSA defines **UCB1** (Unified Client Binary v1), a lightweight, high-throughput binary framing protocol designed for inter-process communication (IPC) across CLI daemons, local hub background services, and multi-language client runtimes (TypeScript/Node, Dart/Flutter, and C#/Unity).
+
+### 1. 12-Byte Binary Header Structure
+
+Each UCB1 frame begins with a fixed 12-byte header in network byte order (Big Endian), followed by a variable-length UTF-8 JSON payload:
+
+```
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                       Magic "UCB1"                            |
+|             (0x55, 0x43, 0x42, 0x31)                          |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|  Type (uint8) | Flags (0x00)  |        Reserved (0x0000)      |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                   Payload Length (uint32BE)                   |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                   UTF-8 JSON Payload (0..1MB)                 |
+|                              ...                              |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+- **Bytes 0..3 (`Magic`)**: ASCII `"UCB1"` (`0x55`, `0x43`, `0x42`, `0x31`). Ensures protocol validation and immediate rejection of non-UCB1 traffic.
+- **Byte 4 (`Type`)**: Single-byte unsigned identifier for frame purpose.
+- **Byte 5 (`Flags`)**: Bitfield flags, reserved for future extensions (must currently be `0x00`).
+- **Bytes 6..7 (`Reserved`)**: Reserved 16-bit field in Big Endian (must currently be `0x0000`).
+- **Bytes 8..11 (`Length`)**: 32-bit unsigned Big Endian integer indicating payload byte length. Maximum allowed size is 1MB (`1,048,576` bytes).
+- **Bytes 12.. (`Payload`)**: UTF-8 encoded JSON object or array.
+
+### 2. Standard Frame Types
+
+| Name | Wire Value | Direction | Purpose |
+| :--- | :---: | :--- | :--- |
+| `HELLO` | `0x01` | Client -> Hub | Initial handshake, transmits client ID, runtime language, PID, role, and auth token. |
+| `WELCOME` | `0x02` | Hub -> Client | Handshake acknowledgement, transmits hub epoch, PID, head sequence, and ping interval. |
+| `SUBSCRIBE` | `0x03` | Client -> Hub | Registers interest in specific event kinds (`invalidate`, `mutation`, `stream`, etc.). |
+| `UNSUBSCRIBE` | `0x04` | Client -> Hub | Removes active subscriptions. |
+| `PUBLISH` | `0x05` | Client -> Hub | Emits a state change, mutation milestone, or invalidation event to the hub. |
+| `EVENT` | `0x06` | Hub -> Client | Broadcasts an invalidation, tag update, or sequence event to subscribers. |
+| `PING` | `0x08` | Bi-directional | Heartbeat probe with optional nonce / timestamp. |
+| `PONG` | `0x09` | Bi-directional | Heartbeat response acknowledging received nonce / timestamp. |
+| `RESYNC` | `0x0A` | Client -> Hub | Requests catch-up replay of missed events starting from a specific sequence number. |
+| `BYE` | `0x0B` | Bi-directional | Clean shutdown termination signal. |
+| `ERROR` | `0x0F` | Bi-directional | Rejection, authorization failure, or invalid frame notification. |
+
+### 3. Cross-Platform Codec Usage
+
+#### TypeScript / Node.js
+```typescript
+import { FrameType, encodeFrame, FrameDecoder } from 'cli-state-handler';
+
+// Encode a frame
+const buffer = encodeFrame(FrameType.HELLO, {
+  client_id: 'client-1',
+  lang: 'ts',
+  pid: process.pid,
+  role: 'subscriber'
+});
+
+// Streaming decode with chunk reassembly
+const decoder = new FrameDecoder();
+const frames = decoder.feed(buffer);
+for (const frame of frames) {
+  console.log(`Received frame 0x${frame.type.toString(16)}:`, frame.payload);
+}
+```
+
+#### Dart / Flutter
+```dart
+import 'package:ucsa_dart/ucsa_dart.dart';
+
+// Encode a frame
+final bytes = encodeFrame(FrameType.hello, {
+  'client_id': 'dart-client-1',
+  'lang': 'dart',
+  'pid': 1234,
+  'role': 'subscriber'
+});
+
+// Streaming decode with chunk reassembly
+final decoder = FrameDecoder();
+final frames = decoder.feed(bytes);
+for (final frame of frames) {
+  print('Received frame ${frame.type}: ${frame.payload}');
+}
+```
+
+#### C# / Unity
+```csharp
+using Ucsa.Unity.Ipc;
+
+// Encode a frame
+var bytes = FrameCodec.EncodeFrame(FrameType.Hello, "{\"client_id\":\"unity-client\",\"lang\":\"csharp\"}");
+
+// Streaming decode with chunk reassembly
+var decoder = new FrameDecoder();
+var frames = decoder.Feed(bytes);
+foreach (var frame in frames)
+{
+    Console.WriteLine($"Received frame {frame.Type}: {frame.JsonPayload}");
+}
+```
+
+---
+
+## 10. Elected Hub, IPC Daemon & Token Authentication
+
+UCSA implements an **in-process elected event bus hub** and a standalone background daemon (`ucsa daemon`) that provide real-time, cross-process event fan-out with zero lock-file churn, SQLite epoch locking, token authentication, and slow-consumer backpressure protection.
+
+### 1. In-Process Elected Hub Architecture
+
+In multi-process desktop, CLI, and mobile environments, any process can act as the bus hub or connect transparently as a client. Hub leadership is negotiated deterministically via the `ucsa_bus_hub` SQLite table (Migration `0003`):
+
+```mermaid
+flowchart TD
+  START([Process Starts]) --> PROBE["Probe ucsa_bus_hub (id = 1)"]
+  PROBE --> CHECK_ACTIVE{Is Endpoint Active & Reachable?}
+  CHECK_ACTIVE -- Yes --> CLIENT["Connect as Client via UCB1\nSend HELLO (Token, ClientId)"]
+  CHECK_ACTIVE -- No (Stale or Empty) --> TX["BEGIN IMMEDIATE Transaction"]
+  TX --> RACE{Did another process claim?}
+  RACE -- Yes --> CLIENT
+  RACE -- No --> CLEANUP["Unlink Stale Socket / Named Pipe"]
+  CLEANUP --> BIND["Bind IPC Socket / Named Pipe\nIncrement Epoch\nGenerate Cryptographic Token"]
+  BIND --> RECORD["INSERT OR REPLACE INTO ucsa_bus_hub\n(id=1, epoch, pid, endpoint, token, claimed_at)"]
+  RECORD --> COMMIT["COMMIT Transaction"]
+  COMMIT --> HUB["Operate as Bus Hub\nAccept Inbound Connections"]
+```
+
+- **Deterministic Endpoint Resolution (`resolveBusEndpoint`)**:
+  - Unix / POSIX: Socket path derived from SHA-256 hash of normalized SQLite path (`$XDG_RUNTIME_DIR/ucsa/ucsa-<hash>.sock` or `/tmp/ucsa/ucsa-<hash>.sock` with mode `0700`). Keeps path length well under Unix domain socket 104-byte limits.
+  - Windows: Named pipe `\\.\pipe\ucsa-<hash>`.
+- **Atomic Takeover & Epoch Locking**:
+  - Leadership claims are guarded by SQLite `BEGIN IMMEDIATE` transactions.
+  - Each new hub increments `epoch`, invalidating any stale hub references and guaranteeing monotonic leadership progression.
+  - If a hub crashes, the next process probing the socket detects connection failure, unlinks the dead socket file, and atomically claims hub leadership.
+
+### 2. Standalone IPC Daemon (`ucsa daemon`)
+
+In persistent developer environments or background microservices, the hub can run as a dedicated service:
+
+```bash
+# Start standalone UCSA hub daemon against the default or custom database
+node apps/cli/bin/ucsa.js daemon --db ./my-app.db
+
+# Inspect hub leadership, PID, endpoint, and epoch status
+node apps/cli/bin/ucsa.js status --db ./my-app.db
+```
+
+#### Output Example (`ucsa daemon`)
+```text
+[ucsa daemon] Hub active (pid: 48912, epoch: 1, endpoint: /tmp/ucsa/ucsa-a1b2c3d4e5f67890.sock)
+```
+
+- **Graceful Shutdown**: Intercepts `SIGINT` and `SIGTERM`. Broadcasts a `BYE` frame with `{ reason: 'hub_shutdown' }` to all connected clients, closes all client sockets, shuts down the server, and unlinks the Unix domain socket file.
+- **Bus Telemetry (`ucsa status`)**: Reads `ucsa_bus_hub` and reports real-time hub PID, active epoch, socket path, and transport reachability.
+
+### 3. Client Token Authentication & Slow-Consumer Protection
+
+#### Token Authentication
+To prevent unauthorized local processes from intercepting or injecting bus events, every client must authenticate upon connection:
+1. Client reads the active hub record from `ucsa_bus_hub` via SQLite. (Access to SQLite file credentials is the security boundary).
+2. Client transmits `HELLO` as its first UCB1 frame containing the `token`.
+3. Hub verifies `token === hub.token`. If missing or invalid, hub immediately transmits an `ERROR` frame with code `INVALID_TOKEN` and forcibly disconnects the socket.
+
+#### Slow-Consumer Protection & Backpressure (`RESYNC`)
+If an event subscriber falls behind (e.g. paused debugger, CPU throttling, or network saturation):
+- The hub monitors per-client queue depth (`maxQueueFrames = 1,000`, `maxQueueBytes = 4MB`).
+- When a client breaches the threshold, the hub drops excess buffered frames and immediately emits a `RESYNC` frame with `{ reason: 'SLOW_CONSUMER', head_seq }`.
+- The client receives `RESYNC`, queries `readChangesSince(sinceSeq)` directly from SQLite, and smoothly catches up on missed events without exhausting memory or stalling other bus subscribers.
+
+### 4. Cross-Platform Parity
+
+#### TypeScript
+```typescript
+import { BusHub, resolveBusEndpoint } from 'cli-state-handler';
+
+const hub = new BusHub({ sqliteAdapter });
+const result = await hub.electOrConnect();
+
+if (result.role === 'hub') {
+  console.log(`Elected as Bus Hub on epoch ${result.epoch}`);
+} else {
+  console.log(`Connected as Client to hub on epoch ${result.epoch}`);
+}
+```
+
+#### Dart / Flutter
+```dart
+import 'package:ucsa_dart/ucsa_dart.dart';
+
+final endpoint = resolveBusEndpoint(adapter.path!);
+final hub = BusHub(adapter: adapter, endpoint: endpoint);
+
+// Query hub state from ucsa_bus_hub table
+final record = hub.getHubRecord();
+if (record == null) {
+  final election = hub.elect();
+  print('Elected as Bus Hub: epoch ${election.epoch}');
+} else {
+  final client = hub.connectAsClient();
+  print('Connected to Hub: ${client?.endpoint}');
+}
+```
+
+#### C# / Unity
+```csharp
+using Ucsa.Unity.Ipc;
+using Ucsa.Unity.Storage;
+
+string endpoint = BusHubHelper.ResolveBusEndpoint(dbPath);
+HubRecord? record = BusHubHelper.GetHubRecord(adapter);
+
+if (record == null)
+{
+    var newHub = new HubRecord(1, 1, Environment.ProcessId, endpoint, Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+    BusHubHelper.SaveHubRecord(adapter, newHub);
+}
+```
+
+---
+
+## 11. Cross-Process State Architecture & Outbox Distributed Leases
+
+UCSA provides real-time cross-process query cache invalidation and distributed offline mutation coordination across CLI tools, background workers, desktop agents, and GUI apps sharing a common SQLite database file.
+
+### 1. Bus Client Integration with `QueryEngine`
+
+While SQLite Write-Ahead Logging allows multiple concurrent reader and writer processes, in-memory query caches in separate processes can become stale when a remote process invalidates tags or mutations commit.
+
+`BusClient` connects each `QueryEngine` instance to the local elected `BusHub`:
+- **Real-Time Cross-Process Invalidation**: Whenever a local process calls `queryEngine.invalidateByTag(tag)` or `queryEngine.invalidateQueries(key)`, the change is committed to `ucsa_change_log` and broadcast via a UCB1 `EVENT` frame over the IPC socket.
+- **Echo Suppression**: Each process generates a unique origin identifier (`proc:pid:random`). Invalidation events carrying the local origin are suppressed to prevent redundant refetches.
+- **Instant Observer Awakening**: Remote engines receiving an invalidation event mark matching in-memory queries stale and immediately trigger active selector observer refetches within <100ms.
+- **Catch-Up on Reconnect (`RESYNC`)**: If an engine disconnects or falls behind, it transmits a `RESYNC` frame and queries `sqliteAdapter.readChangesSince(lastSeq)` to deterministically replay any missed invalidations from `ucsa_change_log`.
+
+```typescript
+import { QueryEngine, SqliteAdapter, BusClient } from 'cli-state-handler';
+
+const sqliteAdapter = new SqliteAdapter({ path: './workspace.db' });
+const busClient = new BusClient({ sqliteAdapter });
+await busClient.connect();
+
+const engine = new QueryEngine({
+  sqliteAdapter,
+  busClient,
+});
+
+// Any tag invalidation is automatically broadcast across all processes
+await engine.invalidateByTag('projects:active');
+```
+
+### 2. Distributed Outbox Leases & Zero Duplicate Mutations
+
+When multiple worker processes or CLI invocations run concurrently against the same offline mutation outbox, naive replays can cause duplicate API requests or race conditions. UCSA introduces **Distributed Outbox Leases** (`lease_owner`, `lease_until`):
+
+```mermaid
+sequenceDiagram
+    participant W1 as Worker 1 (Replay Worker)
+    participant DB as SQLite ucsa_mutation_outbox
+    participant W2 as Worker 2 (Concurrent Worker)
+    participant API as Remote Backend API
+
+    Note over W1,DB: Atomic Claim Transaction
+    W1->>DB: UPDATE SET status='in_flight', lease_owner='w1', lease_until=now+30s<br/>WHERE status='pending' OR (status='in_flight' AND lease_until < now)<br/>RETURNING claimed rows
+    DB-->>W1: Leased Mutations [M1, M2]
+
+    W2->>DB: UPDATE SET status='in_flight', lease_owner='w2'...
+    DB-->>W2: Empty (All Active Leases Held)
+
+    W1->>API: Execute M1 (POST /api/v1/items)
+    API-->>W1: 200 OK
+    W1->>DB: DELETE FROM ucsa_mutation_outbox WHERE mutation_id = 'M1'
+
+    Note over W1,W2: Dead Worker Recovery
+    Note over W1: Worker 1 Crashes (SIGKILL)
+    Note over DB: Lease expires (now > lease_until)
+    W2->>DB: Atomic Claim Query
+    DB-->>W2: Reclaimed Expired Mutation [M2]
+    W2->>API: Execute M2 (POST /api/v1/items)
+    API-->>W2: 200 OK
+    W2->>DB: DELETE FROM ucsa_mutation_outbox WHERE mutation_id = 'M2'
+```
+
+- **Atomic Claim Queries**: Workers execute atomic claim transactions via `claimPendingMutations(workerId, leaseDurationMs, limit)`:
+  ```sql
+  UPDATE ucsa_mutation_outbox
+  SET status = 'in_flight',
+      lease_owner = ?,
+      lease_until = ?,
+      last_attempt_at = ?
+  WHERE mutation_id IN (
+    SELECT mutation_id FROM ucsa_mutation_outbox
+    WHERE status = 'pending' OR (status = 'in_flight' AND lease_until IS NOT NULL AND lease_until < ?)
+    ORDER BY created_at ASC
+    LIMIT ?
+  );
+  ```
+- **Zero Duplicate Replays**: Concurrent workers claim mutually exclusive, non-overlapping subsets of pending mutations.
+- **Dead-Worker Lease Recovery**: If a worker process terminates abruptly (`SIGKILL`, power failure, out-of-memory) while holding a lease, surviving workers automatically reclaim the abandoned mutations once `lease_until` expires.
+- **Cross-Platform Parity**: Implemented natively across TypeScript (`MutationOutbox`), Dart (`SqliteAdapter.claimPendingMutations`), and C# Unity (`UnitySqliteAdapter.ClaimPendingMutations`).
+
+### 3. Non-Blocking WAL Truncate Checkpoint Fallback
+
+In high-concurrency environments with continuous reader processes:
+- Standard `PRAGMA wal_checkpoint(TRUNCATE)` attempts to lock the WAL file to truncate it back to zero bytes.
+- If concurrent readers hold open read transactions, SQLite throws `SQLITE_BUSY`.
+- UCSA's `checkpoint(mode = 'TRUNCATE')` catches `SQLITE_BUSY` and gracefully falls back to `PRAGMA wal_checkpoint(PASSIVE)`:
+  - Writes all checkpointed frames back to the database file without blocking or failing.
+  - Guarantees zero unhandled exit exceptions or process crashes during process teardown and `SIGINT` flush.
+
+---
+
 ## Development & Verification
 
 ### Verified Test Coverage Metrics
@@ -1810,6 +2226,8 @@ ucsa migrate clean-incompatible [--db <path>] [--target-version <v>]
 | **Types & Contracts** | `packages/core/tests/types.test.ts` | 7 | Passing (100%) |
 | **SQLite WAL Storage** | `packages/core/tests/storage/sqlite.test.ts` | 13 | Passing (100%) |
 | **Schema Migration Engine** | `packages/core/tests/storage/migration-runner.test.ts` | 9 | Passing (100%) |
+| **Schema Migration v3** | `packages/core/tests/storage/migration-v3.test.ts` | 5 | Passing (100%) |
+| **Durable Change Log & Catch-up** | `packages/core/tests/storage/change-log.test.ts` | 10 | Passing (100%) |
 | **Cross-Language Fixtures** | `packages/core/tests/storage/cross-language-fixtures.test.ts` | 2 | Passing (100%) |
 | **CAS Store (SHA-256)** | `packages/core/tests/storage/cas.test.ts` | 13 | Passing (100%) |
 | **CAS LRU & Quotas** | `packages/core/tests/storage/cas-lru.test.ts` | 8 | Passing (100%) |
@@ -1822,7 +2240,12 @@ ucsa migrate clean-incompatible [--db <path>] [--target-version <v>]
 | **Selective Cache Eviction** | `packages/core/tests/query/selective-eviction.test.ts` | 6 | Passing (100%) |
 | **Mutation Outbox** | `packages/core/tests/query/outbox.test.ts` | 16 | Passing (100%) |
 | **Outbox Rate-Limit & Batch** | `packages/core/tests/query/outbox-rate-limit.test.ts` | 3 | Passing (100%) |
+| **Outbox Distributed Leases & Checkpoint** | `packages/core/tests/query/outbox-leases.test.ts` | 7 | Passing (100%) |
 | **Network Transports** | `packages/core/tests/network/transports.test.ts` | 23 | Passing (100%) |
+| **UCB1 Frame Codec & Streaming** | `packages/core/tests/ipc/frame-codec.test.ts` | 25 | Passing (100%) |
+| **UCB1 Conformance Vectors** | `packages/core/tests/ipc/vectors.test.ts` | 31 | Passing (100%) |
+| **Elected Bus Hub & Sockets** | `packages/core/tests/ipc/bus-hub.test.ts` | 10 | Passing (100%) |
+| **Cross-Process Invalidation** | `packages/core/tests/ipc/cross-process-invalidation.test.ts` | 5 | Passing (100%) |
 | **Consumer Re-render** | `packages/core/tests/consumer/re-render.test.ts` | 6 | Passing (100%) |
 | **Observer Throttling & Debounce** | `packages/core/tests/consumer/observer-timing.test.ts` | 3 | Passing (100%) |
 | **React 19 Framework (DOM)** | `packages/core/tests/consumer/react-framework.test.tsx` | 1 | Passing (100%) |
@@ -1832,6 +2255,7 @@ ucsa migrate clean-incompatible [--db <path>] [--target-version <v>]
 | **CLI Commands Integration** | `apps/cli/tests/cli-commands.test.ts` | 11 | Passing (100%) |
 | **CLI Tutorial & Docs** | `apps/cli/tests/tutorial-command.test.ts` | 7 | Passing (100%) |
 | **CLI Migration Suite** | `apps/cli/tests/migrate-command.test.ts` | 6 | Passing (100%) |
+| **CLI Daemon & Status Bus** | `apps/cli/tests/daemon-command.test.ts` | 6 | Passing (100%) |
 | **Live SWR Playground** | `apps/docs/tests/swr-playground.test.tsx` | 4 | Passing (100%) |
 | **Timing Controls Simulator** | `apps/docs/tests/timing-playground.test.tsx` | 3 | Passing (100%) |
 | **Offline Outbox Simulator** | `apps/docs/tests/outbox-playground.test.tsx` | 2 | Passing (100%) |
@@ -1840,12 +2264,16 @@ ucsa migrate clean-incompatible [--db <path>] [--target-version <v>]
 | **Dart Lifecycle FSM** | `packages/ucsa_dart/test/lifecycle_test.dart` | 15 | Passing (100%) |
 | **Dart SQLite WAL Storage** | `packages/ucsa_dart/test/sqlite_test.dart` | 19 | Passing (100%) |
 | **Dart Schema Migrations** | `packages/ucsa_dart/test/migration_test.dart` | 6 | Passing (100%) |
+| **Dart Change Log & Catch-up** | `packages/ucsa_dart/test/change_log_test.dart` | 9 | Passing (100%) |
 | **Dart CAS Store & SHA-256** | `packages/ucsa_dart/test/cas_test.dart` | 11 | Passing (100%) |
 | **Dart SWR Query Engine** | `packages/ucsa_dart/test/query_engine_test.dart` | 21 | Passing (100%) |
 | **Dart Query Debouncing** | `packages/ucsa_dart/test/query_debouncing_test.dart` | 2 | Passing (100%) |
 | **Dart Zero-Rebuild Observer** | `packages/ucsa_dart/test/observer_test.dart` | 4 | Passing (100%) |
 | **Dart Observer Throttling** | `packages/ucsa_dart/test/observer_timing_test.dart` | 2 | Passing (100%) |
 | **Dart Outbox Rate-Limiting** | `packages/ucsa_dart/test/outbox_rate_limit_test.dart` | 2 | Passing (100%) |
+| **Dart Outbox Distributed Leases** | `packages/ucsa_dart/test/outbox_lease_test.dart` | 3 | Passing (100%) |
+| **Dart UCB1 Frame Codec & Parity** | `packages/ucsa_dart/test/frame_codec_test.dart` | 28 | Passing (100%) |
+| **Dart Bus Hub & Election** | `packages/ucsa_dart/test/bus_hub_test.dart` | 8 | Passing (100%) |
 | **Dart Full-Chain E2E Gate** | `packages/ucsa_dart/test/e2e_full_chain_test.dart` | 1 | Passing (100%) |
 | **Flutter Widget Framework** | `packages/ucsa_flutter/test/widget_test.dart` | 1 | Passing (100%) |
 | **Unity Lifecycle FSM** | `packages/com.ucsa.unity/Tests/Runtime/LifecycleFsmTests.cs` | 6 | Passing (100%) |
@@ -1853,14 +2281,18 @@ ucsa migrate clean-incompatible [--db <path>] [--target-version <v>]
 | **Unity State Observer Timing** | `packages/com.ucsa.unity/Tests/Runtime/StateObserverTimingTests.cs` | 2 | Passing (100%) |
 | **Unity SQLite WAL Storage** | `packages/com.ucsa.unity/Tests/Runtime/SqliteAdapterTests.cs` | 15 | Passing (100%) |
 | **Unity Schema Migrations** | `packages/com.ucsa.unity/Tests/Runtime/MigrationTests.cs` | 8 | Passing (100%) |
+| **Unity Change Log & Catch-up** | `packages/com.ucsa.unity/Tests/Runtime/ChangeLogTests.cs` | 9 | Passing (100%) |
 | **Unity CAS Store & Prune** | `packages/com.ucsa.unity/Tests/Runtime/CasStoreTests.cs` | 14 | Passing (100%) |
 | **Unity SWR Query Engine** | `packages/com.ucsa.unity/Tests/Runtime/QueryEngineTests.cs` | 15 | Passing (100%) |
 | **Unity Query Debouncing** | `packages/com.ucsa.unity/Tests/Runtime/QueryDebouncingTests.cs` | 3 | Passing (100%) |
 | **Unity Outbox Rate-Limiting** | `packages/com.ucsa.unity/Tests/Runtime/OutboxRateLimitTests.cs` | 2 | Passing (100%) |
+| **Unity Outbox Distributed Leases** | `packages/com.ucsa.unity/Tests/Runtime/OutboxLeaseTests.cs` | 3 | Passing (100%) |
 | **Unity Texture Cache** | `packages/com.ucsa.unity/Tests/Runtime/TextureCacheTests.cs` | 5 | Passing (100%) |
 | **Unity Behaviour Durability** | `packages/com.ucsa.unity/Tests/Runtime/UcsaBehaviourTests.cs` | 4 | Passing (100%) |
+| **Unity UCB1 Frame Codec & Parity** | `packages/com.ucsa.unity/Tests/Runtime/FrameCodecTests.cs` | 17 | Passing (100%) |
+| **Unity Bus Hub Models & Parity** | `packages/com.ucsa.unity/Tests/Runtime/BusHubTests.cs` | 5 | Passing (100%) |
 | **Unity Full-Chain E2E Gate** | `packages/com.ucsa.unity/Tests/Runtime/E2EFullChainTests.cs` | 1 | Passing (100%) |
-| **Total** | **53 Test Suites** | **396 Tests** | **396 / 396 Passing (100%) (69 C# Unity + 83 Dart + 1 Flutter + 243 Node/TS/React/CLI/Docs)** |
+| **Total** | **69 Test Suites** | **577 Tests** | **577 / 577 Passing (100%) (103 C# Unity + 131 Dart + 1 Flutter + 342 Node/TS/React/CLI/Docs)** |
 
 ### Verification Commands
 
@@ -1872,16 +2304,16 @@ pnpm run test:full-chain
 # Run type checks and build
 pnpm run typecheck && pnpm run build
 
-# Run complete Vitest suite (243 tests across 30 files, including React DOM, CLI & Docs)
+# Run complete Vitest suite (342 tests across 38 files, including React DOM, CLI & Docs)
 pnpm test
 
 # Run Flutter widget test suite
 (cd packages/ucsa_flutter && flutter test)
 
-# Run complete Dart test suite (83 tests across 10 files)
+# Run complete Dart test suite (131 tests across 14 files)
 (cd packages/ucsa_dart && dart test)
 
-# Run complete C# Unity test suite (69 tests across 12 files)
+# Run complete C# Unity test suite (103 tests across 16 files)
 dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
 
 # Run Gate 1 precheck script (cross-platform verification)
@@ -1890,5 +2322,6 @@ dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
 # Run Gate 2 integration script (real datastore & platform engines)
 ./scripts/integration.sh
 ```
+
 
 

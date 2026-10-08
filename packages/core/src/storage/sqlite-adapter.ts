@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
 import type { CacheEntry, QueryKey } from '../types.js';
 import {
   insertTags,
@@ -17,10 +18,29 @@ import {
 } from './cas-lru.js';
 import { MigrationRunner, TARGET_SCHEMA_VERSION } from './migration-runner.js';
 
+export type ChangeLogKind = 'invalidate' | 'mutation' | 'stream' | 'reset';
+
+export interface ChangeLogRow {
+  seq: number;
+  origin: string;
+  kind: ChangeLogKind;
+  tags: string[] | null;
+  query_hashes: string[] | null;
+  detail: Record<string, unknown> | null;
+  created_at: number;
+}
+
+export interface ReadChangesResult {
+  rows: ChangeLogRow[];
+  truncated: boolean;
+  headSeq: number;
+}
+
 export interface SqliteAdapterOptions {
   journalMode?: 'WAL' | 'MEMORY' | 'DELETE' | 'TRUNCATE' | 'PERSIST' | 'OFF';
   busyTimeout?: number;
   targetSchemaVersion?: number;
+  origin?: string;
 }
 
 export type SqliteCheckpointMode = 'PASSIVE' | 'FULL' | 'RESTART' | 'TRUNCATE';
@@ -39,6 +59,7 @@ interface QueryCacheRow {
 
 export class SqliteAdapter {
   private readonly _db: Database.Database;
+  private readonly _origin: string;
   private _isClosed = false;
 
   private _upsertQueryStmt!: Database.Statement<
@@ -49,8 +70,16 @@ export class SqliteAdapter {
   private _updateQueryPayloadStmt!: Database.Statement<[string, number, string]>;
   private _getExpiredQueriesStmt!: Database.Statement<[number]>;
 
+  private _insertChangeLogStmt?: Database.Statement<
+    [string, string, string | null, string | null, string | null, number]
+  >;
+  private _readChangesStmt?: Database.Statement<[number, number]>;
+  private _getMaxSeqStmt?: Database.Statement;
+  private _getMinSeqStmt?: Database.Statement;
+
   constructor(dbPath: string = ':memory:', options?: SqliteAdapterOptions) {
     this._db = new Database(dbPath);
+    this._origin = options?.origin ?? randomUUID();
 
     // Enforce foreign key constraints for cascade deletions
     this._db.pragma('foreign_keys = ON');
@@ -68,6 +97,13 @@ export class SqliteAdapter {
   }
 
   /**
+   * Returns this adapter's unique origin identifier.
+   */
+  get origin(): string {
+    return this._origin;
+  }
+
+  /**
    * Returns the underlying better-sqlite3 database instance.
    */
   get db(): Database.Database {
@@ -79,6 +115,52 @@ export class SqliteAdapter {
    */
   getSchemaVersion(): number {
     return MigrationRunner.getUserVersion(this._db);
+  }
+
+  private get insertChangeLogStmt(): Database.Statement<
+    [string, string, string | null, string | null, string | null, number]
+  > {
+    if (!this._insertChangeLogStmt) {
+      this._insertChangeLogStmt = this._db.prepare<
+        [string, string, string | null, string | null, string | null, number]
+      >(`
+        INSERT INTO ucsa_change_log (
+          origin, kind, tags, query_hashes, detail, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?);
+      `);
+    }
+    return this._insertChangeLogStmt;
+  }
+
+  private get readChangesStmt(): Database.Statement<[number, number]> {
+    if (!this._readChangesStmt) {
+      this._readChangesStmt = this._db.prepare<[number, number]>(`
+        SELECT seq, origin, kind, tags, query_hashes, detail, created_at
+        FROM ucsa_change_log
+        WHERE seq > ?
+        ORDER BY seq ASC
+        LIMIT ?;
+      `);
+    }
+    return this._readChangesStmt;
+  }
+
+  private get getMaxSeqStmt(): Database.Statement {
+    if (!this._getMaxSeqStmt) {
+      this._getMaxSeqStmt = this._db.prepare(`
+        SELECT MAX(seq) as max_seq FROM ucsa_change_log;
+      `);
+    }
+    return this._getMaxSeqStmt;
+  }
+
+  private get getMinSeqStmt(): Database.Statement {
+    if (!this._getMinSeqStmt) {
+      this._getMinSeqStmt = this._db.prepare(`
+        SELECT MIN(seq) as min_seq FROM ucsa_change_log;
+      `);
+    }
+    return this._getMinSeqStmt;
   }
 
   /**
@@ -125,6 +207,32 @@ export class SqliteAdapter {
       FROM ucsa_query_cache
       WHERE expires_at <= ?;
     `);
+
+    if (this.getSchemaVersion() >= 3) {
+      this._insertChangeLogStmt = this._db.prepare<
+        [string, string, string | null, string | null, string | null, number]
+      >(`
+        INSERT INTO ucsa_change_log (
+          origin, kind, tags, query_hashes, detail, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?);
+      `);
+
+      this._readChangesStmt = this._db.prepare<[number, number]>(`
+        SELECT seq, origin, kind, tags, query_hashes, detail, created_at
+        FROM ucsa_change_log
+        WHERE seq > ?
+        ORDER BY seq ASC
+        LIMIT ?;
+      `);
+
+      this._getMaxSeqStmt = this._db.prepare(`
+        SELECT MAX(seq) as max_seq FROM ucsa_change_log;
+      `);
+
+      this._getMinSeqStmt = this._db.prepare(`
+        SELECT MIN(seq) as min_seq FROM ucsa_change_log;
+      `);
+    }
   }
 
   /**
@@ -200,29 +308,174 @@ export class SqliteAdapter {
   }
 
   /**
+   * Appends an entry to ucsa_change_log and returns the generated seq number.
+   */
+  appendChangeLog(
+    kind: ChangeLogKind,
+    options?: {
+      origin?: string;
+      tags?: string[];
+      queryHashes?: string[];
+      detail?: Record<string, unknown>;
+    }
+  ): number {
+    const origin = options?.origin ?? this._origin;
+    const tags = options?.tags !== undefined ? JSON.stringify(options.tags) : null;
+    const queryHashes =
+      options?.queryHashes !== undefined ? JSON.stringify(options.queryHashes) : null;
+    const detail =
+      options?.detail !== undefined ? JSON.stringify(options.detail) : null;
+    const createdAt = Date.now();
+
+    const info = this.insertChangeLogStmt.run(
+      origin,
+      kind,
+      tags,
+      queryHashes,
+      detail,
+      createdAt
+    );
+
+    return Number(info.lastInsertRowid);
+  }
+
+  /**
    * Deletes a cached query entry by hash.
    * Cascade delete will automatically clean up all associated tags in ucsa_cache_tags.
+   * If schema version >= 3, atomically journals an invalidate change log entry.
+   * Returns true if a row was deleted.
    */
-  deleteQuery(queryHash: string): void {
-    this._deleteQueryStmt.run(queryHash);
+  deleteQuery(queryHash: string, origin?: string): boolean {
+    const runTx = this._db.transaction(() => {
+      const info = this._deleteQueryStmt.run(queryHash);
+      const wasDeleted = info.changes > 0;
+      if (wasDeleted && this.getSchemaVersion() >= 3) {
+        this.appendChangeLog('invalidate', {
+          origin: origin ?? this._origin,
+          queryHashes: [queryHash],
+        });
+      }
+      return wasDeleted;
+    });
+
+    return runTx();
   }
 
   /**
    * Invalidates all queries associated with the given tag.
+   * Inside a transaction: queries affected query_hashes matching tag from ucsa_cache_tags,
+   * deletes them from ucsa_query_cache, and inserts a single change log row with
+   * kind: 'invalidate', tags: [tag], queryHashes: affectedHashes.
    * Returns the list of query hashes that were invalidated.
    */
-  invalidateByTag(tag: string): string[] {
-    const hashes = getQueryHashesByTag(this._db, tag);
-    if (hashes.length === 0) return [];
-
-    const deleteBatch = this._db.transaction((hashList: string[]) => {
-      for (const hash of hashList) {
+  invalidateByTag(tag: string, origin?: string): string[] {
+    const runTx = this._db.transaction(() => {
+      const affectedHashes = getQueryHashesByTag(this._db, tag);
+      for (const hash of affectedHashes) {
         this._deleteQueryStmt.run(hash);
       }
+      if (this.getSchemaVersion() >= 3) {
+        this.appendChangeLog('invalidate', {
+          origin: origin ?? this._origin,
+          tags: [tag],
+          queryHashes: affectedHashes,
+        });
+      }
+      return affectedHashes;
     });
 
-    deleteBatch(hashes);
-    return hashes;
+    return runTx();
+  }
+
+  /**
+   * Reads change log entries created since lastSeq in ascending sequence order up to limit.
+   * Detects gaps caused by pruning (truncated: true).
+   */
+  readChangesSince(lastSeq: number, limit = 1000): ReadChangesResult {
+    const maxRow = this.getMaxSeqStmt.get() as { max_seq: number | null } | undefined;
+    const headSeq = maxRow?.max_seq ?? 0;
+
+    const minRow = this.getMinSeqStmt.get() as { min_seq: number | null } | undefined;
+    const minSeq = minRow?.min_seq ?? null;
+
+    let truncated = false;
+    if (lastSeq > 0 && minSeq !== null && lastSeq < minSeq - 1) {
+      truncated = true;
+    }
+
+    interface RawChangeLogRow {
+      seq: number;
+      origin: string;
+      kind: ChangeLogKind;
+      tags: string | null;
+      query_hashes: string | null;
+      detail: string | null;
+      created_at: number;
+    }
+
+    const rawRows = this.readChangesStmt.all(lastSeq, limit) as RawChangeLogRow[];
+
+    const rows: ChangeLogRow[] = rawRows.map((row) => ({
+      seq: row.seq,
+      origin: row.origin,
+      kind: row.kind,
+      tags: row.tags ? (JSON.parse(row.tags) as string[]) : null,
+      query_hashes: row.query_hashes
+        ? (JSON.parse(row.query_hashes) as string[])
+        : null,
+      detail: row.detail
+        ? (JSON.parse(row.detail) as Record<string, unknown>)
+        : null,
+      created_at: row.created_at,
+    }));
+
+    return {
+      rows,
+      truncated,
+      headSeq,
+    };
+  }
+
+  /**
+   * Prunes old change log entries beyond retention window (retentionMs)
+   * or beyond maxRows ceiling (retaining newest maxRows).
+   */
+  pruneChangeLog(
+    retentionMs = 86400000,
+    maxRows = 10000
+  ): { prunedCount: number } {
+    const cutoff = Date.now() - retentionMs;
+
+    const runPrune = this._db.transaction(() => {
+      let seqThreshold: number | null = null;
+      if (maxRows > 0) {
+        const row = this._db
+          .prepare<[number]>(
+            `SELECT seq FROM ucsa_change_log ORDER BY seq DESC LIMIT 1 OFFSET ?`
+          )
+          .get(maxRows) as { seq: number } | undefined;
+        if (row) {
+          seqThreshold = row.seq;
+        }
+      }
+
+      let result: Database.RunResult;
+      if (seqThreshold !== null) {
+        result = this._db
+          .prepare<[number, number]>(
+            `DELETE FROM ucsa_change_log WHERE created_at < ? OR seq <= ?;`
+          )
+          .run(cutoff, seqThreshold);
+      } else {
+        result = this._db
+          .prepare<[number]>(`DELETE FROM ucsa_change_log WHERE created_at < ?;`)
+          .run(cutoff);
+      }
+
+      return { prunedCount: result.changes };
+    });
+
+    return runPrune();
   }
 
   /**
@@ -302,10 +555,45 @@ export class SqliteAdapter {
    * Executes a WAL checkpoint on the database.
    * In WAL mode, writes pending WAL frames back to the database file.
    * Mode defaults to 'TRUNCATE' to truncate the WAL file to zero bytes.
+   * If mode is 'TRUNCATE' and SQLite encounters a busy condition (e.g. concurrent readers),
+   * gracefully falls back to 'PASSIVE' checkpointing to prevent unhandled exceptions during exit.
    */
   checkpoint(mode: SqliteCheckpointMode = 'TRUNCATE'): void {
     if (!this._isClosed) {
-      this._db.pragma(`wal_checkpoint(${mode})`);
+      try {
+        const result = this._db.pragma(`wal_checkpoint(${mode})`) as
+          | Array<{ busy: number; log: number; checkpointed: number }>
+          | undefined;
+
+        if (
+          mode === 'TRUNCATE' &&
+          Array.isArray(result) &&
+          result.length > 0 &&
+          result[0].busy === 1
+        ) {
+          try {
+            this._db.pragma('wal_checkpoint(PASSIVE)');
+          } catch {
+            // Ignore secondary error during passive fallback
+          }
+        }
+      } catch (err: unknown) {
+        const error = err as { code?: string; message?: string };
+        const isBusy =
+          error?.code === 'SQLITE_BUSY' ||
+          (typeof error?.message === 'string' &&
+            error.message.toLowerCase().includes('busy'));
+
+        if (mode === 'TRUNCATE' && isBusy) {
+          try {
+            this._db.pragma('wal_checkpoint(PASSIVE)');
+          } catch {
+            // Gracefully ignore secondary error during passive fallback
+          }
+        } else {
+          throw err;
+        }
+      }
     }
   }
 

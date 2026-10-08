@@ -47,6 +47,8 @@ export interface OutboxMutation<TPayload = unknown> {
   last_attempt_at?: number;
   error?: string;
   forced?: boolean;
+  lease_owner?: string | null;
+  lease_until?: number | null;
   conflictPolicy?: ConflictPolicy;
   onRollback?: (mutation: OutboxMutation<TPayload>) => void | Promise<void>;
   mergeResolver?: (

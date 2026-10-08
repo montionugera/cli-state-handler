@@ -22,7 +22,7 @@ describe('Cross-Language Migration & Storage Fixtures', () => {
   });
 
   it('generates canonical v2 database conforming to cross-language specification', () => {
-    const adapter = new SqliteAdapter(dbPath);
+    const adapter = new SqliteAdapter(dbPath, { targetSchemaVersion: 2 });
 
     expect(adapter.getSchemaVersion()).toBe(2);
 
@@ -91,7 +91,7 @@ describe('Cross-Language Migration & Storage Fixtures', () => {
     rawDb.close();
 
     // Reopen with new adapter instance -> should recognize version 2 and 0 pending migrations
-    const reloadedAdapter = new SqliteAdapter(dbPath);
+    const reloadedAdapter = new SqliteAdapter(dbPath, { targetSchemaVersion: 2 });
     expect(reloadedAdapter.getSchemaVersion()).toBe(2);
     const retrieved = reloadedAdapter.getQuery('user_100');
     expect(retrieved).toBeDefined();

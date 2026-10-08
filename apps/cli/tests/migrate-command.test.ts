@@ -24,15 +24,15 @@ describe('CLI Migrate Command Suite', () => {
     const freshResult = await runMigrate('status', { db: dbPath });
     expect(freshResult.action).toBe('status');
     expect(freshResult.currentVersion).toBe(0);
-    expect(freshResult.targetVersion).toBe(2);
-    expect(freshResult.pendingCount).toBe(2);
+    expect(freshResult.targetVersion).toBe(3);
+    expect(freshResult.pendingCount).toBe(3);
     expect(freshResult.appliedCount).toBe(0);
 
     // After migration
     await runMigrate('up', { db: dbPath });
     const migratedResult = await runMigrate('status', { db: dbPath });
-    expect(migratedResult.currentVersion).toBe(2);
-    expect(migratedResult.appliedCount).toBe(2);
+    expect(migratedResult.currentVersion).toBe(3);
+    expect(migratedResult.appliedCount).toBe(3);
     expect(migratedResult.pendingCount).toBe(0);
   });
 
@@ -50,6 +50,19 @@ describe('CLI Migrate Command Suite', () => {
         stale_at INTEGER NOT NULL,
         expires_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS ucsa_mutation_outbox (
+        mutation_id TEXT PRIMARY KEY,
+        endpoint TEXT NOT NULL,
+        method TEXT NOT NULL,
+        headers TEXT,
+        payload TEXT,
+        status TEXT NOT NULL,
+        retry_count INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        last_attempt_at INTEGER,
+        error TEXT,
+        forced INTEGER DEFAULT 0
+      );
       CREATE TABLE IF NOT EXISTS ucsa_migrations (
         version INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
@@ -64,8 +77,8 @@ describe('CLI Migrate Command Suite', () => {
     const result = await runMigrate('up', { db: dbPath });
 
     expect(result.action).toBe('up');
-    expect(result.currentVersion).toBe(2);
-    expect(result.appliedCount).toBe(1); // 0002_payload_version applied
+    expect(result.currentVersion).toBe(3);
+    expect(result.appliedCount).toBe(2); // 0002_payload_version and 0003_change_log_and_bus applied
   });
 
   it('checks schema integrity returning upToDate status', async () => {
@@ -75,7 +88,7 @@ describe('CLI Migrate Command Suite', () => {
     const checkResult = await runMigrate('check', { db: dbPath });
     expect(checkResult.action).toBe('check');
     expect(checkResult.upToDate).toBe(true);
-    expect(checkResult.currentVersion).toBe(2);
+    expect(checkResult.currentVersion).toBe(3);
 
     // Create an unmigrated database
     const oldDbPath = path.join(tempDir, 'old.db');

@@ -9,3 +9,4 @@ export {
   type MigrateCommandOptions,
   type MigrateResult,
 } from './migrate.js';
+export { runDaemon, type DaemonCommandOptions } from './daemon.js';

@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
 import type { SqliteAdapter } from '../storage/sqlite-adapter.js';
 import type {
   OutboxMutation,
@@ -9,6 +10,8 @@ import type {
 export interface MutationOutboxOptions {
   sqliteAdapter: SqliteAdapter;
   maxRetries?: number;
+  workerId?: string;
+  defaultLeaseDurationMs?: number;
   onRollback?: (mutation: OutboxMutation) => void | Promise<void>;
   mergeResolver?: (localData: unknown, serverData: unknown) => unknown | Promise<unknown>;
 }
@@ -23,6 +26,8 @@ export interface ReplayOptions {
   rateLimitMs?: number;
   batchSize?: number;
   conflictResolver?: ConflictResolver;
+  leaseDurationMs?: number;
+  workerId?: string;
 }
 
 export type ConflictResolution = 'rollback' | 'force' | 'merged';
@@ -48,6 +53,8 @@ interface OutboxRow {
   last_attempt_at: number | null;
   error: string | null;
   forced: number;
+  lease_owner: string | null;
+  lease_until: number | null;
 }
 
 /**
@@ -58,6 +65,8 @@ export class MutationOutbox {
   private readonly _sqliteAdapter: SqliteAdapter;
   private readonly _db: Database.Database;
   private readonly _maxRetries: number;
+  private readonly _workerId: string;
+  private readonly _defaultLeaseDurationMs: number;
   private readonly _options: MutationOutboxOptions;
 
   private readonly _rollbackCallbacks = new Map<
@@ -79,22 +88,39 @@ export class MutationOutbox {
   private _updateRetryStmt!: Database.Statement;
   private _requeueForcedStmt!: Database.Statement;
   private _updatePayloadStmt!: Database.Statement;
+  private _claimCandidatesStmt!: Database.Statement;
 
   constructor(options: MutationOutboxOptions) {
     this._options = options;
     this._sqliteAdapter = options.sqliteAdapter;
     this._db = options.sqliteAdapter.db;
     this._maxRetries = options.maxRetries ?? 3;
+    this._workerId = options.workerId ?? randomUUID();
+    this._defaultLeaseDurationMs = options.defaultLeaseDurationMs ?? 30000;
 
-    // Ensure error and forced columns exist if table was created previously without them
+    // Ensure error, forced, lease_owner, and lease_until columns exist if table was created previously without them
     try {
       this._db.exec('ALTER TABLE ucsa_mutation_outbox ADD COLUMN error TEXT;');
     } catch {}
     try {
       this._db.exec('ALTER TABLE ucsa_mutation_outbox ADD COLUMN forced INTEGER DEFAULT 0;');
     } catch {}
+    try {
+      this._db.exec('ALTER TABLE ucsa_mutation_outbox ADD COLUMN lease_owner TEXT;');
+    } catch {}
+    try {
+      this._db.exec('ALTER TABLE ucsa_mutation_outbox ADD COLUMN lease_until INTEGER;');
+    } catch {}
 
     this._prepareStatements();
+  }
+
+  get workerId(): string {
+    return this._workerId;
+  }
+
+  get defaultLeaseDurationMs(): number {
+    return this._defaultLeaseDurationMs;
   }
 
   get maxRetries(): number {
@@ -108,8 +134,8 @@ export class MutationOutbox {
   private _prepareStatements(): void {
     this._insertStmt = this._db.prepare(`
       INSERT INTO ucsa_mutation_outbox (
-        mutation_id, endpoint, method, headers, payload, status, retry_count, created_at, last_attempt_at, error, forced
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        mutation_id, endpoint, method, headers, payload, status, retry_count, created_at, last_attempt_at, error, forced, lease_owner, lease_until
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(mutation_id) DO UPDATE SET
         endpoint = excluded.endpoint,
         method = excluded.method,
@@ -120,24 +146,26 @@ export class MutationOutbox {
         created_at = excluded.created_at,
         last_attempt_at = excluded.last_attempt_at,
         error = excluded.error,
-        forced = excluded.forced;
+        forced = excluded.forced,
+        lease_owner = excluded.lease_owner,
+        lease_until = excluded.lease_until;
     `);
 
     this._getPendingStmt = this._db.prepare(`
-      SELECT mutation_id, endpoint, method, headers, payload, status, retry_count, created_at, last_attempt_at, error, forced
+      SELECT mutation_id, endpoint, method, headers, payload, status, retry_count, created_at, last_attempt_at, error, forced, lease_owner, lease_until
       FROM ucsa_mutation_outbox
       WHERE status = 'pending'
       ORDER BY created_at ASC;
     `);
 
     this._getAllStmt = this._db.prepare(`
-      SELECT mutation_id, endpoint, method, headers, payload, status, retry_count, created_at, last_attempt_at, error, forced
+      SELECT mutation_id, endpoint, method, headers, payload, status, retry_count, created_at, last_attempt_at, error, forced, lease_owner, lease_until
       FROM ucsa_mutation_outbox
       ORDER BY created_at ASC;
     `);
 
     this._getByIdStmt = this._db.prepare(`
-      SELECT mutation_id, endpoint, method, headers, payload, status, retry_count, created_at, last_attempt_at, error, forced
+      SELECT mutation_id, endpoint, method, headers, payload, status, retry_count, created_at, last_attempt_at, error, forced, lease_owner, lease_until
       FROM ucsa_mutation_outbox
       WHERE mutation_id = ?;
     `);
@@ -148,26 +176,36 @@ export class MutationOutbox {
 
     this._updateStatusStmt = this._db.prepare(`
       UPDATE ucsa_mutation_outbox
-      SET status = ?, last_attempt_at = ?, error = ?
+      SET status = ?, last_attempt_at = ?, error = ?,
+          lease_owner = CASE WHEN ? = 'in_flight' THEN lease_owner ELSE NULL END,
+          lease_until = CASE WHEN ? = 'in_flight' THEN lease_until ELSE NULL END
       WHERE mutation_id = ?;
     `);
 
     this._updateRetryStmt = this._db.prepare(`
       UPDATE ucsa_mutation_outbox
-      SET retry_count = ?, status = ?, last_attempt_at = ?, error = ?
+      SET retry_count = ?, status = ?, last_attempt_at = ?, error = ?, lease_owner = NULL, lease_until = NULL
       WHERE mutation_id = ?;
     `);
 
     this._requeueForcedStmt = this._db.prepare(`
       UPDATE ucsa_mutation_outbox
-      SET status = 'pending', forced = 1, headers = ?, last_attempt_at = ?
+      SET status = 'pending', forced = 1, headers = ?, last_attempt_at = ?, lease_owner = NULL, lease_until = NULL
       WHERE mutation_id = ?;
     `);
 
     this._updatePayloadStmt = this._db.prepare(`
       UPDATE ucsa_mutation_outbox
-      SET payload = ?, status = 'pending', last_attempt_at = ?
+      SET payload = ?, status = 'pending', last_attempt_at = ?, lease_owner = NULL, lease_until = NULL
       WHERE mutation_id = ?;
+    `);
+
+    this._claimCandidatesStmt = this._db.prepare(`
+      SELECT mutation_id
+      FROM ucsa_mutation_outbox
+      WHERE status = 'pending' OR (status = 'in_flight' AND lease_until IS NOT NULL AND lease_until < ?)
+      ORDER BY created_at ASC
+      LIMIT ?;
     `);
   }
 
@@ -202,7 +240,9 @@ export class MutationOutbox {
       createdAt,
       null,
       mutation.error ?? null,
-      forced ? 1 : 0
+      forced ? 1 : 0,
+      mutation.lease_owner ?? null,
+      mutation.lease_until ?? null
     );
 
     if (mutation.onRollback) {
@@ -233,6 +273,8 @@ export class MutationOutbox {
       last_attempt_at: undefined,
       error: mutation.error,
       forced,
+      lease_owner: mutation.lease_owner ?? null,
+      lease_until: mutation.lease_until ?? null,
       conflictPolicy: mutation.conflictPolicy,
       onRollback: mutation.onRollback,
       mergeResolver: mutation.mergeResolver,
@@ -276,8 +318,57 @@ export class MutationOutbox {
       status,
       Date.now(),
       error ?? null,
+      status,
+      status,
       mutationId
     );
+  }
+
+  /**
+   * Atomically claims pending or expired in-flight mutations for a specific worker.
+   */
+  claimPendingMutations(
+    workerId: string = this._workerId,
+    leaseDurationMs: number = this._defaultLeaseDurationMs,
+    limit = 50
+  ): OutboxMutation[] {
+    const claimTx = this._db.transaction(() => {
+      const now = Date.now();
+      const leaseUntil = now + leaseDurationMs;
+
+      const candidates = this._claimCandidatesStmt.all(now, limit) as Array<{
+        mutation_id: string;
+      }>;
+
+      if (candidates.length === 0) {
+        return [];
+      }
+
+      const candidateIds = candidates.map((c) => c.mutation_id);
+      const placeholders = candidateIds.map(() => '?').join(', ');
+
+      const updateStmt = this._db.prepare(`
+        UPDATE ucsa_mutation_outbox
+        SET status = 'in_flight',
+            lease_owner = ?,
+            lease_until = ?,
+            last_attempt_at = ?
+        WHERE mutation_id IN (${placeholders});
+      `);
+      updateStmt.run(workerId, leaseUntil, now, ...candidateIds);
+
+      const selectStmt = this._db.prepare(`
+        SELECT mutation_id, endpoint, method, headers, payload, status, retry_count, created_at, last_attempt_at, error, forced, lease_owner, lease_until
+        FROM ucsa_mutation_outbox
+        WHERE mutation_id IN (${placeholders})
+        ORDER BY created_at ASC;
+      `);
+      const claimedRows = selectStmt.all(...candidateIds) as OutboxRow[];
+
+      return claimedRows.map((row) => this._mapRowToMutation(row));
+    });
+
+    return claimTx();
   }
 
   /**
@@ -294,7 +385,7 @@ export class MutationOutbox {
    * Replays pending mutations sequentially via an executor function.
    * Handles transient errors with retry count tracking up to maxRetries,
    * and handles 409 Conflict using conflict policies (server-wins, client-wins, merge).
-   * Supports rateLimitMs delay between mutation calls and batchSize limits.
+   * Supports rateLimitMs delay between mutation calls, batchSize limits, and distributed leases.
    */
   async replay(
     executor: MutationExecutor,
@@ -318,24 +409,22 @@ export class MutationOutbox {
     }
 
     const rateLimitMs = opts?.rateLimitMs ?? 0;
-    const batchSize = opts?.batchSize;
+    const workerId = opts?.workerId ?? this._workerId;
+    const leaseDurationMs = opts?.leaseDurationMs ?? this._defaultLeaseDurationMs;
+    const limit = opts?.batchSize && opts.batchSize > 0 ? opts.batchSize : 50;
 
-    let pending = this.getPendingMutations();
-    if (batchSize !== undefined && batchSize > 0) {
-      pending = pending.slice(0, batchSize);
-    }
+    const claimed = this.claimPendingMutations(workerId, leaseDurationMs, limit);
 
     let processed = 0;
     let successful = 0;
     let failed = 0;
 
-    for (let i = 0; i < pending.length; i++) {
-      const mutation = pending[i];
+    for (let i = 0; i < claimed.length; i++) {
+      const mutation = claimed[i];
       if (i > 0 && rateLimitMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, rateLimitMs));
       }
       processed++;
-      this.markStatus(mutation.mutation_id, 'in_flight');
 
       try {
         const response = await executor(mutation);
@@ -501,6 +590,8 @@ export class MutationOutbox {
       last_attempt_at: row.last_attempt_at ?? undefined,
       error: row.error ?? undefined,
       forced: Boolean(row.forced),
+      lease_owner: row.lease_owner ?? null,
+      lease_until: row.lease_until ?? null,
       conflictPolicy: this._conflictPolicies.get(row.mutation_id),
       onRollback: this._rollbackCallbacks.get(row.mutation_id),
       mergeResolver: this._mergeResolvers.get(row.mutation_id),

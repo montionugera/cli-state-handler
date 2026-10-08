@@ -16,6 +16,7 @@ export interface StatusMetrics {
   casTotalSize: number;
   dbSize: number;
   walSize: number;
+  hubStatus?: string;
 }
 
 export async function runStatus(
@@ -31,6 +32,7 @@ export async function runStatus(
   let casTotalSize = 0;
   let dbSize = 0;
   let walSize = 0;
+  let hubStatus = 'Inactive (no hub elected)';
 
   // Check main SQLite database
   if (fs.existsSync(dbPath)) {
@@ -68,6 +70,30 @@ export async function runStatus(
         casCount += cRow.count;
         casTotalSize += cRow.total_size;
       }
+
+      try {
+        const hRow = sqliteAdapter.db
+          .prepare('SELECT epoch, pid, endpoint FROM ucsa_bus_hub WHERE id = 1')
+          .get() as { epoch: number; pid: number; endpoint: string } | undefined;
+        if (hRow) {
+          let isAlive = false;
+          try {
+            process.kill(hRow.pid, 0);
+            isAlive = true;
+          } catch {
+            isAlive = false;
+          }
+          if (isAlive) {
+            hubStatus = `Active (PID: ${hRow.pid}, Epoch: ${hRow.epoch}, Endpoint: ${hRow.endpoint})`;
+          } else {
+            hubStatus = `Inactive (PID: ${hRow.pid} not running)`;
+          }
+        } else {
+          hubStatus = 'Inactive (no hub elected)';
+        }
+      } catch {
+        hubStatus = 'Inactive (no hub elected)';
+      }
     } catch {
       // Tables might be empty or uninitialized
     } finally {
@@ -99,6 +125,7 @@ export async function runStatus(
   }
 
   console.log(`[ucsa:status] Database: ${dbPath}`);
+  console.log(`[ucsa:status] Hub Status: ${hubStatus}`);
   console.log(`[ucsa:status] Cached Queries: ${cachedCount}`);
   console.log(`[ucsa:status] Cache Tags: ${tagsCount}`);
   console.log(`[ucsa:status] Outbox Pending: ${pendingCount}`);

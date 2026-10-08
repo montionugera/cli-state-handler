@@ -1,35 +1,57 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:sqlite3/sqlite3.dart';
 import 'types.dart';
 import 'migration_runner.dart';
+
+String _generateUuidV4() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20, 32)}';
+}
 
 /// SQLite storage adapter providing WAL journaling, tag indexing with cascade
 /// invalidation, and mutation outbox persistence.
 class SqliteAdapter {
   final Database _db;
   final bool _isInMemory;
+  final String _origin;
+  final String? _path;
   bool _isClosed = false;
   int _transactionDepth = 0;
 
-  SqliteAdapter({String? path, Database? db})
-      : _db = db ??
+  SqliteAdapter({String? path, Database? db, String? origin, int? targetVersion})
+      : _path = path,
+        _db = db ??
             (path == null || path == ':memory:'
                 ? sqlite3.openInMemory()
                 : sqlite3.open(path)),
         _isInMemory =
-            db != null ? false : (path == null || path == ':memory:') {
+            db != null ? false : (path == null || path == ':memory:'),
+        _origin = origin ?? _generateUuidV4() {
     _db.execute('PRAGMA foreign_keys = ON;');
     _db.execute('PRAGMA busy_timeout = 5000;');
     if (!_isInMemory) {
       _db.execute('PRAGMA journal_mode = WAL;');
       _db.execute('PRAGMA synchronous = NORMAL;');
     }
-    initSchema();
+    initSchema(targetVersion: targetVersion ?? targetSchemaVersion);
   }
 
-  factory SqliteAdapter.inMemory() => SqliteAdapter();
+  factory SqliteAdapter.inMemory({String? origin, int? targetVersion}) =>
+      SqliteAdapter(origin: origin, targetVersion: targetVersion);
 
-  factory SqliteAdapter.file(String path) => SqliteAdapter(path: path);
+  factory SqliteAdapter.file(String path, {String? origin, int? targetVersion}) =>
+      SqliteAdapter(path: path, origin: origin, targetVersion: targetVersion);
+
+  /// Unique origin identifier for this adapter.
+  String get origin => _origin;
+
+  /// Database file path, or null if in-memory.
+  String? get path => _path;
 
   /// Underlying SQLite database handle.
   Database get db => _db;
@@ -150,26 +172,159 @@ class SqliteAdapter {
 
   /// Deletes a cached query entry by hash.
   /// Cascade delete cleans up associated tags in [ucsa_cache_tags].
-  void deleteQuery(String queryHash) {
-    _db.execute(
-      'DELETE FROM ucsa_query_cache WHERE query_hash = ?;',
-      [queryHash],
-    );
+  /// If schema version >= 3, atomically journals an invalidate change log entry.
+  /// Returns true if a row was deleted.
+  bool deleteQuery(String queryHash, {String? origin}) {
+    return transaction(() {
+      _db.execute(
+        'DELETE FROM ucsa_query_cache WHERE query_hash = ?;',
+        [queryHash],
+      );
+      final wasDeleted = _db.updatedRows > 0;
+      if (wasDeleted && getSchemaVersion() >= 3) {
+        appendChangeLog(
+          ChangeLogKind.invalidate,
+          origin: origin ?? _origin,
+          queryHashes: [queryHash],
+        );
+      }
+      return wasDeleted;
+    });
   }
 
   /// Invalidates all queries associated with the given tag.
   /// Returns the list of query hashes that were deleted.
-  List<String> invalidateByTag(String tag) {
-    final hashes = getQueryHashesByTag(tag);
-    if (hashes.isEmpty) return [];
-
-    transaction(() {
+  /// If schema version >= 3, atomically journals an invalidate change log entry.
+  List<String> invalidateByTag(String tag, {String? origin}) {
+    return transaction(() {
+      final hashes = getQueryHashesByTag(tag);
       for (final hash in hashes) {
-        deleteQuery(hash);
+        _db.execute(
+          'DELETE FROM ucsa_query_cache WHERE query_hash = ?;',
+          [hash],
+        );
       }
+      if (getSchemaVersion() >= 3) {
+        appendChangeLog(
+          ChangeLogKind.invalidate,
+          origin: origin ?? _origin,
+          tags: [tag],
+          queryHashes: hashes,
+        );
+      }
+      return hashes;
     });
+  }
 
-    return hashes;
+  /// Appends an entry to ucsa_change_log and returns the generated seq number.
+  int appendChangeLog(
+    ChangeLogKind kind, {
+    String? origin,
+    List<String>? tags,
+    List<String>? queryHashes,
+    Map<String, dynamic>? detail,
+  }) {
+    final entryOrigin = origin ?? _origin;
+    final tagsJson = tags != null ? jsonEncode(tags) : null;
+    final queryHashesJson = queryHashes != null ? jsonEncode(queryHashes) : null;
+    final detailJson = detail != null ? jsonEncode(detail) : null;
+    final createdAt = DateTime.now().millisecondsSinceEpoch;
+
+    _db.execute(
+      '''
+      INSERT INTO ucsa_change_log (
+        origin, kind, tags, query_hashes, detail, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?);
+      ''',
+      [entryOrigin, kind.toWireString(), tagsJson, queryHashesJson, detailJson, createdAt],
+    );
+
+    return _db.lastInsertRowId;
+  }
+
+  /// Reads change log entries created since [lastSeq] in ascending sequence order up to [limit].
+  /// Detects gaps caused by pruning (truncated: true).
+  ReadChangesResult readChangesSince(int lastSeq, {int limit = 1000}) {
+    final maxRow = _db.select('SELECT MAX(seq) as max_seq FROM ucsa_change_log;');
+    final headSeq = maxRow.isNotEmpty ? (maxRow.first['max_seq'] as int? ?? 0) : 0;
+
+    final minRow = _db.select('SELECT MIN(seq) as min_seq FROM ucsa_change_log;');
+    final minSeq = minRow.isNotEmpty ? minRow.first['min_seq'] as int? : null;
+
+    bool truncated = false;
+    if (lastSeq > 0 && minSeq != null && lastSeq < minSeq - 1) {
+      truncated = true;
+    }
+
+    final rows = _db.select(
+      '''
+      SELECT seq, origin, kind, tags, query_hashes, detail, created_at
+      FROM ucsa_change_log
+      WHERE seq > ?
+      ORDER BY seq ASC
+      LIMIT ?;
+      ''',
+      [lastSeq, limit],
+    );
+
+    final changeRows = rows.map((row) {
+      final tagsJson = row['tags'] as String?;
+      final hashesJson = row['query_hashes'] as String?;
+      final detailJson = row['detail'] as String?;
+
+      return ChangeLogRow(
+        seq: row['seq'] as int,
+        origin: row['origin'] as String,
+        kind: ChangeLogKind.fromString(row['kind'] as String),
+        tags: tagsJson != null ? (jsonDecode(tagsJson) as List).cast<String>() : null,
+        queryHashes: hashesJson != null
+            ? (jsonDecode(hashesJson) as List).cast<String>()
+            : null,
+        detail: detailJson != null
+            ? jsonDecode(detailJson) as Map<String, dynamic>
+            : null,
+        createdAt: row['created_at'] as int,
+      );
+    }).toList();
+
+    return ReadChangesResult(
+      rows: changeRows,
+      truncated: truncated,
+      headSeq: headSeq,
+    );
+  }
+
+  /// Prunes old change log entries beyond retention window (retentionMs)
+  /// or beyond maxRows ceiling (retaining newest maxRows).
+  int pruneChangeLog({int retentionMs = 86400000, int maxRows = 10000}) {
+    final cutoff = DateTime.now().millisecondsSinceEpoch - retentionMs;
+
+    return transaction(() {
+      int? seqThreshold;
+      if (maxRows > 0) {
+        final rows = _db.select(
+          'SELECT seq FROM ucsa_change_log ORDER BY seq DESC LIMIT 1 OFFSET ?;',
+          [maxRows],
+        );
+        if (rows.isNotEmpty) {
+          seqThreshold = rows.first['seq'] as int;
+        }
+      }
+
+      if (seqThreshold != null) {
+        _db.execute(
+          'DELETE FROM ucsa_change_log WHERE created_at < ? OR seq <= ?;',
+          [cutoff, seqThreshold],
+        );
+      } else {
+        _db.execute(
+          'DELETE FROM ucsa_change_log WHERE created_at < ?;',
+          [cutoff],
+        );
+      }
+
+      return _db.updatedRows;
+    });
   }
 
   /// Returns all query hashes associated with a tag without deleting them.
@@ -227,8 +382,9 @@ class SqliteAdapter {
       '''
       INSERT INTO ucsa_mutation_outbox (
         mutation_id, endpoint, method, headers, payload, status,
-        retry_count, created_at, last_attempt_at, error, forced, conflict_policy
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        retry_count, created_at, last_attempt_at, error, forced, conflict_policy,
+        lease_owner, lease_until
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(mutation_id) DO UPDATE SET
         endpoint = excluded.endpoint,
         method = excluded.method,
@@ -240,7 +396,9 @@ class SqliteAdapter {
         last_attempt_at = excluded.last_attempt_at,
         error = excluded.error,
         forced = excluded.forced,
-        conflict_policy = excluded.conflict_policy;
+        conflict_policy = excluded.conflict_policy,
+        lease_owner = excluded.lease_owner,
+        lease_until = excluded.lease_until;
       ''',
       [
         mutation.mutationId,
@@ -255,28 +413,16 @@ class SqliteAdapter {
         mutation.error,
         mutation.forced ? 1 : 0,
         mutation.conflictPolicy?.toWireString(),
+        mutation.leaseOwner,
+        mutation.leaseUntil,
       ],
     );
   }
 
-  /// Retrieves an outbox mutation by ID.
-  OutboxMutation<T>? getMutation<T>(
-    String mutationId, {
+  OutboxMutation<T> _mapRowToMutation<T>(
+    Row row, {
     T Function(dynamic json)? payloadParser,
   }) {
-    final rows = _db.select(
-      '''
-      SELECT mutation_id, endpoint, method, headers, payload, status,
-             retry_count, created_at, last_attempt_at, error, forced, conflict_policy
-      FROM ucsa_mutation_outbox
-      WHERE mutation_id = ?;
-      ''',
-      [mutationId],
-    );
-
-    if (rows.isEmpty) return null;
-    final row = rows.first;
-
     Map<String, String>? headers;
     if (row['headers'] != null) {
       final decoded = jsonDecode(row['headers'] as String) as Map;
@@ -306,7 +452,29 @@ class SqliteAdapter {
       error: row['error'] as String?,
       forced: (row['forced'] as int? ?? 0) == 1,
       conflictPolicy: policy,
+      leaseOwner: row['lease_owner'] as String?,
+      leaseUntil: row['lease_until'] as int?,
     );
+  }
+
+  /// Retrieves an outbox mutation by ID.
+  OutboxMutation<T>? getMutation<T>(
+    String mutationId, {
+    T Function(dynamic json)? payloadParser,
+  }) {
+    final rows = _db.select(
+      '''
+      SELECT mutation_id, endpoint, method, headers, payload, status,
+             retry_count, created_at, last_attempt_at, error, forced, conflict_policy,
+             lease_owner, lease_until
+      FROM ucsa_mutation_outbox
+      WHERE mutation_id = ?;
+      ''',
+      [mutationId],
+    );
+
+    if (rows.isEmpty) return null;
+    return _mapRowToMutation<T>(rows.first, payloadParser: payloadParser);
   }
 
   /// Returns pending mutations ordered by created_at ascending.
@@ -314,7 +482,8 @@ class SqliteAdapter {
     final rows = _db.select(
       '''
       SELECT mutation_id, endpoint, method, headers, payload, status,
-             retry_count, created_at, last_attempt_at, error, forced, conflict_policy
+             retry_count, created_at, last_attempt_at, error, forced, conflict_policy,
+             lease_owner, lease_until
       FROM ucsa_mutation_outbox
       WHERE status = 'pending'
       ORDER BY created_at ASC
@@ -323,37 +492,64 @@ class SqliteAdapter {
       [limit],
     );
 
-    return rows.map((row) {
-      Map<String, String>? headers;
-      if (row['headers'] != null) {
-        final decoded = jsonDecode(row['headers'] as String) as Map;
-        headers = decoded.map((k, v) => MapEntry(k.toString(), v.toString()));
-      }
+    return rows.map((row) => _mapRowToMutation<dynamic>(row)).toList();
+  }
 
-      dynamic payload;
-      if (row['payload'] != null) {
-        payload = jsonDecode(row['payload'] as String);
-      }
+  /// Atomically claims pending or expired in-flight mutations for a specific worker.
+  List<OutboxMutation<dynamic>> claimPendingMutations(
+    String workerId,
+    int leaseDurationMs, {
+    int limit = 50,
+  }) {
+    return transaction(() {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final leaseUntil = now + leaseDurationMs;
 
-      final rawPolicy = row['conflict_policy'] as String?;
-      final policy =
-          rawPolicy != null ? ConflictPolicy.fromString(rawPolicy) : null;
-
-      return OutboxMutation<dynamic>(
-        mutationId: row['mutation_id'] as String,
-        endpoint: row['endpoint'] as String,
-        method: row['method'] as String,
-        headers: headers,
-        payload: payload,
-        status: OutboxMutationStatus.fromString(row['status'] as String),
-        retryCount: row['retry_count'] as int,
-        createdAt: row['created_at'] as int,
-        lastAttemptAt: row['last_attempt_at'] as int?,
-        error: row['error'] as String?,
-        forced: (row['forced'] as int? ?? 0) == 1,
-        conflictPolicy: policy,
+      final candidates = _db.select(
+        '''
+        SELECT mutation_id
+        FROM ucsa_mutation_outbox
+        WHERE status = 'pending' OR (status = 'in_flight' AND lease_until IS NOT NULL AND lease_until < ?)
+        ORDER BY created_at ASC
+        LIMIT ?;
+        ''',
+        [now, limit],
       );
-    }).toList();
+
+      if (candidates.isEmpty) {
+        return <OutboxMutation<dynamic>>[];
+      }
+
+      final candidateIds =
+          candidates.map((c) => c['mutation_id'] as String).toList();
+      final placeholders = List.filled(candidateIds.length, '?').join(', ');
+
+      _db.execute(
+        '''
+        UPDATE ucsa_mutation_outbox
+        SET status = 'in_flight',
+            lease_owner = ?,
+            lease_until = ?,
+            last_attempt_at = ?
+        WHERE mutation_id IN ($placeholders);
+        ''',
+        [workerId, leaseUntil, now, ...candidateIds],
+      );
+
+      final rows = _db.select(
+        '''
+        SELECT mutation_id, endpoint, method, headers, payload, status,
+               retry_count, created_at, last_attempt_at, error, forced, conflict_policy,
+               lease_owner, lease_until
+        FROM ucsa_mutation_outbox
+        WHERE mutation_id IN ($placeholders)
+        ORDER BY created_at ASC;
+        ''',
+        candidateIds,
+      );
+
+      return rows.map((row) => _mapRowToMutation<dynamic>(row)).toList();
+    });
   }
 
   /// Updates status and retry metadata for an outbox mutation.
@@ -363,6 +559,8 @@ class SqliteAdapter {
     int? lastAttemptAt,
     String? error,
     int? retryCount,
+    String? leaseOwner,
+    int? leaseUntil,
   }) {
     _db.execute(
       '''
@@ -370,7 +568,9 @@ class SqliteAdapter {
       SET status = ?,
           last_attempt_at = COALESCE(?, last_attempt_at),
           error = ?,
-          retry_count = COALESCE(?, retry_count)
+          retry_count = COALESCE(?, retry_count),
+          lease_owner = CASE WHEN ? = 'pending' THEN NULL ELSE COALESCE(?, lease_owner) END,
+          lease_until = CASE WHEN ? = 'pending' THEN NULL ELSE COALESCE(?, lease_until) END
       WHERE mutation_id = ?;
       ''',
       [
@@ -378,6 +578,10 @@ class SqliteAdapter {
         lastAttemptAt,
         error,
         retryCount,
+        status.toWireString(),
+        leaseOwner,
+        status.toWireString(),
+        leaseUntil,
         mutationId,
       ],
     );
@@ -392,28 +596,39 @@ class SqliteAdapter {
   }
 
   /// Replays pending outbox mutations sequentially via an executor function.
-  /// Supports [rateLimit] delay between mutations and [batchSize] limits.
+  /// Supports [rateLimit] delay between mutations, [batchSize] limits, and distributed leases.
   Future<ReplayResult> replayOutbox(
     Future<Map<String, dynamic>> Function(OutboxMutation<dynamic> mutation)
         executor, {
     Duration? rateLimit,
     int? batchSize,
+    String? workerId,
+    int? leaseDurationMs,
     Future<String> Function(
             OutboxMutation<dynamic> mutation, dynamic conflictData)?
         conflictResolver,
   }) async {
-    final pending = getPendingMutations(limit: batchSize ?? 100);
+    final effectiveWorkerId =
+        workerId ?? 'worker-${DateTime.now().microsecondsSinceEpoch}';
+    final effectiveLease = leaseDurationMs ?? 30000;
+    final limit = batchSize ?? 100;
+
+    final claimed = claimPendingMutations(
+      effectiveWorkerId,
+      effectiveLease,
+      limit: limit,
+    );
+
     int processed = 0;
     int successful = 0;
     int failed = 0;
 
-    for (int i = 0; i < pending.length; i++) {
-      final mutation = pending[i];
+    for (int i = 0; i < claimed.length; i++) {
+      final mutation = claimed[i];
       if (i > 0 && rateLimit != null && rateLimit > Duration.zero) {
         await Future.delayed(rateLimit);
       }
       processed++;
-      updateMutationStatus(mutation.mutationId, OutboxMutationStatus.inFlight);
 
       try {
         final res = await executor(mutation);

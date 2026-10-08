@@ -17,24 +17,26 @@ void main() {
     }
   });
 
-  test('migrates fresh database from user_version 0 to target version 2 by default', () {
+  test('migrates fresh database from user_version 0 to target version 3 by default', () {
     final dbFile = File('${tempDir.path}/fresh.db');
     final db = sqlite3.open(dbFile.path);
 
     expect(MigrationRunner.getUserVersion(db), equals(0));
 
     final result = MigrationRunner.migrate(db);
-    expect(result.currentVersion, equals(2));
-    expect(result.appliedCount, equals(2));
-    expect(MigrationRunner.getUserVersion(db), equals(2));
+    expect(result.currentVersion, equals(3));
+    expect(result.appliedCount, equals(3));
+    expect(MigrationRunner.getUserVersion(db), equals(3));
 
     // Verify ucsa_migrations table
     final migrations = MigrationRunner.getAppliedMigrations(db);
-    expect(migrations.length, equals(2));
+    expect(migrations.length, equals(3));
     expect(migrations[1]?.name, equals('baseline'));
     expect(migrations[1]?.checksum, equals(canonicalMigrations[0].sha256));
     expect(migrations[2]?.name, equals('payload_version'));
     expect(migrations[2]?.checksum, equals(canonicalMigrations[1].sha256));
+    expect(migrations[3]?.name, equals('change_log_and_bus'));
+    expect(migrations[3]?.checksum, equals(canonicalMigrations[2].sha256));
 
     // Verify tables exist
     final tables = db
@@ -48,13 +50,23 @@ void main() {
     expect(tables, contains('ucsa_mutation_outbox'));
     expect(tables, contains('ucsa_cas_objects'));
     expect(tables, contains('ucsa_meta'));
+    expect(tables, contains('ucsa_change_log'));
+    expect(tables, contains('ucsa_bus_hub'));
 
     // Verify payload_version column exists on ucsa_query_cache
-    final columns = db
+    final cacheColumns = db
         .select("PRAGMA table_info(ucsa_query_cache);")
         .map((r) => r['name'] as String)
         .toList();
-    expect(columns, contains('payload_version'));
+    expect(cacheColumns, contains('payload_version'));
+
+    // Verify lease columns exist on ucsa_mutation_outbox
+    final outboxColumns = db
+        .select("PRAGMA table_info(ucsa_mutation_outbox);")
+        .map((r) => r['name'] as String)
+        .toList();
+    expect(outboxColumns, contains('lease_owner'));
+    expect(outboxColumns, contains('lease_until'));
 
     db.dispose();
   });
@@ -93,10 +105,10 @@ void main() {
     final db = sqlite3.open(dbFile.path);
 
     MigrationRunner.migrate(db);
-    expect(MigrationRunner.getUserVersion(db), equals(2));
+    expect(MigrationRunner.getUserVersion(db), equals(3));
 
     final rerun = MigrationRunner.migrate(db);
-    expect(rerun.currentVersion, equals(2));
+    expect(rerun.currentVersion, equals(3));
     expect(rerun.appliedCount, equals(0));
 
     db.dispose();
@@ -109,25 +121,25 @@ void main() {
     final customMigrations = [
       ...canonicalMigrations,
       const MigrationDefinition(
-        version: 3,
+        version: 4,
         name: 'failing_step',
         sql: 'INVALID SYNTAX SQL STATEMENT THAT WILL FAIL;',
       ),
     ];
 
-    MigrationRunner.migrate(db, targetVersion: 2);
-    expect(MigrationRunner.getUserVersion(db), equals(2));
+    MigrationRunner.migrate(db, targetVersion: 3);
+    expect(MigrationRunner.getUserVersion(db), equals(3));
 
     expect(
       () => MigrationRunner.migrate(db,
-          targetVersion: 3, availableMigrations: customMigrations),
+          targetVersion: 4, availableMigrations: customMigrations),
       throwsA(isA<MigrationException>()),
     );
 
-    expect(MigrationRunner.getUserVersion(db), equals(2));
+    expect(MigrationRunner.getUserVersion(db), equals(3));
     final applied = MigrationRunner.getAppliedMigrations(db);
-    expect(applied.length, equals(2));
-    expect(applied.containsKey(3), isFalse);
+    expect(applied.length, equals(3));
+    expect(applied.containsKey(4), isFalse);
 
     db.dispose();
   });
@@ -179,7 +191,7 @@ void main() {
     legacyDb.dispose();
 
     final adapter = SqliteAdapter.file(dbFile.path);
-    expect(adapter.getSchemaVersion(), equals(2));
+    expect(adapter.getSchemaVersion(), equals(3));
 
     final entry = adapter.getQuery<Map<String, dynamic>>('h_legacy_dart');
     expect(entry, isNotNull);

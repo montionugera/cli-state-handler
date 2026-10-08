@@ -168,6 +168,8 @@ namespace Ucsa.Unity.Core
         public string? Error { get; set; }
         public bool Forced { get; set; }
         public ConflictPolicy? ConflictPolicy { get; set; }
+        public string? LeaseOwner { get; set; }
+        public long? LeaseUntil { get; set; }
 
         public bool IsPending => Status == OutboxMutationStatus.Pending;
         public bool IsInFlight => Status == OutboxMutationStatus.InFlight;
@@ -187,7 +189,9 @@ namespace Ucsa.Unity.Core
             long? lastAttemptAt = null,
             string? error = null,
             bool forced = false,
-            ConflictPolicy? conflictPolicy = null)
+            ConflictPolicy? conflictPolicy = null,
+            string? leaseOwner = null,
+            long? leaseUntil = null)
         {
             MutationId = mutationId;
             Endpoint = endpoint;
@@ -201,6 +205,8 @@ namespace Ucsa.Unity.Core
             Error = error;
             Forced = forced;
             ConflictPolicy = conflictPolicy;
+            LeaseOwner = leaseOwner;
+            LeaseUntil = leaseUntil;
         }
     }
 
@@ -328,6 +334,94 @@ namespace Ucsa.Unity.Core
             }
             sb.Append('\"');
             return sb.ToString();
+        }
+    }
+
+    /// <summary>
+    /// Category of persistent event logged to ucsa_change_log.
+    /// </summary>
+    public enum ChangeLogKind
+    {
+        Invalidate,
+        Mutation,
+        Stream,
+        Reset
+    }
+
+    public static class ChangeLogKindExtensions
+    {
+        public static string ToWireString(this ChangeLogKind kind) => kind switch
+        {
+            ChangeLogKind.Invalidate => "invalidate",
+            ChangeLogKind.Mutation => "mutation",
+            ChangeLogKind.Stream => "stream",
+            ChangeLogKind.Reset => "reset",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+        };
+
+        public static ChangeLogKind FromString(string value) => value?.ToLowerInvariant() switch
+        {
+            "invalidate" => ChangeLogKind.Invalidate,
+            "mutation" => ChangeLogKind.Mutation,
+            "stream" => ChangeLogKind.Stream,
+            "reset" => ChangeLogKind.Reset,
+            _ => throw new ArgumentException($"Unknown ChangeLogKind: {value}", nameof(value))
+        };
+    }
+
+    /// <summary>
+    /// Authoritative row in ucsa_change_log table.
+    /// </summary>
+    public class ChangeLogRow
+    {
+        public long Seq { get; set; }
+        public string Origin { get; set; } = string.Empty;
+        public ChangeLogKind Kind { get; set; }
+        public List<string>? Tags { get; set; }
+        public List<string>? QueryHashes { get; set; }
+        public Dictionary<string, object>? Detail { get; set; }
+        public long CreatedAt { get; set; }
+
+        public List<string>? query_hashes => QueryHashes;
+        public long created_at => CreatedAt;
+
+        public ChangeLogRow() { }
+
+        public ChangeLogRow(
+            long seq,
+            string origin,
+            ChangeLogKind kind,
+            List<string>? tags,
+            List<string>? queryHashes,
+            Dictionary<string, object>? detail,
+            long createdAt)
+        {
+            Seq = seq;
+            Origin = origin;
+            Kind = kind;
+            Tags = tags;
+            QueryHashes = queryHashes;
+            Detail = detail;
+            CreatedAt = createdAt;
+        }
+    }
+
+    /// <summary>
+    /// Result of reading changes from ucsa_change_log with gap/truncation detection.
+    /// </summary>
+    public class ReadChangesResult
+    {
+        public List<ChangeLogRow> Rows { get; set; } = new();
+        public bool Truncated { get; set; }
+        public long HeadSeq { get; set; }
+
+        public ReadChangesResult() { }
+
+        public ReadChangesResult(List<ChangeLogRow> rows, bool truncated, long headSeq)
+        {
+            Rows = rows;
+            Truncated = truncated;
+            HeadSeq = headSeq;
         }
     }
 }

@@ -250,5 +250,57 @@
     "shipped_at": "2026-10-08T15:32:17.011138+00:00",
     "shipped_sha": "a9d38c8d5ea30d93bc478da684a729bc2e4b0800",
     "promoted_at": "2026-10-08T15:32:28.352275+00:00"
+  },
+  {
+    "id": "F-019",
+    "title": "durable-change-log-catchup",
+    "from_idea": "I-019",
+    "created_at": "2026-10-08T15:34:52.453709+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "1.6",
+    "epic": "E-006",
+    "claimed_at": "2026-10-08T15:35:10.382450+00:00",
+    "shipped_at": "2026-10-08T15:54:33.499157+00:00",
+    "shipped_sha": "df5b2d2391af22317edd6195d1c7561c5ed05b92"
+  },
+  {
+    "id": "F-020",
+    "title": "ucb1-ipc-frame-codec",
+    "from_idea": "I-020",
+    "created_at": "2026-10-08T15:34:55.676955+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "1.6",
+    "epic": "E-006",
+    "claimed_at": "2026-10-08T15:54:37.909218+00:00",
+    "shipped_at": "2026-10-08T16:07:20.293258+00:00",
+    "shipped_sha": "e964805d81243a962dd5acd7b3137155a6649e91"
+  },
+  {
+    "id": "F-021",
+    "title": "elected-hub-daemon",
+    "from_idea": "I-021",
+    "created_at": "2026-10-08T15:34:55.919445+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "1.6",
+    "epic": "E-006",
+    "claimed_at": "2026-10-08T16:07:24.941538+00:00",
+    "shipped_at": "2026-10-08T16:27:07.196979+00:00",
+    "shipped_sha": "35652cfb0dcc65f865d71eab2e03c3d46d3c904f"
+  },
+  {
+    "id": "F-022",
+    "title": "cross-process-engine-leases",
+    "from_idea": "I-022",
+    "created_at": "2026-10-08T15:34:56.122130+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "1.6",
+    "epic": "E-006",
+    "claimed_at": "2026-10-08T16:27:13.743354+00:00",
+    "shipped_at": "2026-10-08T16:47:37.111235+00:00",
+    "shipped_sha": "e6c74bd86aac7a7e6078d883d4c2700ed8a1c078"
   }
 ]

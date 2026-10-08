@@ -83,7 +83,7 @@ namespace Ucsa.Unity.Storage
     /// </summary>
     public static class MigrationRunner
     {
-        public const int TargetSchemaVersion = 2;
+        public const int TargetSchemaVersion = 3;
 
         public const string BaselineSql = @"-- Migration 0001: Baseline Canonical Schema for UCSA
 -- Reconciles TypeScript, Dart, and C# schemas into a single source of truth.
@@ -142,6 +142,33 @@ ALTER TABLE ucsa_query_cache ADD COLUMN payload_version INTEGER NOT NULL DEFAULT
 CREATE INDEX IF NOT EXISTS idx_ucsa_cache_payload_version ON ucsa_query_cache(payload_version);
 ";
 
+        public const string ChangeLogAndBusSql = @"-- Migration 0003: Change log, bus hub election, and outbox distributed leases
+-- Enables cross-process real-time event broadcasting and concurrent outbox replay protection.
+
+CREATE TABLE IF NOT EXISTS ucsa_change_log (
+  seq          INTEGER PRIMARY KEY AUTOINCREMENT,
+  origin       TEXT    NOT NULL,
+  kind         TEXT    NOT NULL CHECK (kind IN ('invalidate','mutation','stream','reset')),
+  tags         TEXT,
+  query_hashes TEXT,
+  detail       TEXT,
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ucsa_change_log_created ON ucsa_change_log(created_at);
+
+CREATE TABLE IF NOT EXISTS ucsa_bus_hub (
+  id           INTEGER PRIMARY KEY CHECK (id = 1),
+  epoch        INTEGER NOT NULL,
+  pid          INTEGER NOT NULL,
+  endpoint     TEXT    NOT NULL,
+  token        TEXT    NOT NULL,
+  claimed_at   INTEGER NOT NULL
+);
+
+ALTER TABLE ucsa_mutation_outbox ADD COLUMN lease_owner TEXT;
+ALTER TABLE ucsa_mutation_outbox ADD COLUMN lease_until INTEGER;
+";
+
         public static readonly IReadOnlyList<MigrationDefinition> CanonicalMigrations = new List<MigrationDefinition>
         {
             new MigrationDefinition
@@ -157,6 +184,13 @@ CREATE INDEX IF NOT EXISTS idx_ucsa_cache_payload_version ON ucsa_query_cache(pa
                 Name = "payload_version",
                 Sql = PayloadVersionSql,
                 Sha256 = "ab2fb5ac83e34e2b7a13de446cb3cf37778dafddbce0c3c65b22906015712dc1"
+            },
+            new MigrationDefinition
+            {
+                Version = 3,
+                Name = "change_log_and_bus",
+                Sql = ChangeLogAndBusSql,
+                Sha256 = "a79e1963523548208d42a61d3be4a08086c4866c71eb1045182eed4ac0a78c05"
             }
         };
 

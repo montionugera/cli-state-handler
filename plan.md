@@ -1,53 +1,64 @@
-# Feature F-018: Incompatibility Selective Eviction & Migration CLI
+# Feature F-022: Cross-Process Engine & Outbox Leases
 
 > **For agentic workers:** Implement this plan phase-by-phase using strict TDD (write tests first -> watch them fail -> implement minimal code -> verify tests pass).
 
-**Goal:** Implement selective cache eviction for un-upcastable or corrupted queries with zero outbox mutation loss, build the CLI `ucsa migrate` command suite, ensure cross-platform parity, verify full chain, and promote Release 1.5.
+**Goal:** Wire the event bus client into `QueryEngine` for zero-polling instant cache invalidation, implement distributed outbox lease claims (`lease_owner`, `lease_until`) in `MutationOutbox` to prevent duplicate concurrent replay, implement designated non-blocking WAL checkpointer, ensure cross-platform parity, run the full verification gate, ship F-022, and promote Release 1.6.
 
 ---
 
 ## Tasks
 
-### Task 1: Core Selective Eviction & Outbox Salvage Protection
-- [x] Define `IncompatiblePayloadError` in `packages/core/src/query/payload-upcaster.ts`.
+### Task 1: Bus Client Integration in QueryEngine & Cross-Process Invalidation
+- [x] Implement `packages/core/src/ipc/bus-client.ts`:
+  - `class BusClient`:
+    - Connects to bus socket endpoint, performs `HELLO`/`WELCOME` handshake, sends `SUBSCRIBE`.
+    - Listens for `EVENT` frames and emits to registered listeners.
+    - Handles `RESYNC`: reads missed events via `sqliteAdapter.readChangesSince(lastSeq)`.
+    - Method `publish(change)` sends `PUBLISH` frame.
+    - Auto-reconnect with exponential backoff on disconnect.
 - [x] Update `QueryEngine` in `packages/core/src/query/query-engine.ts`:
-  - Add optional `onIncompatiblePayload?: (err: Error, entry: CacheEntry) => void` to `QueryEngineOptions`.
-  - Handle payload decoding / upcasting errors during cache read (`getQueryData`, `fetchQuery`, `useQuery`).
-  - Selectively evict only the failed entry from SQLite and in-memory cache without purging valid entries.
-  - Fall back to network fetch on `fetchQuery` and `useQuery`, or `undefined` on `getQueryData`.
-  - Guarantee that `ucsa_mutation_outbox` is completely untouched and preserved during eviction.
-- [x] Write unit and integration tests in `packages/core/tests/query/selective-eviction.test.ts`.
-- [x] Verify `pnpm test` passes in `packages/core`.
-- [x] Commit: `feat(query): implement selective cache eviction and outbox salvage protection`.
+  - Add optional `busClient?: BusClient` to `QueryEngineOptions`.
+  - On local `invalidateByTag()` or `invalidateQueries()`, publishes invalidation event to bus.
+  - On remote `EVENT` from bus (echo suppressed if origin matches): marks in-memory queries stale and triggers observer refetch.
+- [x] Export `BusClient` in `packages/core/src/index.ts`.
+- [x] Write unit tests in `packages/core/tests/ipc/cross-process-invalidation.test.ts`:
+  - Two QueryEngine instances on shared database: invalidate on Engine A triggers observer refetch on Engine B within <100ms.
+  - Reconnect catch-up: events emitted while Engine B is disconnected are replayed from change log on reconnect.
+  - Echo suppression: Engine A does not refetch on its own published invalidation.
+- [x] Verify `pnpm test` in `packages/core`.
+- [x] Commit: `feat(query): integrate IPC bus client for zero-polling cross-process cache invalidation`.
 
-### Task 2: CLI `ucsa migrate` Command Suite
-- [x] Implement `apps/cli/src/commands/migrate.ts`:
-  - `status`: reports current `user_version`, target version, applied list, and pending migrations.
-  - `up`: applies all pending migrations using `MigrationRunner`.
-  - `check`: exits 0 if schema is up to date, 1 if migrations are pending.
-  - `clean-incompatible`: scans `ucsa_query_cache`, selectively evicts entries that cannot be upcasted, validates outbox count is untouched, and prints summary report.
-- [x] Register `migrate` in `apps/cli/src/router.ts` and `apps/cli/bin/ucsa.ts`.
-- [x] Write unit tests in `apps/cli/tests/migrate-command.test.ts`.
-- [x] Verify `pnpm test` in `apps/cli`.
-- [x] Commit: `feat(cli): implement ucsa migrate command suite`.
+### Task 2: Outbox Distributed Leases & WAL Checkpointing
+- [x] Update `packages/core/src/query/mutation-outbox.ts`:
+  - Update `replay()`:
+    - Atomically claims rows: `UPDATE ucsa_mutation_outbox SET status = 'in_flight', lease_owner = ?, lease_until = ? WHERE status = 'pending' OR (status = 'in_flight' AND lease_until < ?)`.
+    - Executes only mutations leased to current worker.
+    - Expired leases automatically reclaimed by surviving workers.
+- [x] Update `packages/core/src/storage/sqlite-adapter.ts`:
+  - `checkpoint(mode = 'TRUNCATE')`: falls back to `PASSIVE` if `TRUNCATE` encounters `SQLITE_BUSY`, guaranteeing zero unhandled exit exceptions.
+- [x] Write unit tests in `packages/core/tests/query/outbox-leases.test.ts`:
+  - Two concurrent replay workers execute pending mutations with zero duplicates.
+  - Dead worker lease recovery: abandoned mutation is retried after lease expires.
+  - Checkpoint fallback under concurrent database readers.
+- [x] Verify `pnpm test` in `packages/core`.
+- [x] Commit: `feat(outbox): implement distributed outbox lease claims and non-blocking checkpointing`.
 
 ### Task 3: Cross-Platform Parity & Documentation
 - [x] Update `packages/ucsa_dart`:
-  - Add graceful selective eviction in `QueryEngine` on corrupted or non-upcastable cache records.
-  - Add test in `packages/ucsa_dart/test/query_engine_test.dart`.
+  - Implement lease claim SQL in `MutationOutbox.replay()` in `packages/ucsa_dart/lib/src/mutation_outbox.dart` / `sqlite_adapter.dart`.
+  - Add unit test in `packages/ucsa_dart/test/outbox_lease_test.dart`.
 - [x] Update `packages/com.ucsa.unity`:
-  - Add graceful selective eviction in `QueryEngine` on corrupted cache records.
-  - Add test in `packages/com.ucsa.unity/Tests/Runtime/QueryEngineTests.cs`.
+  - Implement lease claim SQL in `MutationOutbox` in `packages/com.ucsa.unity/Runtime/Core/MutationOutbox.cs` / `UnitySqliteAdapter.cs`.
+  - Add unit test in `packages/com.ucsa.unity/Tests/Runtime/OutboxLeaseTests.cs`.
 - [x] Update `README.md`:
-  - Add Section 7 documenting Selective Cache Eviction & Outbox Salvage Protection.
-  - Document `ucsa migrate` subcommands with CLI examples.
-  - Synchronize cross-platform test and feature matrix tables.
-- [x] Commit: `feat(parity): implement cross-platform selective eviction and update docs`.
+  - Add Section 11: `Cross-Process State Architecture & Outbox Leases`.
+  - Synchronize cross-platform test tables.
+- [x] Commit: `feat(parity): implement cross-platform outbox leases and update documentation`.
 
 ### Task 4: Full-Chain E2E Verification & Promotion
 - [x] Run `./scripts/precheck.sh` (Gate 1).
 - [x] Run `./scripts/integration.sh` (Gate 2).
-- [x] Run `./scripts/e2e-full-chain.sh` (All 5 phases).
+- [x] Run `./scripts/e2e-full-chain.sh` (All 5 tiers).
 - [x] Update `plan.md` checking off all tasks.
 - [ ] Ship via `psrw ship`.
-- [ ] Promote release 1.5 via `psrw promote --direct`.
+- [ ] Promote release 1.6 via `psrw promote --direct`.

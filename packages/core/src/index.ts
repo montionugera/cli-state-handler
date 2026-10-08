@@ -18,6 +18,9 @@ export type {
   SqliteAdapterOptions,
   SqliteCheckpointMode,
   CheckpointMode,
+  ChangeLogKind,
+  ChangeLogRow,
+  ReadChangesResult,
 } from './storage/sqlite-adapter.js';
 export {
   MigrationRunner,
@@ -26,6 +29,8 @@ export {
   MigrationError,
   TARGET_SCHEMA_VERSION,
   BASELINE_SQL,
+  PAYLOAD_VERSION_SQL,
+  CHANGE_LOG_AND_BUS_SQL,
   CANONICAL_MIGRATIONS,
   computeSqlChecksum,
 } from './storage/migration-runner.js';
@@ -172,4 +177,34 @@ export type {
   UpcastContext,
   UpcastResult,
 } from './query/payload-upcaster.js';
+
+export {
+  FrameType,
+  HEADER_SIZE,
+  MAGIC,
+  MAX_PAYLOAD_SIZE,
+  InvalidMagicError,
+  FrameTooLargeError,
+  ReservedFlagsError,
+  InvalidPayloadJsonError,
+  encodeFrame,
+  FrameDecoder,
+} from './ipc/frame-codec.js';
+export type { Frame } from './ipc/frame-codec.js';
+
+export {
+  BusHub,
+  resolveBusEndpoint,
+} from './ipc/bus-hub.js';
+export type {
+  BusHubOptions,
+  BusHubRole,
+  HubRecord,
+  ElectionResult,
+} from './ipc/bus-hub.js';
+
+export { BusClient } from './ipc/bus-client.js';
+export type { BusClientOptions } from './ipc/bus-client.js';
+
+
 

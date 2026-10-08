@@ -66,7 +66,7 @@ class MigrationDefinition {
   });
 }
 
-const int targetSchemaVersion = 2;
+const int targetSchemaVersion = 3;
 
 const String baselineSql = '''-- Migration 0001: Baseline Canonical Schema for UCSA
 CREATE TABLE IF NOT EXISTS ucsa_meta (
@@ -123,6 +123,33 @@ ALTER TABLE ucsa_query_cache ADD COLUMN payload_version INTEGER NOT NULL DEFAULT
 CREATE INDEX IF NOT EXISTS idx_ucsa_cache_payload_version ON ucsa_query_cache(payload_version);
 ''';
 
+const String changeLogAndBusSql = '''-- Migration 0003: Change log, bus hub election, and outbox distributed leases
+-- Enables cross-process real-time event broadcasting and concurrent outbox replay protection.
+
+CREATE TABLE IF NOT EXISTS ucsa_change_log (
+  seq          INTEGER PRIMARY KEY AUTOINCREMENT,
+  origin       TEXT    NOT NULL,
+  kind         TEXT    NOT NULL CHECK (kind IN ('invalidate','mutation','stream','reset')),
+  tags         TEXT,
+  query_hashes TEXT,
+  detail       TEXT,
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ucsa_change_log_created ON ucsa_change_log(created_at);
+
+CREATE TABLE IF NOT EXISTS ucsa_bus_hub (
+  id           INTEGER PRIMARY KEY CHECK (id = 1),
+  epoch        INTEGER NOT NULL,
+  pid          INTEGER NOT NULL,
+  endpoint     TEXT    NOT NULL,
+  token        TEXT    NOT NULL,
+  claimed_at   INTEGER NOT NULL
+);
+
+ALTER TABLE ucsa_mutation_outbox ADD COLUMN lease_owner TEXT;
+ALTER TABLE ucsa_mutation_outbox ADD COLUMN lease_until INTEGER;
+''';
+
 const List<MigrationDefinition> canonicalMigrations = [
   MigrationDefinition(
     version: 1,
@@ -135,6 +162,12 @@ const List<MigrationDefinition> canonicalMigrations = [
     name: 'payload_version',
     sql: payloadVersionSql,
     sha256: 'ab2fb5ac83e34e2b7a13de446cb3cf37778dafddbce0c3c65b22906015712dc1',
+  ),
+  MigrationDefinition(
+    version: 3,
+    name: 'change_log_and_bus',
+    sql: changeLogAndBusSql,
+    sha256: 'a79e1963523548208d42a61d3be4a08086c4866c71eb1045182eed4ac0a78c05',
   ),
 ];
 

@@ -6,6 +6,7 @@ import {
   runStatus,
   runTutorial,
   runMigrate,
+  runDaemon,
 } from './commands/index.js';
 
 export interface ParsedCommand {
@@ -209,6 +210,14 @@ export function parseArgs(argv: string[]): ParsedCommand {
     };
   }
 
+  if (first === 'daemon') {
+    return {
+      command: 'daemon',
+      args: positionals.slice(1),
+      options,
+    };
+  }
+
   if (first === 'migrate') {
     if (second !== undefined) {
       return {
@@ -256,6 +265,7 @@ Subcommands:
   durability                        Verify WAL truncate checkpointing on exit
   status                            Display cache, CAS, and outbox metrics
   migrate [status|up|check|clean]   Inspect/apply schema migrations & evict incompatible cache
+  daemon [--db <path>]              Start elected IPC bus hub daemon service
   tutorial [--port <port>]          Launch interactive Storybook tutorial & live docs
   docs                              Alias for tutorial
   help, --help, -h                  Display this help message
@@ -408,6 +418,13 @@ export async function dispatchCommand(parsed: ParsedCommand): Promise<void> {
         db: parsed.options.db as string | undefined,
         targetVersion:
           rawTarget !== undefined ? Number(rawTarget) : undefined,
+      });
+      break;
+    }
+    case 'daemon': {
+      await runDaemon({
+        db: parsed.options.db as string | undefined,
+        runOnce: Boolean(parsed.options.runOnce || parsed.options['run-once']),
       });
       break;
     }
