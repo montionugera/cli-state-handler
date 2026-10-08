@@ -1,0 +1,12 @@
+{
+  "capability": "deep-design-v1",
+  "model": "claude-opus-5-5",
+  "agent": "claude",
+  "effort": "medium",
+  "timestamp": "2026-10-08T01:00:39.211642+00:00",
+  "prompt_sha256": "a42c0051715cfd3817240eee5426d1d5f2730d5b0f05c454363a74071be3c451",
+  "output_sha256": "017124e196f66269ea85a7d2e972d78f436fcd54f13decd50db5406cc7ff39e5",
+  "context_sha256": {},
+  "exit_code": 0,
+  "status": "ATTESTED"
+}
