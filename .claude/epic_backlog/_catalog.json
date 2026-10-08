@@ -58,7 +58,7 @@
     "id": "E-006",
     "title": "Inter-Process Event Bus & Live Daemon",
     "created_at": "2026-10-08T15:33:35.643692+00:00",
-    "status": "verified",
+    "status": "promoted",
     "release_version": "1.6",
     "verified_sha": "13abaad2e6e7f558900c74ed2b196b5e483d07b6",
     "verified_at": "2026-10-08T16:47:37.314685+00:00",
