@@ -47,7 +47,7 @@
     "id": "E-005",
     "title": "Schema Migration & Payload Versioning Pipeline",
     "created_at": "2026-10-08T14:46:44.203788+00:00",
-    "status": "verified",
+    "status": "promoted",
     "release_version": "1.5",
     "verified_sha": "0a74f599e8460a672f982018efa87f50f9162b7f",
     "verified_at": "2026-10-08T15:32:17.234690+00:00",

@@ -201,12 +201,13 @@
     "from_idea": "I-015",
     "created_at": "2026-10-08T14:47:32.955464+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.5",
     "epic": "E-005",
     "claimed_at": "2026-10-08T14:47:36.369677+00:00",
     "shipped_at": "2026-10-08T14:52:19.422194+00:00",
-    "shipped_sha": "34a13013c53edf77f4d57973b453babe021ccd3b"
+    "shipped_sha": "34a13013c53edf77f4d57973b453babe021ccd3b",
+    "promoted_at": "2026-10-08T15:32:27.449983+00:00"
   },
   {
     "id": "F-016",
@@ -214,12 +215,13 @@
     "from_idea": "I-016",
     "created_at": "2026-10-08T14:52:38.230480+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.5",
     "epic": "E-005",
     "claimed_at": "2026-10-08T14:52:41.393277+00:00",
     "shipped_at": "2026-10-08T15:05:19.083204+00:00",
-    "shipped_sha": "abc74e7d6be26003dac170dd7948e675b3f85939"
+    "shipped_sha": "abc74e7d6be26003dac170dd7948e675b3f85939",
+    "promoted_at": "2026-10-08T15:32:27.497079+00:00"
   },
   {
     "id": "F-017",
@@ -227,12 +229,13 @@
     "from_idea": "I-017",
     "created_at": "2026-10-08T15:06:29.730566+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.5",
     "epic": "E-005",
     "claimed_at": "2026-10-08T15:06:33.916166+00:00",
     "shipped_at": "2026-10-08T15:19:06.090565+00:00",
-    "shipped_sha": "82ef9dc69791748f130c7f766a5a3c6ec66b48eb"
+    "shipped_sha": "82ef9dc69791748f130c7f766a5a3c6ec66b48eb",
+    "promoted_at": "2026-10-08T15:32:27.537200+00:00"
   },
   {
     "id": "F-018",
@@ -240,11 +243,12 @@
     "from_idea": "I-018",
     "created_at": "2026-10-08T15:20:04.403999+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.5",
     "epic": "E-005",
     "claimed_at": "2026-10-08T15:20:08.202496+00:00",
     "shipped_at": "2026-10-08T15:32:17.011138+00:00",
-    "shipped_sha": "a9d38c8d5ea30d93bc478da684a729bc2e4b0800"
+    "shipped_sha": "a9d38c8d5ea30d93bc478da684a729bc2e4b0800",
+    "promoted_at": "2026-10-08T15:32:28.352275+00:00"
   }
 ]
