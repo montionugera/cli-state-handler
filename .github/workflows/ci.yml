@@ -1,0 +1,50 @@
+name: CI
+
+# Runs on every pull request to main, so a release PR gets a real check before
+# it is merged. Read-only: no secrets, no id-token, no environment, no Pages.
+# This is a separate file from release.yml on purpose; npm trusted publishing
+# is bound to release.yml, so nothing here can publish.
+#
+# It runs scripts/precheck.sh (Gate 1): build + typecheck, unit tests, and the
+# docs typecheck and tests. Same Node/pnpm setup as release.yml.
+#
+# precheck.sh runs the Dart/Flutter suites only when the tool is installed, and
+# no setup step is added here, so on a stock ubuntu runner:
+#   - Dart tests (packages/ucsa_dart) - skipped, no `dart` on the runner
+#   - Flutter tests (packages/ucsa_flutter) - skipped, no `flutter`
+# .NET tests (packages/com.ucsa.unity) DO run: ubuntu-latest ships `dotnet`.
+# Not verified here, since Actions cannot be run locally; if the NuGet
+# restore proves flaky on the runner, that is the first thing to look at.
+# Run those locally via `bash scripts/precheck.sh` before shipping.
+# Gate 2 (scripts/integration.sh) is not run here.
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  precheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Gate 1 (precheck)
+        run: bash scripts/precheck.sh
