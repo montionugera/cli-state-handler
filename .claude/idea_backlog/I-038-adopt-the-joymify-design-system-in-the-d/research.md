@@ -18,3 +18,9 @@ What that branch already has, as reported by its owning session (not verified he
 Blocked on: `joy-design` idea I-077 (release 3.7 there), which renames `@joymify/*` to `@montionugera/joy-*`, adds a build for `joy-react` and `joy-icons`, and adds a publish workflow. That rename breaks the alias wiring on the branch. The real publish needs the owner's separate go-ahead.
 
 Remaining for the spec once packages are published: replace the aliases with registry dependencies and an `.npmrc`; add the theme toggle and move hard-coded dark colours and inline styles in the playgrounds onto tokens; self-host the fonts (Inter, JetBrains Mono) in the build (assumed, not yet confirmed by the owner); keep the 360px layout fixes; keep the build self-contained, since the Joymify developer portal copies `apps/docs/dist`.
+
+## Added requirement, 2026-10-09 (owner, in session)
+
+- Use the Joymify markdown components for document content in the docs portal: `MarkdownViewer` (the "md preview") and, where editing is wanted, `MarkdownEditor`, both exported by the Joymify React package. This replaces the hand-written `Prose.tsx` rendering where the content is markdown.
+- Mermaid diagrams in that content must render. As checked on the `joy-design` branch `feat/F-071` on 2026-10-09, no file in `packages/react/src` or `packages/svelte/src/lib` mentions mermaid, so `MarkdownViewer` does not render mermaid today. Under the platform rule (enhance upstream, do not shim in the consumer) this is a `joy-design` enhancement to `MarkdownViewer` (React and Svelte twins), to be specified there before the docs portal can rely on it.
+- Interpretation note: the owner's wording was brief ("doc and not render mermaid", then "we should use joymify component (it should have like md preview)"). Recorded here as a docs-portal requirement; confirm when the I-038 spec is written.
