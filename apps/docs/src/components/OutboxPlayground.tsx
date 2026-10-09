@@ -389,7 +389,7 @@ export function OutboxPlayground({ headingLevel: Title = "h1" }: { headingLevel?
                     <td className="ob-strong">{m.method}</td>
                     <td className="ob-mono">{m.endpoint}</td>
                     <td className="ob-payload ob-mono">{JSON.stringify(m.payload)}</td>
-                    <td><Badge variant="brand">{m.conflictPolicy ?? "server-wins"}</Badge></td>
+                    <td><Badge variant="neutral">{m.conflictPolicy ?? "server-wins"}</Badge></td>
                     <td><Badge variant={STATUS_VARIANT[m.status]}>{STATUS_GLYPH[m.status]}</Badge></td>
                     <td>{m.retry_count}</td>
                     <td>{leaseText(m, now)}</td>

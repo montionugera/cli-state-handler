@@ -141,7 +141,6 @@ export function CasPlayground() {
             <Input
               id="cas-input"
               type="text"
-              
               data-testid="cas-input"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
@@ -160,7 +159,6 @@ export function CasPlayground() {
             id="cas-budget"
             type="number"
             min={0}
-            
             data-testid="cas-budget"
             value={budget}
             onChange={(e) => handleBudget(e.target.value)}

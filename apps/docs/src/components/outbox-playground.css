@@ -85,8 +85,6 @@
 .ob-rose { color: var(--accent-rose); }
 .ob-emerald { color: var(--accent-emerald); }
 
-.outbox-playground .joy-button:disabled { opacity: 0.5; cursor: not-allowed; }
-.outbox-playground button:focus-visible,
 .outbox-playground input:focus-visible,
 .outbox-playground select:focus-visible,
 .ob-log:focus-visible {

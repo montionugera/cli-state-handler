@@ -110,7 +110,8 @@ export function LifecycleGraph({ initialState = "idle" }: { initialState?: Query
           <Button
             key={s}
             type="button"
-            variant="outline" className="lc-btn"
+            variant="outline"
+            className="lc-btn"
             disabled={!findEdge(state, s)}
             onClick={() => go(s)}
           >

@@ -253,6 +253,7 @@ export function SwrPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "
         <div>
           <div style={{ display: "flex", gap: "1rem", borderBottom: "1px solid var(--border-card)", marginBottom: "1rem" }}>
             <Button
+              variant="ghost"
               onClick={() => setActiveTab("visualizer")}
               style={{
                 padding: "0.5rem 1rem",
@@ -267,6 +268,7 @@ export function SwrPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "
               Live Data Payload
             </Button>
             <Button
+              variant="ghost"
               onClick={() => setActiveTab("cache")}
               style={{
                 padding: "0.5rem 1rem",

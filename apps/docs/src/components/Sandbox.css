@@ -6,8 +6,7 @@
 .sbx-desc { margin: var(--space-3) 0; }
 .sbx-presets, .sbx-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .sbx-presets .joy-button[aria-pressed="true"] { border-color: var(--border-highlight); color: var(--accent-cyan); }
-.sbx .joy-button:focus-visible, .sbx-textarea:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.sbx .joy-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.sbx-textarea:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 .sbx-editor {
   display: grid;
