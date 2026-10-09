@@ -1,24 +1,41 @@
 name: Release
 
-# Publishes @montionugera/ucsa-core and @montionugera/ucsa-cli to npmjs.com via
-# trusted publishing (OIDC). No npm token is stored anywhere: npmjs trusts this
-# workflow (owner montionugera, repo cli-state-handler, workflow release.yml,
-# environment blank). Needs npm >= 11.5.1. Re-runnable: a package version that is
-# already on the registry is skipped, so a half-finished publish can be re-run.
+# Runs on every merge to main. Decides whether the merge is a release
+# (scripts/release/next-release.mjs), and if so: bumps both package versions,
+# writes CHANGELOG.md, commits and tags, publishes to npmjs.com, attaches the
+# docs build to a GitHub Release, and signals the developer portal.
+#
+# No npm token is stored anywhere: npmjs.com trusts this workflow (owner
+# montionugera, repo cli-state-handler, workflow release.yml, environment
+# blank). DO NOT rename this file, move the publish step into another workflow,
+# or add `environment:` to the job: any of those breaks publishing.
+#
+# Re-runnable: start it by hand on main after a failed publish; a version that
+# is tagged but missing from the registry is published without a new bump, and
+# a version already on the registry is skipped.
 on:
   push:
-    tags: ['v*']
+    branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
+      # ref: main, not the commit that started the run: a queued or re-run job
+      # must see bumps and tags that earlier runs already pushed.
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -29,31 +46,57 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Check tag matches package versions
-        if: github.ref_type == 'tag'
-        run: |
-          want="${GITHUB_REF_NAME#v}"
-          for pkg in packages/core apps/cli; do
-            have="$(node -p "require('./$pkg/package.json').version")"
-            if [ "$have" != "$want" ]; then
-              echo "::error::tag $GITHUB_REF_NAME ($want) != $pkg/package.json version ($have)"
-              exit 1
-            fi
-          done
-
       - run: pnpm install --frozen-lockfile
+
+      - name: Decide release
+        id: decide
+        run: |
+          npm install -g npm@^11.5.1
+          node scripts/release/next-release.mjs --apply --notes "$RUNNER_TEMP/release-notes.md"
+
+      # True for a new release, and also when an earlier run published the
+      # version but failed before attaching the docs, so a re-run repairs it.
+      - name: Check for a missing docs archive
+        id: docs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.decide.outputs.version }}
+        run: |
+          if gh release view "v$VERSION" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx docs-site.tgz; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       # Only the published packages (and the workspace deps they need); a
       # docs-site break must not block a release.
       - name: Build
+        if: steps.decide.outputs.action != 'none' || steps.docs.outputs.needed == 'true'
         run: pnpm --filter "@montionugera/ucsa-cli..." build
 
       - name: Unit tests
+        if: steps.decide.outputs.action != 'none'
         run: pnpm test
 
-      - name: Publish to npmjs.com (trusted publishing)
+      - name: Commit version bump and tag
+        if: steps.decide.outputs.action == 'release'
+        env:
+          VERSION: ${{ steps.decide.outputs.version }}
         run: |
-          npm install -g npm@^11.5.1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md packages/core/package.json apps/cli/package.json
+          git commit -m "chore(release): v$VERSION [skip ci]"
+          # The planned-release flow pushes a cleanup commit seconds after the merge.
+          git pull --rebase origin main
+          git tag "v$VERSION"
+          # Atomic: a bump commit on main without its tag would make the next
+          # run bump again and skip this version.
+          git push --atomic origin HEAD:main "v$VERSION"
+
+      - name: Publish to npmjs.com (trusted publishing)
+        if: steps.decide.outputs.action != 'none'
+        run: |
           mkdir -p "$RUNNER_TEMP/npmjs"
           # pnpm pack rewrites workspace:* to the real version; npm uploads
           # (the OIDC exchange lives in the npm CLI). Core before cli.
@@ -68,3 +111,33 @@ jobs:
             (cd "$dir" && pnpm pack --pack-destination "$RUNNER_TEMP/npmjs")
             npm publish "$RUNNER_TEMP"/npmjs/*.tgz --access public
           done
+
+      # After publish on purpose: a docs failure leaves the libraries released.
+      - name: Build docs archive
+        if: steps.docs.outputs.needed == 'true'
+        run: |
+          pnpm --filter @ucsa/docs build
+          tar -czf "$RUNNER_TEMP/docs-site.tgz" -C apps/docs/dist .
+
+      - name: GitHub Release
+        if: steps.docs.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.decide.outputs.version }}
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            gh release upload "v$VERSION" "$RUNNER_TEMP/docs-site.tgz" --clobber
+          else
+            gh release create "v$VERSION" --title "v$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" "$RUNNER_TEMP/docs-site.tgz"
+          fi
+
+      - name: Signal the developer portal
+        if: steps.docs.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PORTAL_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::PORTAL_DISPATCH_TOKEN is not set; the developer portal was not signalled"
+            exit 0
+          fi
+          gh workflow run ci.yml -R montionugera/joy-design --ref main
