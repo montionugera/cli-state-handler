@@ -90,11 +90,11 @@
     "id": "E-009",
     "title": "Merge-to-release pipeline: publish, portal docs, release notes",
     "created_at": "2026-10-09T08:32:48.575877+00:00",
-    "status": "verified",
+    "status": "verifying",
     "release_version": "1.9",
     "verified_sha": "b69ef650c377e0b1d23662bab88e6f491cc39ea4",
     "verified_at": "2026-10-09T12:17:57.140977+00:00",
     "split_approved_by": null,
-    "verifying_sha": null
+    "verifying_sha": "8746dbcc7c48ee9d45da632b9ff4afbfa2c8e088"
   }
 ]
