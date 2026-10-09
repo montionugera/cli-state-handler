@@ -8,6 +8,8 @@
 
 **Blocked on the owner (phase 0):** `npm view @joymify/react version --registry=https://npm.pkg.github.com` answers E404; the four `@joymify/*` packages are not published; the Actions secret `JOYMIFY_PACKAGES_READ_TOKEN` does not exist; the token's expiry date (needed for the README) has not been given.
 
-**Next step:** run `self-grill-audit` on the plan and apply its critical and high findings. Once phase 0 is met: claim F-045 with `ps-release-workflow-claim`, then execute with `subagent-driven-development`, starting at Task 1 (it stops the run if phase 0 is still unmet).
+**Audit (2026-10-10):** `self-grill-audit` ran; one critical and six high findings are fixed in `plan.md` (see its "Audit trail"), and the spec lines it proved wrong are corrected. Task 6 Step 2 (draft pull request to main) now needs the owner's go-ahead by name.
+
+**Next step:** once phase 0 is met: claim F-045 with `ps-release-workflow-claim`, then execute with `subagent-driven-development`, starting at Task 1 (it stops the run if phase 0 is still unmet).
 
 **Read first:** "Findings that shape the plan" in `plan.md` lists twelve places where the plan departs from, or fills a gap in, the spec.

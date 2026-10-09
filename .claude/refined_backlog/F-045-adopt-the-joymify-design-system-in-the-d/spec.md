@@ -125,7 +125,7 @@ What stays is one cheap regression check, so that a later edit which adds a `@mo
 
 Simpler than first specified, because the base branch already imports the final names (nine files import `@joymify/react`; `main.tsx` imports `@joymify/tokens/theme.css`). **No import statement changes.** Only the route to the packages changes, from alias to `node_modules`:
 
-- Delete `apps/docs/joy-alias.ts`; remove it from `vite.config.ts` and `vitest.config.ts`, along with `resolve.dedupe` (one React copy once the sibling checkout is gone).
+- Delete `apps/docs/joy-alias.ts`; remove it from `apps/docs/vite.config.ts`, `apps/docs/vitest.config.ts` and the repository-root `vitest.config.ts` (which imports it too), along with `resolve.dedupe` (one React copy once the sibling checkout is gone).
 - Remove the four `@joymify/*` paths and the two `react` paths from `apps/docs/tsconfig.json`, returning it to main's single `@montionugera/ucsa-core` path.
 - Root `pnpm typecheck` then resolves the packages through `apps/docs/node_modules` with no extra configuration.
 
@@ -146,14 +146,14 @@ flowchart LR
 Both workflows install the whole workspace, so both need read access to four private packages owned by the organisation `joymify`. The job's own token cannot read them (they belong to another owner), so access is a stored token:
 
 - **The secret.** An Actions secret in `cli-state-handler` named `JOYMIFY_PACKAGES_READ_TOKEN`. Its value is a classic personal access token with the single scope `read:packages`, created by an account that can read the four packages, and authorised for the `joymify` organisation where the organisation requires it. Classic, because GitHub Packages does not accept fine-grained tokens (GitHub documentation, not re-read in this revision). The token expires; rotation is an owner task and its expiry date belongs in the README.
-- **The workflow change, same in both files.** One step before `pnpm install` appends the literal token line shown above (placeholder intact, quoted so the shell does not expand it) to `"${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"`. The install step gets `env: JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}`. In `release.yml` the user-level file is the one `actions/setup-node` already wrote for npmjs.com; the line is appended, nothing in it is replaced.
+- **The workflow change, same in both files.** One step before `pnpm install` appends the literal token line shown above (placeholder intact, quoted so the shell does not expand it) to `"${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"`. The install step gets `env: JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}`. In `release.yml` the user-level file is the one `actions/setup-node` already wrote for npmjs.com; the line is appended, nothing in it is replaced. That file has **no final newline** (`actions/setup-node` v4, `src/authutil.ts`), so the append must start with a newline (`printf '\n%s\n' '<line>' >> file`); a bare `echo '<line>' >> file` joins the token line onto `always-auth=false` and the token is lost.
 - **No `permissions` change.** `packages: read` is not added: it governs the job token, which is not used for this.
 - **Action versions are not touched** (owned by I-046).
 - **`ci.yml` no longer "no secrets".** Its header comment says so today and must be corrected in the same change. The secret is read-only for packages and is exposed to the install step only.
 
 Coverage: the only two jobs that run `pnpm install` are `precheck` in `ci.yml` and `publish` in `release.yml`; both are covered. No later step fetches (`pnpm pack`, `pnpm --filter ... build` and `pnpm test` do not). `scripts/precheck.sh` re-runs `pnpm install` inside the CI job after the install step, with the store already filled and without the variable. Whether pnpm then only warns about the unresolved placeholder or fails is **not verified**; if it fails, the same `env` goes on the precheck step as well, and the green `ci.yml` run is what settles it.
 
-Pull requests that do not receive Actions secrets (forks, Dependabot) would fail at install. The repository is private and has no Dependabot configuration today, so this is recorded rather than designed for.
+Pull requests that do not receive Actions secrets (forks, Dependabot) would fail at install. The repository is private and has no Dependabot configuration today, so no access is designed for them; the install step only checks that the variable is not empty and stops with one explicit error, so such a run fails clearly instead of with a 401 from the registry.
 
 Two consequences the owner should know about:
 
@@ -178,11 +178,11 @@ flowchart TD
 
 - Remove the hard-coded `data-theme="dark"` from `index.html`. Add a small inline script in `<head>`, before any stylesheet, that reads `localStorage["ucsa-docs-theme"]` inside `try/catch` and sets `data-theme` when the value is `light` or `dark`. Running before first paint is what prevents the flash.
 - Toggle: a Joymify `Segmented` control with three options, System, Light, Dark, in the sidebar brand block and reachable in the phone drawer. System removes the attribute and the saved key.
-- Move the 54 inline styles that carry colours, and the `--scrim` colour, onto `--joy-*` tokens so both themes are legible.
+- Move the hard-coded colours onto `--joy-*` tokens so both themes are legible. As checked for the plan: none of the 54 inline styles carries a colour literal (they already use portal variables mapped to tokens), so the real leftovers are `--scrim` and two forced `color-scheme: dark` rules (`LifecycleGraph.css`, `StaleTimeline.css`); a guard test keeps colour literals out of stylesheets and inline styles.
 
 ### Fonts
 
-Add `@fontsource-variable/inter` and `@fontsource-variable/jetbrains-mono` (npmjs.com) and import them in `main.tsx`. Vite copies the font files into `apps/docs/dist/assets`, so the archive stays self-contained and no request leaves the origin.
+Add `@fontsource-variable/inter` and `@fontsource-variable/jetbrains-mono` (npmjs.com) and import them in `main.tsx`. Vite copies the font files into `apps/docs/dist/assets`, so the archive stays self-contained and no request leaves the origin. The variable packages register the families as `"Inter Variable"` and `"JetBrains Mono Variable"`, while the tokens name `Inter` and `JetBrains Mono`, so the import alone changes nothing: `index.css` redefines the two custom properties `--joy-font-family-sans` and `--joy-font-family-mono` with the variable names first. Setting a token's custom property is the tokens' intended theming interface, not a shim of a component.
 
 ### Component mapping
 
@@ -213,8 +213,8 @@ Keep the existing anchor sidebar, styled with tokens. The Joymify `Menu` renders
 
 ## Testing
 
-- **Baseline.** Record the passing docs test count on the rebased branch before any change (320 on the old base, plus main's two new test files). That number never drops. A test may be edited only where it asserts markup a Joymify component replaced; none is deleted.
-- **New unit tests (Vitest + jsdom):** the toggle sets and clears `data-theme` and the saved key; the saved choice is applied on load; storage that throws does not break render; `CodeBlock` output contains highlight spans; a flowchart source produces an `<svg>`; an unsupported diagram type shows its source and does not throw.
+- **Baseline.** Record the passing docs test count of `release/1.10` before the base commits are brought over (320 on the old base, plus main's two new test files); the two base commits add no test file, and the branch cannot run its tests between the cherry-pick and the alias removal. That number never drops. A test may be edited only where it asserts markup a Joymify component replaced; none is deleted.
+- **New unit tests (Vitest + jsdom):** the toggle sets and clears `data-theme` and the saved key; the saved choice is applied on load; storage that throws does not break render; `CodeBlock` output contains highlight spans; a flowchart source produces an `<svg>`; a definition the renderer rejects (a `sequenceDiagram` with no participants) shows its source and does not throw. (Corrected 2026-10-10: the earlier wording "an unsupported diagram type shows its source" cannot pass, because the upstream renderer draws `pie`, `classDiagram` and `gantt` as a flowchart and reports success. That is filed upstream, not shimmed.)
 - **Release safety check:** with the root `.npmrc` in place and no token in the environment, `npm config get @montionugera:registry` prints `undefined` and `node scripts/release/next-release.mjs` exits 0. No new unit test and no change to the release script: the earlier scope flag, and the test asserting it, are gone with the scope clash.
 - **Browser check:** every route in `src/routes.ts` at 360px and 1280px, in light and in dark: no horizontal page scroll, drawer opens and closes at 360px, no console errors, text legible on every surface.
 
@@ -229,7 +229,7 @@ Keep the existing anchor sidebar, styled with tokens. The Joymify `Menu` renders
 - **Tarball contents.** `@joymify/react` source declares its siblings as `workspace:*`. The published 0.2.0 must list real `@joymify/*` versions; if it does not, install fails and the fix is upstream.
 - **Local installs now need a token.** `pnpm install` fails with 401 unless the user-level `~/.npmrc` has the token line and `JOYMIFY_PACKAGES_READ_TOKEN` is exported with a token that has `read:packages` and can read the `joymify` organisation's packages (for example `export JOYMIFY_PACKAGES_READ_TOKEN=$(gh auth token)` once the `gh` login has that scope, added with `gh auth refresh -s read:packages`). This affects every contributor and every agent worktree, including work unrelated to docs, and the local gates `scripts/precheck.sh` and `scripts/epic-check.sh`. In shells where the variable is not exported, npm and pnpm meet an unresolved placeholder in `~/.npmrc`; whether that is silent, a warning or an error in other projects is **not verified**. The fallback is to store the token itself with `npm config set //npm.pkg.github.com/:_authToken <token>`, which writes it to `~/.npmrc` in clear text. The README must give the one-time setup and both forms.
 - **Markdown and Mermaid coverage.** No lists, links or images; flowcharts and sequence diagrams only. Phase 3 depends on an upstream release.
-- **Rebase conflicts.** `vite.config.ts`, `MultiPlatformDocs.tsx` and `routes.ts` changed on both sides.
+- **Rebase conflicts.** `vite.config.ts` and `MultiPlatformDocs.tsx` conflict; `routes.ts` and `README.md` merge cleanly (replayed 2026-10-10).
 - **Worktree ownership.** The base worktree is owned by another session; the feature claim must take it over rather than edit beside it.
 - **No open question on access.** The owner chose the stored read-only token. The earlier "Manage Actions access" grant on the personal-account packages is void and is not requested.
 
@@ -311,3 +311,11 @@ Phase 2, code and diagrams:
   - Simplified: alias removal no longer renames imports; the base branch already imports `@joymify/react` in nine files.
   - Kept without change: phases each shippable alone, the exports table and the limits of `MarkdownViewer` and `MermaidViewer`, fonts, the sidebar decision, the 360px checks, the coupling of library releases to GitHub Packages. Workflow action versions are left to I-046.
   - Not verified in this revision: that F-073 keeps the exports of `02b1dfc8` (checked in phase 1a); pnpm 10 and 11 placeholder behaviour beyond the documentation (pnpm 10 proved by the green `ci.yml` run, pnpm 11 not exercised); how npm and pnpm treat the unresolved placeholder when the variable is not exported; that GitHub Packages still rejects fine-grained tokens; the `types` path used in the exports check.
+- 2026-10-10 self-grill-audit of `plan.md` (independent, read against the source tree). Lines of this spec the plan or the audit proved wrong are corrected in place; the rest is recorded here so a reviewer does not flag the plan for departing from the spec.
+  - CRITICAL, corrected ("CI package access"): "the line is appended" was unsafe for `release.yml`. `actions/setup-node` writes its config file without a final newline, so a plain append destroys the token line and turns every merge to main red at install. The append must start with a newline. Reproduced locally.
+  - Corrected ("CI package access"): a run without the secret now stops with an explicit error in the install step. The variable is still given to that step only.
+  - Corrected ("Alias removal"): the root `vitest.config.ts` imports the alias file as well.
+  - Corrected ("Theme tokens and toggle", "Fonts", "Testing", "Risks"): no inline style carries a colour literal; the fonts need the two font-family custom properties redefined; the diagram test asserts a rejected definition, not an unsupported type; the baseline is measured before the cherry-pick; `routes.ts` does not conflict.
+  - Recorded, spec unchanged: Dart and C# snippets render without highlighting (the upstream highlighter has no grammar for them; request filed upstream, nothing shimmed), so "highlighting" in the component mapping holds for TypeScript only today. The platform guide keeps its own copy button and passes `allowCopy={false}`, because the Joymify button hides a failed copy. Callouts pass `role="note"` over the `Alert` default `role="alert"`.
+  - Recorded, not automatable: the criterion "a hard reload never shows a dark frame (checked with a throttled reload)" cannot be run by the browser tooling the agents have. The plan proves the ordering of the inline script in the built page and leaves the throttled reload as a manual check for the owner.
+  - Owner go-ahead added: the draft pull request of rollout step 2 pushes a branch and opens a pull request against `main`; the plan stops for explicit approval before it, with a recorded path if it is declined.

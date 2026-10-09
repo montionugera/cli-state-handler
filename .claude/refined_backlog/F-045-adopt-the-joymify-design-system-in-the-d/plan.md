@@ -19,7 +19,8 @@ Copied from the spec. Every task's requirements include these.
 - Dependencies are exactly `@joymify/react` `^0.2.0` and `@joymify/tokens` `^0.2.0` in `apps/docs/package.json`. `@joymify/icons` 0.3.0 and `@joymify/brand` 0.2.0 arrive transitively. No `workspace:`, no `link:`, no vendored source, no sibling checkout.
 - The root `.npmrc` holds exactly one line: `@joymify:registry=https://npm.pkg.github.com`. No `_authToken`, no `montionugera`, no blanket `registry=`.
 - The token line lives only in user-level npm config, as the literal text `//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}`. The token itself is never written to disk.
-- The Actions secret is named `JOYMIFY_PACKAGES_READ_TOKEN`. It is passed as `env` to the install step only. `packages: read` is not added to `permissions`.
+- The Actions secret is named `JOYMIFY_PACKAGES_READ_TOKEN`. It is passed as `env` to the install step only; no other step may receive it without the owner's go-ahead. `packages: read` is not added to `permissions`.
+- The token line is appended with a leading newline (`printf '\n%s\n' ... >>`), never a bare `echo ... >>`: `actions/setup-node` writes its npm config file without a final newline, so a bare append joins the token line onto `always-auth=false` and the token is lost (audit finding C1).
 - Not edited: `scripts/release/next-release.mjs`, the publish commands in `release.yml`, `packages/core/package.json`, `apps/cli/package.json`. `release.yml` is not renamed and gets no `environment:`.
 - No `uses:` line changes in any workflow (action versions belong to idea I-046, owned by another session).
 - No import statement is renamed: nine files keep `from "@joymify/react"`, `main.tsx` keeps `@joymify/tokens/theme.css`.
@@ -31,7 +32,7 @@ Copied from the spec. Every task's requirements include these.
 
 Repo conventions (from the dispatcher, binding):
 
-- Run every command from the feature worktree root. A fresh worktree needs `pnpm install` then `pnpm --filter @ucsa/core build`.
+- Run every command from the feature worktree root. A fresh worktree needs `pnpm install` then `pnpm --filter @montionugera/ucsa-core build` (the package is named `@montionugera/ucsa-core`; a filter of `@ucsa/core` matches nothing and still exits 0).
 - Docs commands: `pnpm --filter @ucsa/docs test` and `pnpm --filter @ucsa/docs build`. The machine is heavily loaded: run one test suite at a time, never two in parallel.
 - No prettier config exists: do not run prettier. Match the surrounding style by hand.
 - The root `.gitignore` has a bare `build/` rule: never create a folder named `build/`, git would silently skip it.
@@ -64,7 +65,7 @@ Repo conventions (from the dispatcher, binding):
 
 ## Findings that shape the plan
 
-Checked against the source on 2026-10-09 while writing this plan. Each is a deviation from, or a gap in, the spec; the owner has been told.
+Checked against the source on 2026-10-09 while writing this plan. Each is a deviation from, or a gap in, the spec; the owner has been told. Items 2 to 7 and 13 to 15 are also recorded in the spec itself (its "Appendix: audit trail", entry of 2026-10-10, and the edited lines it names), so a reviewer holding the spec as the authority does not flag them.
 
 1. **`routes.ts` does not conflict.** A trial merge of `69f8c42` into `release/1.10` conflicts in exactly two files: `apps/docs/vite.config.ts` and `apps/docs/src/components/MultiPlatformDocs.tsx`. `README.md` and `routes.ts` merge cleanly.
 2. **The root `vitest.config.ts` also imports `joy-alias`.** The spec lists only the two config files under `apps/docs`. Task 4 restores the root file as well, and the wiring test guards it.
@@ -79,6 +80,12 @@ Checked against the source on 2026-10-09 while writing this plan. Each is a devi
 11. **The README needs the token's expiry date, which only the owner knows.** Task 1 asks for it.
 12. **`Alert` renders `role="alert"`.** A static callout would be announced on every page load, so the portal passes `role="note"` (the component spreads extra props after its own role).
 
+Added by the audit of 2026-10-10 (each reproduced, see "Audit trail"):
+
+13. **A bare append corrupts the npm config in `release.yml`.** `actions/setup-node@v4` with `registry-url` writes its file ending in `always-auth=false` with no final newline (`src/authutil.ts`). `echo '<token line>' >> file` then produces the single line `always-auth=false//npm.pkg.github.com/:_authToken=...`: no token line exists, the install answers 401 on every merge to main, and library publishing is blocked. `ci.yml` has no such file, so the draft pull request of Task 6 would have stayed green. Task 3 appends with a leading newline and Step 5 replays the line against a copy of that file.
+14. **An empty secret fails as an opaque 401.** A run that gets no secrets (fork, Dependabot, deleted secret) expands the placeholder to an empty token. Task 3 makes the install step stop first with one explicit error line. The variable still exists only in the install step.
+15. **Some browser checks cannot run with the `claude-in-chrome` tools as first written.** They cannot emulate `prefers-color-scheme` or throttle the network; `document.fonts.check()` answers `true` in Chrome for a family that does not exist; a Chrome window may not shrink to 360px. Tasks 9 and 13 and the browser brief now use checks that can run (a 360px same-origin iframe, `FontFace.status`, resource origins, the order of tags in the built `index.html`) and require `NOT RUN` instead of `PASS` for anything that could not be executed.
+
 ---
 
 ## Phase 0: preconditions
@@ -92,10 +99,17 @@ Checked against the source on 2026-10-09 while writing this plan. Each is a devi
 
 - [ ] **Step 1: Check the package resolves**
 
+First confirm the local token setup, because without it a 401 or 404 below says nothing about whether the packages are published (the registry answers the same way to a caller it cannot identify):
+```bash
+grep -c 'npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' ~/.npmrc
+test -n "$JOYMIFY_PACKAGES_READ_TOKEN" && echo token-exported
+```
+Expected: `1` and `token-exported` (on 2026-10-10 both are missing on this machine). If either is missing, STOP and report the local setup from Step 2 to the owner; do not go on to the registry check.
+
 Run: `npm view @joymify/react version --registry=https://npm.pkg.github.com`
 Expected: prints `0.2.0`.
 
-If it fails (on 2026-10-09 it answers `npm error code E404`), **STOP the whole run** and report exactly:
+If it fails with the local setup in place (on 2026-10-09 it answers `npm error code E404`), **STOP the whole run** and report exactly:
 ```
 F-045 is blocked on phase 0. The @joymify packages do not resolve from GitHub Packages.
 Owner actions: (a) merge joy-design F-073 to main and publish @joymify/tokens 0.2.0,
@@ -141,7 +155,7 @@ If the published versions differ from 0.2.0 / 0.3.0, STOP: the spec's ranges are
 - [ ] **Step 1: Install and measure the baseline on the untouched branch**
 ```bash
 pnpm install
-pnpm --filter @ucsa/core build
+pnpm --filter @montionugera/ucsa-core build
 pnpm --filter @ucsa/docs test 2>&1 | tail -n 6
 ```
 Expected: exit 0. Read the `Tests  <n> passed` line; that `<n>` is `BASELINE` (the old base had 320; `release/1.10` adds two test files).
@@ -196,8 +210,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Create: `.npmrc`
-- Modify: `.github/workflows/ci.yml` (header comment line 4; the install step near line 48)
-- Modify: `.github/workflows/release.yml` (the install step near line 52)
+- Modify: `.github/workflows/ci.yml` (header comment line 4; the install step on line 48)
+- Modify: `.github/workflows/release.yml` (the install step on line 52)
 
 **Interfaces:**
 - Produces: the scope mapping that Task 4's install relies on; the secret reaches `pnpm install --frozen-lockfile` in both workflows.
@@ -235,16 +249,26 @@ Replace the step `      - run: pnpm install --frozen-lockfile` with:
       # The private @joymify/* packages live on GitHub Packages (organisation
       # joymify). The line keeps its ${...} placeholder, so the token itself is
       # never written to disk; only the install step has the variable.
+      # The leading newline matters: actions/setup-node writes its config file
+      # without a final newline, so a bare append would join its last line.
       - name: Point npm at the Joymify package token
         run: |
-          echo '//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          printf '\n%s\n' '//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: |
+          if [ -z "$JOYMIFY_PACKAGES_READ_TOKEN" ]; then
+            echo "::error::JOYMIFY_PACKAGES_READ_TOKEN is empty: the secret is missing, or this run gets no secrets (a pull request from a fork or from Dependabot). The private @joymify packages cannot be installed."
+            exit 1
+          fi
+          pnpm install --frozen-lockfile
         env:
           JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}
 ```
 
-- [ ] **Step 4: Edit `release.yml`** the same way: replace its `      - run: pnpm install --frozen-lockfile` step with the identical two steps from Step 3 (same comment, same names). In this file the user-level file is the one `actions/setup-node` already wrote for npmjs.com; the line is appended and nothing in it is replaced. Do not touch `permissions`, any `uses:` line, or any other step.
+The guard runs inside the install step, so the variable is still given to that one step only. It turns an empty secret into one readable error line instead of a 401 from the registry.
+
+- [ ] **Step 4: Edit `release.yml`** the same way: replace its `      - run: pnpm install --frozen-lockfile` step with the identical two steps from Step 3 (same comment, same names, same `printf` line, same guard). In this file the user-level file is the one `actions/setup-node` already wrote for npmjs.com, and that file has no final newline: the leading `\n` of the `printf` is what keeps the token line on a line of its own. Nothing in the file is replaced. Do not touch `permissions`, any `uses:` line, or any other step.
 
 - [ ] **Step 5: Verify**
 ```bash
@@ -257,9 +281,21 @@ grep -n "no secrets" .github/workflows/ci.yml
 git diff -- .github/workflows | grep -E '^[+-] *- uses:|^[+-] *uses:'
 git diff --stat -- scripts/release packages/core/package.json apps/cli/package.json
 ruby -ryaml -e 'ARGV.each { |f| YAML.load_file(f) }; puts "yaml ok"' .github/workflows/ci.yml .github/workflows/release.yml
+grep -c "echo '//npm.pkg.github.com" .github/workflows/ci.yml .github/workflows/release.yml
+# Replay the append against a copy of the file actions/setup-node writes (no final newline).
+for W in .github/workflows/ci.yml .github/workflows/release.yml; do
+  SIM=$(mktemp -d)
+  printf '%s\n%s\n%s' '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}' 'registry=https://registry.npmjs.org' 'always-auth=false' > "$SIM/npmrc"
+  LINE=$(grep -m1 'npm.pkg.github.com/:_authToken' "$W" | sed 's/^ *//')
+  NPM_CONFIG_USERCONFIG="$SIM/npmrc" bash -c "$LINE"
+  grep -c -x 'always-auth=false' "$SIM/npmrc"
+  grep -c -x -F '//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' "$SIM/npmrc"
+done
 bash scripts/epic-check.sh E-009 2>&1 | tail -n 12
 ```
-Expected, in order: the one registry line; `0`; `0`; `undefined`; `exit=0` (`NPM_CONFIG_USERCONFIG=/dev/null` isolates the check to the repository `.npmrc`); two matches per workflow file (the placeholder line and the `env` line); `0` for both files; nothing; nothing; nothing; `yaml ok`; the release-workflow assertions of E-009 still pass.
+Expected, in order: the one registry line; `0`; `0`; `undefined`; `exit=0` (`NPM_CONFIG_USERCONFIG=/dev/null` isolates the check to the repository `.npmrc`); in `ci.yml` five lines (header comment, `printf` line, the `if [ -z` guard, its error message, the `env` line) and in `release.yml` the last four of those, and no line outside the token step and the install step; `0` for both files; nothing; nothing; nothing; `yaml ok`; `0` for both files (no bare `echo` append is left); then `1` and `1` for each workflow (the audit ran this replay: a bare `echo` append gives `0` and `0`); E-009 assertions 1 to 4 `PASS`.
+
+E-009 assertion 5 (it builds the docs) is expected to **FAIL at this point** and is not a finding: after the cherry-pick of Task 2 the alias target does not exist in this worktree, so the docs cannot build until Task 4. Task 4 Step 6 runs E-009 again, and there all five must pass.
 
 - [ ] **Step 6: Commit**
 ```bash
@@ -269,7 +305,7 @@ git commit -m "ci(F-045): map the @joymify scope and hand the read token to inst
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-- [ ] **Step 7: Phase gate (own gate, risky surface).** Verify (Step 5 output) → independent review of this commit's diff by `code-reviewer` and `typescript-reviewer` on `model: opus`, asked specifically: can the token reach any step other than install; is any `uses:` line, `permissions` block or publish command changed; can the new `.npmrc` redirect the `@montionugera` scope → apply findings → re-run Step 5. Do not advance on an open finding.
+- [ ] **Step 7: Phase gate (own gate, risky surface).** Verify (Step 5 output) → independent review of this commit's diff by `code-reviewer` and `typescript-reviewer` on `model: opus`, asked specifically: can the token reach any step other than install; does the token line land on a line of its own in both workflows, including after the file `actions/setup-node` writes in `release.yml`; does a run with an empty secret stop with the explicit error; is any `uses:` line, `permissions` block or publish command changed; can the new `.npmrc` redirect the `@montionugera` scope → apply findings → re-run Step 5. Do not advance on an open finding.
 
 ### Task 4: Registry dependencies and alias removal
 
@@ -348,7 +384,7 @@ Expected: 4 passed.
 
 - [ ] **Step 6: Full phase 1a local verification, one command at a time**
 ```bash
-pnpm --filter @ucsa/core build
+pnpm --filter @montionugera/ucsa-core build
 pnpm --filter @ucsa/docs test 2>&1 | tail -n 6
 pnpm typecheck 2>&1 | tail -n 5
 pnpm --filter @ucsa/docs build 2>&1 | tail -n 8
@@ -358,8 +394,11 @@ grep -c "@joymify/" apps/docs/tsconfig.json
 grep -rl -E "from ['\"]@joymify/react['\"]" apps/docs/src | wc -l
 grep -c "@joymify/tokens/theme.css" apps/docs/src/main.tsx
 grep -c -E "MarkdownViewer|MermaidViewer|CodeBlock|PolyglotCodeTabs|Segmented|Alert" apps/docs/node_modules/@joymify/react/dist/index.d.ts
+bash scripts/epic-check.sh E-009 2>&1 | tail -n 12
 ```
-Expected: tests exit 0 with `BASELINE + 4` passed; typecheck exit 0; build exit 0; `alias-gone`; the grep prints nothing; `0`; at least `9`; `1`; at least `6`.
+Expected: the core build prints its build output (if it prints `No projects matched the filters`, the filter name is wrong: stop); tests exit 0 with `BASELINE + 4` passed; typecheck exit 0; build exit 0; `alias-gone`; the grep prints nothing; `0`; at least `9`; `1`; at least `6`; all five E-009 assertions `PASS` (assertion 5 failed in Task 3 only because the docs could not build yet).
+
+If the docs tests fail here with a count below `BASELINE + 4`, the cause is one of two things and the report must say which: the cherry-picked markup against the two test files `release/1.10` added, or the published `dist` behaving differently from the source the base branch aliased. Fix the first in this repository; the second is an upstream defect, STOP and report it.
 
 - [ ] **Step 7: Commit**
 ```bash
@@ -420,37 +459,59 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: the feature branch with Tasks 2 to 5.
 
-- [ ] **Step 1: Local gate**
+- [ ] **Step 1: Local gate, then a clean-room install (the cheap proof, run first)**
 
 Run: `bash scripts/precheck.sh 2>&1 | tail -n 15`
 Expected: exit 0.
 
-- [ ] **Step 2: Open a draft pull request to main to run `ci.yml`** (`ci.yml` runs only on pull requests to main). This pushes the feature branch and opens a pull request that is never merged from here: the feature ships through the release branch.
+Then prove the lockfile installs from the registry with nothing cached and no sibling checkout, using a throwaway clone and an empty package store:
 ```bash
+CLEAN=$(mktemp -d)
+git clone --quiet --no-hardlinks . "$CLEAN/repo"
+(cd "$CLEAN/repo" && pnpm install --frozen-lockfile --store-dir "$CLEAN/store" > "$CLEAN/install.log" 2>&1; echo "exit=$?"; tail -n 4 "$CLEAN/install.log")
+node -p "require('$CLEAN/repo/apps/docs/node_modules/@joymify/react/package.json').version"
+rm -rf "$CLEAN"
+```
+Expected: `exit=0` and `0.2.0`. This settles the spec criterion "`pnpm install --frozen-lockfile` exits 0 on a fresh clone that has no sibling `joy-design` directory". It does **not** prove the Actions secret holds a working token; only a run on GitHub can.
+
+- [ ] **Step 2: OWNER GO-AHEAD REQUIRED, then open a draft pull request to main to run `ci.yml`**
+
+**STOP here and ask the owner before running anything in this step.** It is the only outward-facing action in the plan: it pushes the feature branch to GitHub and opens a pull request against `main` that people watching the repository are notified about. A general "continue" or "go ahead" for the plan does not cover it; the owner must approve this step by name. Tell the owner what it buys and what the alternative is:
+
+- *Why it is worth it.* `ci.yml` runs only on pull requests to main, and the value stored in the secret can be tested only by a run on GitHub. Without this step the first test of the secret is the release pull request at promote time, where a red install holds up every feature in `release/1.10`.
+- *What it shows publicly.* The branch is based on `release/1.10`, so the pull request lists every unreleased commit of that release, not only F-045. The repository is private.
+- *If the owner declines.* Skip Steps 2 to 4, record in `handoff.md` the line `ci.yml proof deferred to the release pull request (owner decision); spec criterion "the pull request's ci.yml run is green" is NOT met by this feature`, and go to Step 5. Do not mark the criterion as met.
+
+With the go-ahead, check that secrets will reach the run, then open the draft. It is never merged from here: the feature ships through the release branch.
+```bash
+gh secret list | grep -c JOYMIFY_PACKAGES_READ_TOKEN
 git push -u origin HEAD
 gh pr create --draft --base main --title "F-045 CI proof: Joymify packages from the registry (do not merge)" --body "Draft only. Proves that ci.yml installs the private @joymify packages on a runner with no cache and no sibling checkout. The feature ships through release/1.10.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+gh pr view --json isDraft,autoMergeRequest,mergeable -q '[.isDraft, .autoMergeRequest, .mergeable]'
 gh pr checks --watch 2>&1 | tail -n 6
 ```
-Expected: the `precheck` check is green.
+Expected: `1`; the pull request is a draft with no auto-merge (`[true,null,"MERGEABLE"]`; `"UNKNOWN"` right after creation is normal, ask again after a few seconds); the `precheck` check is green. If `mergeable` is `CONFLICTING`, GitHub builds no merge commit and `ci.yml` never starts: close the draft and report, do not wait on the checks. A pull request from the same repository receives Actions secrets; one from a fork does not, and Task 3's guard would stop it with the explicit error.
 
-- [ ] **Step 3: If the install step is green but "Gate 1 (precheck)" fails on a 401 or a placeholder error** (`scripts/precheck.sh` re-runs `pnpm install` without the variable), add the same `env` to that step in `ci.yml` and push a new commit:
+- [ ] **Step 3: If the install step is green but "Gate 1 (precheck)" fails on a 401 or a placeholder error** (`scripts/precheck.sh` line 67 re-runs `pnpm install --prefer-offline` without the variable), do **not** hand the token to the precheck step: that step runs every build and test script in the repository, and the rule is that the token reaches install only. Add this step to `ci.yml` directly after the install step instead, and push a new commit:
 ```yaml
-      - name: Gate 1 (precheck)
-        run: bash scripts/precheck.sh
-        env:
-          JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}
+      # Later steps run without the token; drop the line so no tool trips on
+      # the unresolved placeholder.
+      - name: Remove the Joymify token line after install
+        run: sed -i '/npm.pkg.github.com\/:_authToken/d' "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
 ```
 
-This is a workflow edit: it gets the Task 3 Step 7 gate again before it is pushed. If the install step itself is red, the secret is missing, wrong or expired: STOP and report to the owner; do not retry with a different token mechanism.
+The packages are already in `node_modules` and the lockfile is satisfied, so the re-install has nothing to fetch. If it still fails with a 401 (it tried to fetch), STOP and ask the owner whether the token may be given to the precheck step as well; the spec allows it, but it widens where the token is visible and is the owner's call.
+
+This is a workflow edit: it gets the Task 3 Step 7 gate again before it is pushed, and if it was needed in `ci.yml` the same step goes into `release.yml` after its install step (Task 3 Step 1 already describes it). If the install step itself is red, read its log first: the explicit "is empty" error means the secret is missing; a 401 means it is wrong, expired or cannot read the `joymify` organisation. Either way STOP and report to the owner; do not retry with a different token mechanism.
 
 - [ ] **Step 4: Close the draft and record the result**
 ```bash
 gh pr close "$(gh pr view --json number -q .number)" --comment "CI proof complete; shipping through release/1.10."
 ```
 
-Add one line to `handoff.md`: `ci.yml run green: <run URL>`, and whether Step 3 was needed. Commit `handoff.md` alone with message `chore(F-045): record the ci.yml proof run` plus the co-author line.
+The remote feature branch stays (closing a pull request does not delete it); say so in the report. Add one line to `handoff.md`: `ci.yml run green: <run URL>`, and whether Step 3 was needed. What this run does **not** prove, and `handoff.md` must say so: the token line in `release.yml`, which is appended to a file that `actions/setup-node` wrote. That path is covered only by the replay in Task 3 Step 5 and by the watched first merge. Commit `handoff.md` alone with message `chore(F-045): record the ci.yml proof run` plus the co-author line.
 
 - [ ] **Step 5: Post-merge watch (recorded, not run here).** The criterion "after the merge to main the Release workflow is green through install and Decide release" can only be met at promote time. Add to `handoff.md`: `At promote: watch the Release run (install, Decide release, publish) and run npm view @montionugera/ucsa-core version --registry=https://registry.npmjs.org/ outside the repository.`
 
@@ -765,15 +826,25 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Start the preview**
 
-Run in the background: `pnpm --filter @ucsa/docs build && pnpm --filter @ucsa/docs preview` (port 6006; if busy, Vite picks the next port, use the one it prints). The site is served under `/cli-state-handler/`.
+First the part of "no flash" that can be proved without a browser, on the built page:
+```bash
+pnpm --filter @ucsa/docs build 2>&1 | tail -n 4
+node -e 'const h=require("fs").readFileSync("apps/docs/dist/index.html","utf8");const s=h.indexOf("<script>"),c=h.indexOf("rel=\"stylesheet\""),m=h.indexOf("type=\"module\"");console.log(s>-1&&c>-1&&s<c&&s<m?"inline-first":"WRONG ORDER",s,c,m)'
+grep -c 'data-theme=' apps/docs/dist/index.html
+```
+Expected: `inline-first` (the theme script comes before the stylesheet link and before the module script, so the attribute is set before anything can paint); `0`. `WRONG ORDER` is a defect: fix `index.html` and add the same ordering assertion to `tests/theme-toggle.test.tsx` only if it can be made on the source file.
+
+Then run in the background: `pnpm --filter @ucsa/docs preview` (port 6006; if busy, Vite picks the next port, use the one it prints). The site is served under `/cli-state-handler/`.
 
 - [ ] **Step 2: Dispatch one browser subagent** (`model: sonnet`, it needs the `claude-in-chrome` tools) with the brief in "Appendix: browser brief" below, plus these phase 1b checks:
 
-- With the system set to dark (emulate `prefers-color-scheme: dark`) and `localStorage["ucsa-docs-theme"] = "light"`, hard-reload with network throttling on and report whether any dark frame appears before the light page.
-- `document.fonts.check('16px "Inter Variable"')` and `document.fonts.check('16px "JetBrains Mono Variable"')` are both `true` after load, and the Network panel shows no request to another origin.
+- Saved choice against the system: read `matchMedia("(prefers-color-scheme: dark)").matches`, save the **opposite** theme in `localStorage["ucsa-docs-theme"]`, reload, and report `document.documentElement.dataset.theme` and `getComputedStyle(document.body).backgroundColor`: they must be the saved theme's, not the system's. Then remove the key, reload, and confirm the attribute is absent and the page follows the system.
+- Throttled reload with the system set to dark and Light saved, no dark frame: the `claude-in-chrome` tools cannot throttle the network or emulate a colour scheme. Report this line as `NOT RUN` unless you really did it; never `PASS` by inference.
+- Fonts: after `await document.fonts.ready`, `[...document.fonts].filter(f => f.status === "loaded").map(f => f.family.replace(/["']/g, ""))` contains both `Inter Variable` and `JetBrains Mono Variable`. Do not use `document.fonts.check()`: in Chrome it answers `true` for a family that does not exist.
+- Same origin only: `performance.getEntriesByType("resource").filter(e => new URL(e.name).origin !== location.origin).length` is `0`.
 - At 360px, open the drawer, change the theme with the toggle, close the drawer with Escape: the theme changed and focus returned to the menu button.
 
-- [ ] **Step 3: Act on the verdict.** `PASS` on every line: stop the preview and go on. Any `FAIL`: fix it (token or layout CSS only, no new colour literals), commit, re-run the docs tests, and dispatch the subagent again for the failing routes.
+- [ ] **Step 3: Act on the verdict.** `PASS` on every line: stop the preview and go on. Any `FAIL`: fix it (token or layout CSS only, no new colour literals), commit, re-run the docs tests, and dispatch the subagent again for the failing routes. Any `NOT RUN`: it is not a pass. Copy the line into `handoff.md` under "Manual checks left for the owner" (the throttled-reload criterion of the spec is expected to land there) and name it in the final report.
 
 ---
 
@@ -1152,7 +1223,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: Browser subagent.** Start the preview as in Task 9 Step 1 and dispatch one browser subagent (`model: sonnet`) with "Appendix: browser brief" plus these phase 2 checks:
 
 - On `#/` the request-path diagram is an `svg` with readable node labels in light and in dark, and at 360px it scrolls inside its own box without widening the page.
-- On `#/multiplatform` the three platform tabs switch the code and the title; arrow keys move between tabs; "Side by side" shows three code blocks; the copy button reports "✓ Copied to Clipboard".
+- On `#/multiplatform` the three platform tabs switch the code and the title; arrow keys change the selected tab (the Joymify tabs change the selection without moving keyboard focus; that is upstream behaviour, report it, do not fix it here); "Side by side" shows three code blocks; the copy button reports "✓ Copied to Clipboard".
 - On each tutorial route the code blocks are highlighted and the callouts are readable in both themes.
 
 Act on the verdict as in Task 9 Step 3.
@@ -1180,7 +1251,7 @@ git status --short | head -n 5
 ```
 Expected: `0`; build exit 0; at least `2`; nothing; precheck exit 0; a clean tree apart from `README.md` and `handoff.md`.
 
-- [ ] **Step 4: File the off-goal findings, do not fix them.** Record three upstream ideas for `joy-design` in `handoff.md` under "Upstream to file": (1) `renderMermaidToSvg` draws unsupported diagram types as a flowchart instead of returning `success: false`; (2) the highlighter has no Dart or C# grammar; (3) the tokens stylesheet sets no `color-scheme`, so each consumer adds it.
+- [ ] **Step 4: File the off-goal findings, do not fix them.** Record three upstream ideas for `joy-design` in `handoff.md` under "Upstream to file": (1) `renderMermaidToSvg` draws unsupported diagram types as a flowchart instead of returning `success: false`; (2) the highlighter has no Dart or C# grammar; (3) the tokens stylesheet sets no `color-scheme`, so each consumer adds it; (4) `PolyglotCodeTabs` arrow keys change the selected tab but leave focus on the old one; (5) the four package manifests name `montionugera/joy-design` as `repository` while they publish to the organisation `joymify`.
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -1204,26 +1275,44 @@ Site: http://localhost:<port>/cli-state-handler/ (the preview server is already 
 Routes (hash routes, from apps/docs/src/routes.ts): #/ , #/tutorial-first-query , #/tutorial-freshness ,
 #/tutorial-durable-cache , #/tutorial-outbox , #/tutorial-ucb1 , #/swr , #/timing , #/outbox , #/cas ,
 #/ucb1 , #/wal , #/multiplatform , #/parity , #/release-notes , #/sandbox  (16 routes).
+Widths: after resizing the window, read window.innerWidth. If it is not the width asked for (a
+Chrome window may refuse to go as narrow as 360px), do not report the route at that width from the
+wide window. Instead add a same-origin iframe of exactly that width to a blank same-origin page
+(style "width:360px;height:800px;border:0", src = the route URL), wait for its load event, and run
+the checks on iframe.contentDocument / iframe.contentWindow. Say in the reply which method you used.
 For every route, at 360px and at 1280px wide, in light and in dark (set
-document.documentElement.dataset.theme to "light" or "dark"), check:
-  1. document.documentElement.scrollWidth <= window.innerWidth  (no horizontal page scroll)
+document.documentElement.dataset.theme to "light" or "dark" in the document under test), check:
+  1. documentElement.scrollWidth <= innerWidth of the document under test  (no horizontal page scroll)
   2. the console shows no errors
   3. text is legible on every surface: no dark text on a dark surface, no light on light
 At 360px also check once per theme: the menu button opens the drawer, Escape closes it.
+A check you could not actually execute is NOT RUN, never PASS. Do not infer a result.
 Do not paste screenshots into the reply. Return at most 15 lines:
-  line 1: PASS or FAIL overall
+  line 1: PASS or FAIL overall (FAIL if any check failed; say "PASS with NOT RUN" if some did not run)
   then one line per failing route: route, width, theme, check number, what you saw
-  last line: the extra checks, each PASS or FAIL
+  last line: the extra checks, each PASS, FAIL or NOT RUN
 ```
 
 ## Self-review
 
 - **Spec coverage.** Phase 0 → Task 1. Rebase and baseline → Task 2. `.npmrc`, both workflows, `ci.yml` header, release regression check, E-009 → Task 3. Dependencies, alias removal, exports check, typecheck, build → Task 4. README install and expiry → Task 5. Draft pull request, `precheck.sh`, the unproven `precheck` re-install → Task 6. Toggle, no-flash script, storage failure → Task 7. Fonts, scrim, inline-style guard → Task 8. Route check at 360px and 1280px in both themes → Tasks 9 and 13. `CodeBlock`, `Alert`, lazy wrapper, flowchart and rejected-diagram tests → Task 10. `PolyglotCodeTabs` → Task 11. Overview diagram and the non-entry chunk check → Task 12. Post-merge Release watch → recorded for promote time in Task 6 Step 5 (it cannot run before the release is promoted).
-- **Not covered, on purpose.** Phase 3 (markdown). The spec's "unsupported diagram type shows its source" as worded (finding 6). Moving 54 inline styles (finding 4).
+- **Not covered, on purpose.** Phase 3 (markdown). The spec's "unsupported diagram type shows its source" as worded (finding 6). Moving 54 inline styles (finding 4). The throttled-reload check of the no-flash criterion, which no available tool can run (finding 15): it is proved structurally in Task 9 Step 1 and left as a manual check for the owner.
 - **Placeholders.** `TOKEN_EXPIRY` is an owner-supplied value with a stop condition in Task 1 and a check in Task 5 Step 2 that the word is gone. `BASELINE` is measured in Task 2. No other open value.
 - **Type consistency.** `Code`, `CodeTabs`, `Diagram` (Task 10) are the names used in Tasks 11 and 12. `ThemeChoice`, `THEME_KEY`, `readTheme`, `applyTheme` (Task 7) are used only there. `Prose.tsx` keeps `Callout` and `CodeBlock` with unchanged props.
 - **Test count ledger.** Task 4 +4, Task 7 +6, Task 8 +4, Task 10 +5, Task 11 +2, Task 12 +1: `BASELINE + 22` at the end.
 
 ## Audit trail
 
-- 2026-10-09: plan written. `self-grill-audit` has not been run on this plan yet; it is the next step before execution.
+- 2026-10-09: plan written.
+- 2026-10-10 `self-grill-audit` (independent; read against `release/1.10`, the base commits `68ad8b7` and `69f8c42` replayed in a throwaway worktree, `joy-design` release/3.8 source, and the `actions/setup-node` v4 source): verdict **safe with fixes, all applied here**. Nothing can run past Task 1 until the owner meets phase 0.
+  - CRITICAL (C1), fixed: the token line was appended with `echo ... >>`. In `release.yml` the target file is written by `actions/setup-node` with no final newline, so the result was `always-auth=false//npm.pkg.github.com/:_authToken=...`: no token line, a 401 on every merge to main, library publishing blocked, and invisible to the Task 6 proof because `ci.yml` starts from no file. Reproduced locally. Now `printf '\n%s\n'`, with a replay check in Task 3 Step 5 and a gate question. Spec corrected.
+  - HIGH, fixed: `pnpm --filter @ucsa/core build` matched no package and exited 0 in three places (the package is `@montionugera/ucsa-core`), so "build core first" silently did nothing.
+  - HIGH, fixed: an empty secret (fork, Dependabot, deleted secret) failed as an opaque 401. The install step now stops with one explicit error; the variable is still scoped to that step.
+  - HIGH, fixed: Task 3 Step 5 expected `epic-check.sh E-009` to pass while the docs cannot build (between the cherry-pick and Task 4). Assertion 5 is now an expected failure there and all five are required in Task 4 Step 6. The expected `grep` line counts were also wrong.
+  - HIGH, fixed: Task 6 pushed a branch and opened a pull request against `main` with no owner gate, and its fallback handed the token to the whole precheck step, against this plan's own constraint. Now: a local clean-room install first, an explicit owner go-ahead with a recorded "declined" path, a draft and auto-merge check, and a fallback that removes the token line after install instead of widening the token.
+  - HIGH, fixed: browser checks that could not run or could not fail (colour-scheme emulation, network throttling, `document.fonts.check()`, a 360px window). Replaced with executable checks and a mandatory `NOT RUN`.
+  - HIGH, fixed: findings 2 to 7 departed from the spec without the spec saying so. Recorded in the spec's audit trail; the spec lines for the append, the diagram test, the inline styles and the fonts are corrected.
+  - MEDIUM, fixed: Task 1 checked the registry before the local token setup, so "not published" and "not logged in" were indistinguishable.
+  - Confirmed against source, no change: the cherry-pick conflicts in exactly `vite.config.ts` and `MultiPlatformDocs.tsx` and the second pick is clean; nine files import `@joymify/react`; the props of `CodeBlock`, `PolyglotCodeTabs`, `MermaidViewer`, `Segmented` and `Alert` and the exported prop types match the plan's code; `renderMermaidToSvg` returns `success: true` for `pie`, `classDiagram` and `gantt` and `success: false` for a bare `sequenceDiagram`; the Overview diagram renders with all four labels; `dart` and `csharp` tokenise as plain text; the only colour literal is `--scrim`, the only forced `color-scheme` rules are the two named; the three label lookups in the existing platform test are the only ones that need `findByText`; no existing test asserts the markup of `Callout`, the prose `CodeBlock` or `index.html`.
+  - Recorded, not changed (MEDIUM/LOW): all 18 snippets are available, so the "plain buttons" branch of Task 11 is unreachable today and untested; `mp-scroll` (`role="region"`) now wraps a Joymify `CodeBlock` that is itself a region; `git checkout release/1.10 -- <files>` in Task 4 takes whatever `release/1.10` holds at that moment; the 360px layout of the new tabs, toggle and diagram is guarded only by the browser checks of Tasks 9 and 13, no unit test can catch it.
+  - Open, owner: phase 0 (packages published, secret created, token expiry date, local token setup); the go-ahead for Task 6 Step 2; the manual throttled-reload check.
