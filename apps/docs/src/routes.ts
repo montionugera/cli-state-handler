@@ -22,6 +22,7 @@ import { MultiPlatformDocs } from "./components/MultiPlatformDocs.js";
 import { ParityMatrix } from "./components/ParityMatrix.js";
 import { FirstQuery, Freshness, DurableCache, OfflineMutations, CrossProcess } from "./content/tutorial/index.js";
 import { Sandbox } from "./components/Sandbox.js";
+import { ReleaseNotes } from "./components/ReleaseNotes.js";
 
 export interface RouteDef {
   /** Hash segment: the page lives at `#/<id>`. `home` is also served at `#/`. */
@@ -48,6 +49,7 @@ export const routes: RouteDef[] = [
   { id: "wal", title: "WAL Storage", icon: "🪵", group: "Visualisers", component: WalVisualiser },
   { id: "multiplatform", title: "TS / Dart / Unity C#", icon: "🌐", group: "Guides", component: MultiPlatformDocs },
   { id: "parity", title: "Platform Parity Matrix", icon: "🧮", group: "Guides", component: ParityMatrix },
+  { id: "release-notes", title: "Release notes", icon: "📝", group: "Guides", component: ReleaseNotes },
   { id: "sandbox", title: "TypeScript Sandbox", icon: "🧪", group: "Sandbox", component: Sandbox },
 ];
 

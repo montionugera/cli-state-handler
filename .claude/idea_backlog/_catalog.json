@@ -262,5 +262,52 @@
     "title": "Adopt the Joymify design system in the docs portal",
     "created_at": "2026-10-09T06:12:18.506769+00:00",
     "promoted_to": null
+  },
+  {
+    "id": "I-039",
+    "title": "Version and release-notes script",
+    "created_at": "2026-10-09T08:57:56.318367+00:00",
+    "promoted_to": "F-038",
+    "epic": "E-009"
+  },
+  {
+    "id": "I-040",
+    "title": "Release-on-merge workflow",
+    "created_at": "2026-10-09T08:57:56.321006+00:00",
+    "promoted_to": "F-039",
+    "epic": "E-009"
+  },
+  {
+    "id": "I-041",
+    "title": "Release notes page and version marker in docs",
+    "created_at": "2026-10-09T08:57:56.321710+00:00",
+    "promoted_to": "F-040",
+    "epic": "E-009"
+  },
+  {
+    "id": "I-042",
+    "title": "Portal signal to joy-design",
+    "created_at": "2026-10-09T08:57:56.322260+00:00",
+    "promoted_to": "F-041",
+    "epic": "E-009"
+  },
+  {
+    "id": "I-043",
+    "title": "README and epic check for merge-based releases",
+    "created_at": "2026-10-09T08:57:56.322919+00:00",
+    "promoted_to": "F-042",
+    "epic": "E-009"
+  },
+  {
+    "id": "I-044",
+    "title": "Fix flaky Copied timer in MultiPlatformDocs",
+    "created_at": "2026-10-09T11:22:23.549849+00:00",
+    "promoted_to": "F-043"
+  },
+  {
+    "id": "I-045",
+    "title": "Add pull request CI check workflow",
+    "created_at": "2026-10-09T12:19:45.523729+00:00",
+    "promoted_to": "F-044"
   }
 ]

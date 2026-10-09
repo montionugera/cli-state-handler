@@ -1567,6 +1567,7 @@ The pages are the entries of the `routes` array in `apps/docs/src/routes.ts` (th
 | WAL Storage | `#/wal` | Visualisers | Labelled simulation of SQLite WAL: readers, checkpoint, crash recovery, rollback-journal mode. |
 | TS / Dart / Unity C# | `#/multiplatform` | Guides | Per-subsystem code snippets for TypeScript, Dart and C#, as tabs or side by side; each names its source file. |
 | Platform Parity Matrix | `#/parity` | Guides | Table of how much of each subsystem exists per platform (full / partial / none), with reasons and source files. |
+| Release notes | `#/release-notes` | Guides | Shows the changelog entries produced by the merge-based release pipeline, with the published version. |
 | TypeScript Sandbox | `#/sandbox` | Sandbox | Editable TypeScript with presets; Run executes it against `@montionugera/ucsa-core` in a sandboxed iframe (`allow-scripts` only) and shows console output and errors. Types are stripped, not checked. |
 
 An unknown hash renders a not-found page. The sandbox is not a network-isolation guarantee; the page says so.
@@ -1593,9 +1594,9 @@ The sidebar groups are derived from each route's `group` in order of first appea
 
 To add a page, add one line to `routes` in `apps/docs/src/routes.ts` plus your own component and CSS files. Do not otherwise edit `App.tsx` or `index.css` (a convention stated in `routes.ts`, not enforced). Use `Prose`, `Callout` and `CodeBlock` from `src/components/Prose.tsx` for text pages.
 
-### Deploying (GitHub Pages)
+### Deploying
 
-`.github/workflows/docs.yml` runs on every push to `main` (and manually): it installs with pnpm, builds `@montionugera/ucsa-core`, runs the `apps/docs` tests, builds `apps/docs`, uploads `apps/docs/dist` as the Pages artifact and deploys it. The build uses the base path `/cli-state-handler/`, so the site is served at `https://<owner>.github.io/cli-state-handler/`. The repository currently has no git remote and no CI, so the workflow exists as a file only and has never run; to use it, add a remote and set Settings > Pages > Source to "GitHub Actions". See `docs/handoff/ucsa-docs-portal.md` for state and follow-ups, and `scripts/epic-check.sh E-008` for the epic's automated verification.
+The docs are not deployed from this repo directly. On every release, `.github/workflows/release.yml` builds `apps/docs`, attaches the build to the GitHub Release as `docs-site.tgz`, and signals the developer portal (`dev.joymify.com/cli-state-handler/`, served from the `joy-design` repo). The base path stays `/cli-state-handler/`. See "Publishing".
 
 ---
 
@@ -2686,13 +2687,32 @@ Then, for each of the two packages on npmjs.com (Settings, Trusted Publisher, Gi
 
 and tick "Allow npm publish". From then on every release is token-free.
 
-**Cutting a release**
+**New package:** npmjs.com needs a package to exist before trust can be attached, so its first version is published once by hand, then `npm trust github <name> --file release.yml --repository montionugera/cli-state-handler --allow-publish`.
 
-1. Bump `version` in both `packages/core/package.json` and `apps/cli/package.json` (keep them equal, and keep the cli dependency on core as `workspace:*`).
-2. Commit, then tag: `git tag vX.Y.Z`.
-3. Push the tag: `git push origin vX.Y.Z`.
+**How a release happens**
 
-The workflow first fails fast if the tag (without the `v`) differs from either package's `version` (skipped on manual `workflow_dispatch` runs). It then builds only the two published packages (`pnpm --filter "@montionugera/ucsa-cli..." build`, so a docs-site break cannot block a release), runs the unit tests, installs `npm@^11.5.1`, and for core and then cli packs with `pnpm pack` and publishes with `npm publish`. A `name@version` already on the registry is skipped with a log line, so re-running the workflow after a half-finished publish is safe.
+Merging to `main` is the release. `.github/workflows/release.yml` runs on every merge and:
+
+1. Decides whether the merge is a release (`scripts/release/next-release.mjs`):
+   - a planned release (`release X.Y`) takes its notes from the release catalog and bumps the minor version;
+   - any other merge is read by commit type: `feat` bumps the minor version, `fix` and `perf` the patch version;
+   - housekeeping-only merges (`chore`, `docs`, `ci`, `test`) release nothing;
+   - a breaking change (`!` or a `BREAKING CHANGE:` footer) bumps the major version, or the minor version while below 1.0.
+2. Bumps `@montionugera/ucsa-core` and `@montionugera/ucsa-cli` to the same version, adds the entry to `CHANGELOG.md`, commits that to `main` and tags `v<version>`.
+3. Publishes both packages to npmjs.com through trusted publishing. No token is stored.
+4. Builds the docs, attaches them to a GitHub Release as `docs-site.tgz`, and starts the developer portal's deploy.
+
+Check what the next merge would do, without changing anything: `node scripts/release/next-release.mjs`.
+
+**Pull request check:** `.github/workflows/ci.yml` runs `scripts/precheck.sh` (build, typecheck, unit and docs tests) on every pull request to `main`. It is read-only and cannot publish. A stock runner has no Dart or Flutter, so those test suites are skipped there; run `bash scripts/precheck.sh` locally to cover them.
+
+**If a publish fails:** start the "Release" workflow by hand on `main`. A version that is tagged but missing from the registry is published without a new bump.
+
+**Do not** rename `release.yml`, move its publish step into another workflow, or add `environment:` to its job. npmjs.com trusts that exact file with a blank environment.
+
+**Portal signal:** needs a repository secret `PORTAL_DISPATCH_TOKEN`, a fine-grained GitHub token for `montionugera/joy-design` with the repository permission "Actions: Read and write" (inferred from GitHub's REST documentation for "Create a workflow dispatch event", not confirmed against a live token). Without it the release still succeeds and the workflow logs a warning.
+
+After a release, `main` has a bump commit made by the workflow; run `psrw sync-main` before starting the next release.
 
 **Requirements and notes**
 

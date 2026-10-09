@@ -49,7 +49,7 @@ Epic assertion 11 (built portal in Chrome at 360px and 1280px, no horizontal scr
 
 ## Deploy
 
-`.github/workflows/docs.yml` (push to `main` or manual): pnpm install, build `@montionugera/ucsa-core`, test and build `apps/docs`, upload `apps/docs/dist`, deploy to Pages. Base path is `/cli-state-handler/` (`apps/docs/vite.config.ts`). The repository has **no git remote and no CI**, so the workflow has never run and is validated only as YAML. To use it: add a remote, push, and set Settings > Pages > Source to "GitHub Actions".
+The docs are not deployed from this repo directly. On every release, `.github/workflows/release.yml` builds `apps/docs`, attaches the build to the GitHub Release as `docs-site.tgz`, and signals the developer portal (`dev.joymify.com/cli-state-handler/`, served from the `joy-design` repo). The base path stays `/cli-state-handler/`. See "Publishing".
 
 ## Known limits
 
