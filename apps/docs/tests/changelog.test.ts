@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parseChangelog } from "../src/models/changelog.js";
 
@@ -14,5 +15,10 @@ describe("parseChangelog", () => {
   });
   it("tolerates a heading without a date", () => {
     expect(parseChangelog("## 0.3.0\n\n- x\n")).toEqual([{ version: "0.3.0", date: "", notes: ["x"] }]);
+  });
+  it("parses the real repo CHANGELOG.md into at least one semver entry", () => {
+    const text = readFileSync(new URL("../../../CHANGELOG.md", import.meta.url), "utf8");
+    const entries = parseChangelog(text);
+    expect(entries.some((e) => /^\d+\.\d+\.\d+$/.test(e.version))).toBe(true);
   });
 });

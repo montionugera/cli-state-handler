@@ -19,8 +19,8 @@ export function ReleaseNotes() {
             {entry.date ? ` (${entry.date})` : ""}
           </h2>
           <ul>
-            {entry.notes.map((note) => (
-              <li key={note}>{note}</li>
+            {entry.notes.map((note, i) => (
+              <li key={`${i}-${note}`}>{note}</li>
             ))}
           </ul>
         </section>
