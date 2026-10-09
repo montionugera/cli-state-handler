@@ -10,15 +10,15 @@ status: idea
 
 Owner's words: "using its design system for build doc not move into that repo".
 
-The docs portal in this repository (`apps/docs`, package `@ucsa/docs`, React 19 + Vite, hash routes) is built with the Joymify design system, installed as published packages from GitHub Packages. The portal stays in `cli-state-handler`. It gets a light and a dark theme with a toggle, renders markdown through the Joymify markdown component, and renders Mermaid diagrams.
+The docs portal in this repository (`apps/docs`, package `@ucsa/docs`, React 19 + Vite, hash routes) is built with the Joymify design system, installed as the published `@joymify/*` packages from GitHub Packages (organisation `joymify`). The portal stays in `cli-state-handler`. It gets a light and a dark theme with a toggle, renders markdown through the Joymify markdown component, and renders Mermaid diagrams.
 
 ## Scope and non-goals
 
 In scope:
 
-- Replace the sibling-checkout aliases with registry dependencies on `@montionugera/joy-react` 0.2.0 and `@montionugera/joy-tokens` 0.2.0 (which pull in `@montionugera/joy-icons` 0.3.0 and `@montionugera/joy-brand` 0.2.0).
-- A repository `.npmrc`, and package access for the two GitHub Actions workflows (`ci.yml`, `release.yml`).
-- Pinning the three npm registry calls of the release pipeline, and the two library manifests, to npmjs.com so the new scope mapping cannot redirect them (same destination as today; see "Scope collision").
+- Replace the sibling-checkout aliases with registry dependencies on `@joymify/react` 0.2.0 and `@joymify/tokens` 0.2.0 (which pull in `@joymify/icons` 0.3.0 and `@joymify/brand` 0.2.0). All four are to be published; see "Packages" under "Current state".
+- A repository `.npmrc` that maps only the `@joymify` scope, and package access for the two GitHub Actions workflows (`ci.yml`, `release.yml`) through one read-only token stored as an Actions secret.
+- One regression check that the library release still targets npmjs.com. No change to the release script, the publish commands or the library manifests (see "No scope clash").
 - Light and dark themes, a toggle that remembers the choice, no flash of the wrong theme on load.
 - Self-hosted fonts (Inter, JetBrains Mono) inside the build output. No font CDN.
 - Code samples, platform snippet tabs, markdown content and Mermaid diagrams rendered by Joymify components.
@@ -28,7 +28,8 @@ Non-goals:
 
 - Moving the portal into the `joy-design` repository, vendoring Joymify source, or linking a sibling checkout.
 - Changing routes, page content, the playground models, or the sandbox.
-- Changing where or how `@montionugera/ucsa-core` and `@montionugera/ucsa-cli` are published (npmjs.com, trusted publishing, `release.yml` not renamed, no `environment:`).
+- Changing where or how `@montionugera/ucsa-core` and `@montionugera/ucsa-cli` are published (npmjs.com, trusted publishing, `release.yml` not renamed, no `environment:`). The libraries keep the `@montionugera` scope.
+- Bumping the pinned versions of the workflow actions. Another session owns that (idea I-046); this spec edits steps, not action versions.
 - Adding the full `mermaid` npm library, or a general markdown library, inside this repository. Gaps in the Joymify components are fixed upstream in `joy-design` (platform rule: enhance upstream, never shim in the consumer).
 - A markdown editor in the portal. `MarkdownEditor` is exported upstream but nothing in the portal is edited by readers.
 
@@ -38,7 +39,7 @@ Verified by reading the code on 2026-10-09, not taken from reports.
 
 **Base branch.** `fix/docs-design-nav` (worktree `../cli-state-handler-fix-docs-design`) holds two commits, `68ad8b7` and `69f8c42`, on top of an older main `407ca76`. Main is now `3f6a81c`; release branch `release/1.10` starts from it. Since `407ca76`, main changed nine files under `apps/docs` (a Release notes page, a `version-json` Vite plugin, `MultiPlatformDocs.tsx`, `routes.ts`, two new test files).
 
-**How the base branch reaches Joymify.** `apps/docs/joy-alias.ts` maps the old names `@joymify/react`, `@joymify/icons/react`, `@joymify/brand`, `@joymify/tokens/theme.css` to `../../../joy-design/packages/...`. The aliases are spread into `vite.config.ts` and `vitest.config.ts`, and repeated as `paths` in `apps/docs/tsconfig.json` (plus two `react` type paths that exist only to stop duplicate React types from the sibling checkout). Nine source files import from `@joymify/react`; `main.tsx` imports `@joymify/tokens/theme.css`. The package names were since renamed upstream, so this wiring is broken twice over: wrong names, and no sibling checkout in CI.
+**How the base branch reaches Joymify.** `apps/docs/joy-alias.ts` maps the names `@joymify/react`, `@joymify/icons/react`, `@joymify/brand`, `@joymify/tokens/theme.css` to `../../../joy-design/packages/...`. The aliases are spread into `vite.config.ts` and `vitest.config.ts`, and repeated as `paths` in `apps/docs/tsconfig.json` (plus two `react` type paths that exist only to stop duplicate React types from the sibling checkout). Nine source files import from `@joymify/react`; `main.tsx` imports `@joymify/tokens/theme.css`. The import names are already the names the packages will be published under, so the source files need no rename. What is broken is only the route: the aliases point at a sibling checkout that does not exist in CI.
 
 **Theme.** `apps/docs/index.html` hard-codes `<html data-theme="dark">`. `src/index.css` maps the portal's own variables (`--bg-main`, `--text-main`, ...) onto `--joy-*` tokens, so most colours already follow the theme. Leftovers: 54 inline `style={{...}}` props in components and one hard-coded colour (`--scrim: rgba(0, 0, 0, 0.6)`).
 
@@ -50,12 +51,12 @@ Verified by reading the code on 2026-10-09, not taken from reports.
 
 **CI.** There is no `docs.yml` any more; main deleted it. Two workflows remain:
 
-- `ci.yml` runs on every pull request to main, `permissions: contents: read`, and states "no secrets". It runs `pnpm install --frozen-lockfile` then `scripts/precheck.sh` (the pre-ship build, typecheck and test check, which includes `apps/docs`).
+- `ci.yml` runs on every pull request to main, `permissions: contents: read`, and its header comment states "no secrets". It runs `pnpm install --frozen-lockfile` then `scripts/precheck.sh` (the pre-ship build, typecheck and test check, which includes `apps/docs`).
 - `release.yml` runs on every merge to main. It runs `pnpm install --frozen-lockfile` for the whole workspace, publishes the two libraries to npmjs.com through trusted publishing (no stored token), then builds the docs archive `docs-site.tgz` that the Joymify developer portal copies.
 
 The repository has no Actions secrets at all (`gh secret list` is empty).
 
-**Registry calls in the release pipeline (three, not two).** All run with the repository root as working directory, so all read a root `.npmrc`:
+**Registry calls in the release pipeline (three).** All run with the repository root as working directory, so all read a root `.npmrc`. All three are for `@montionugera/ucsa-*` names:
 
 1. `scripts/release/next-release.mjs` line 41, `npm view <name>@<version> version`, in the "Decide release" step. It runs on **every** merge to main. Only an `E404` counts as "not published"; any other failure throws and stops the run.
 2. `release.yml`, "Publish to npmjs.com" step: `npm view "$name@$version" version` (any failure is read as "not published").
@@ -65,58 +66,66 @@ The repository has no Actions secrets at all (`gh secret list` is empty).
 
 **Other install sites.** Besides the two workflows, `scripts/precheck.sh` line 67 and `scripts/epic-check.sh` line 15 run `pnpm install` locally. Root `pnpm test` (used by `release.yml` "Unit tests" and by `precheck.sh`) runs the `apps/docs` tests too, so the docs dependencies are needed wherever tests run.
 
-**Tool versions.** Both workflows pin `pnpm/action-setup` to `version: 10` (major only); the root `package.json` has no `packageManager` field; the local machine has pnpm 10.13.1. `release.yml` installs `npm@^11.5.1` for publishing.
+**Tool versions.** Both workflows pin `pnpm/action-setup` to `version: 10` (major only, so the runner gets the newest pnpm 10); the root `package.json` has no `packageManager` field; the local machine has pnpm 10.13.1. `release.yml` installs `npm@^11.5.1` for publishing. `actions/setup-node` in `release.yml` is given `registry-url`, which makes it write a user-level npm config file and export its path as `NPM_CONFIG_USERCONFIG`; in `ci.yml` it is not, so the user-level file there is `~/.npmrc`.
 
-**Packages.** `gh api /users/montionugera/packages/npm/joy-react` reports: one version `0.2.0`, visibility **private**, linked to the private repository `montionugera/joy-design`. `cli-state-handler` is also private.
+**Packages (to be published; not a fact yet).** The owner decided on 2026-10-09 to rename the Joymify packages and republish them as `@joymify/tokens` 0.2.0, `@joymify/icons` 0.3.0, `@joymify/brand` 0.2.0 and `@joymify/react` 0.2.0, private, on GitHub Packages under the organisation `joymify`. The work is `joy-design` feature F-073, shipped into that repository's release 3.8. As reported on 2026-10-09 it is **not yet on `joy-design` main and not yet published**. This spec therefore treats "the four packages resolve from the registry" as a precondition with its own acceptance checks, not as current state. The earlier packages `@montionugera/joy-*` (one version `0.2.0`, private, under the personal account) are superseded and are not used. `cli-state-handler` is private.
 
-**What `@montionugera/joy-react` 0.2.0 exports** (read from `joy-design` main `02b1dfc8`, `packages/react/src/index.ts`; single entry point `"."`, `sideEffects: false`, peers `react` and `react-dom` `^19.0.0`):
+**What `@joymify/react` 0.2.0 is expected to export.** The table was read from `joy-design` main `02b1dfc8`, `packages/react/src/index.ts`, which is the source the superseded `@montionugera/joy-react` 0.2.0 was built from: single entry point `"."`, `sideEffects: false`, peers `react` and `react-dom` `^19.0.0`. F-073 is a rename, so the exports are assumed unchanged; that assumption is **not verified** and phase 1a checks it against the installed package.
 
 | Need | Export | Notes from the source |
 | --- | --- | --- |
 | Markdown | `MarkdownViewer` (`content`, `allowCopy`) | Hand-written line parser: headings 1-3, paragraphs, block quotes, tables, rules, fenced code, inline code, bold, italic. A `mermaid` fence is passed to `MermaidViewer`. **No lists, no links, no images.** |
 | Diagrams | `MermaidViewer` (`code`, `title`, `initialView`, `allowToggle`, `allowCopy`), `renderMermaidToSvg` | Zero-dependency renderer written in-house. **Flowcharts and sequence diagrams only.** |
 | Code | `CodeBlock` (`code`, `language`, `title`, `showLineNumbers`, `allowCopy`), `PolyglotCodeTabs` (`items`, `activeKey`, `onChange`), `highlightCodeToHtml`, `tokenizeCode`, `normalizeLanguage` | Built-in highlighter, no external library. |
-| Theme control | none | No provider or hook. Theming is pure CSS in `@montionugera/joy-tokens/theme.css`. `Segmented` and `Switch` are available for the control itself. |
+| Theme control | none | No provider or hook. Theming is pure CSS in `@joymify/tokens/theme.css`. `Segmented` and `Switch` are available for the control itself. |
 | Navigation | `Menu`, `Anchor`, `Breadcrumb` | `Menu` renders `role="menuitem"` list items with an `onSelect` callback, not links. |
 
-The tarball itself could not be opened here (`npm view` returns 401 without a token); the table is the source that version 0.2.0 was built from.
+No `@joymify/*` tarball exists to open yet; the table is source, not a published artefact.
 
 ## Design
 
 ### Dependencies and `.npmrc`
 
-Add to `apps/docs/package.json` dependencies: `@montionugera/joy-react` `^0.2.0` and `@montionugera/joy-tokens` `^0.2.0` (the stylesheet import needs tokens as a direct dependency under pnpm's strict layout). `joy-icons` and `joy-brand` arrive as dependencies of `joy-react`.
+Add to `apps/docs/package.json` dependencies: `@joymify/react` `^0.2.0` and `@joymify/tokens` `^0.2.0` (the stylesheet import needs tokens as a direct dependency under pnpm's strict layout). `@joymify/icons` and `@joymify/brand` arrive as dependencies of `@joymify/react`. If any file under `apps/docs/src` imports `@joymify/icons` or `@joymify/brand` directly (the alias file maps both), that package becomes a direct dependency too, for the same reason.
 
 Add a repository-root `.npmrc` with the scope mapping only:
 
 ```
-@montionugera:registry=https://npm.pkg.github.com
+@joymify:registry=https://npm.pkg.github.com
 ```
 
-The token line does **not** go in the committed file. It goes in the user-level npm config (`~/.npmrc` locally; the file named by `NPM_CONFIG_USERCONFIG` on a runner), as the literal text `//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}`, so the token itself is never written to disk and is only present where `GITHUB_TOKEN` is exported.
+The token line does **not** go in the committed file. It goes in the user-level npm config, as the literal text:
+
+```
+//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}
+```
+
+"User-level" means `~/.npmrc` on a developer machine, and on a runner the file named by `NPM_CONFIG_USERCONFIG` when that variable is set, otherwise `~/.npmrc`. The token itself is never written to disk; it is present only where the environment variable `JOYMIFY_PACKAGES_READ_TOKEN` is exported. The variable is deliberately not called `GITHUB_TOKEN`, so the workflow's own job token is never the one handed to the installer.
 
 <div class="callout warn">
-<strong>Why not a token line in the repository <code>.npmrc</code>.</strong> pnpm stopped expanding <code>${NAME}</code> in the project-level <code>.npmrc</code> for credentials and registry URLs in v11.5.3: such a line is ignored with a warning (security advisory GHSA-3qhv-2rgh-x77r; source: pnpm.io/npmrc). CI pins pnpm to major 10 only and nothing pins contributors, so a committed <code>_authToken=${GITHUB_TOKEN}</code> line works today and fails with 401 after any move to pnpm 11. User-level config still expands placeholders on every pnpm and npm version. The scope mapping line has no placeholder, so it is unaffected.
+<strong>Why not a token line in the repository <code>.npmrc</code>.</strong> pnpm no longer expands <code>${NAME}</code> in a project-level <code>.npmrc</code> for registry URLs, URL-scoped keys and credential values: such a line is ignored with a warning. The pnpm 11 documentation dates this to v11.5.3; the pnpm 10 documentation dates the same restriction to v10.34.2 (security advisory GHSA-3qhv-2rgh-x77r; sources: pnpm.io/npmrc and pnpm.io/10.x/npmrc, read 2026-10-09). CI pins pnpm to major 10 only, so the runner is already on a pnpm 10 that ignores such a line: a committed <code>_authToken=${...}</code> line would answer 401 today, not only after a move to pnpm 11. Both documentation sets state that placeholders are still expanded in the user-level <code>.npmrc</code>, and that pnpm honours <code>NPM_CONFIG_USERCONFIG</code>. The scope mapping line has no placeholder, so it is unaffected.
 </div>
 
-<div class="callout danger">
-<strong>Scope collision.</strong> This repository's own libraries are <code>@montionugera/ucsa-core</code> and <code>@montionugera/ucsa-cli</code>, published to npmjs.com. They share the <code>@montionugera</code> scope with the Joymify packages on GitHub Packages. A registry mapping is per scope, not per package. npm picks the registry for a scoped package as: the <code>@scope:registry</code> setting first, and only if there is none, the plain <code>registry</code> setting. Both <code>--registry</code> and <code>publishConfig.registry</code> set the plain <code>registry</code>, so <strong>neither can override a scope mapping</strong>; the <code>publishConfig.registry</code> already present in both manifests does not protect them. Left alone, the new <code>.npmrc</code> points all three registry calls at GitHub Packages. The first to break is the "Decide release" lookup: GitHub Packages answers 401 without a token, the script throws, and the release workflow goes red on every merge to main.
+Two limits of what was checked: the behaviour above is taken from the pnpm documentation, not from a run; and both documentation sets list `~/.npmrc` as a fallback behind pnpm's own auth file, which is fine here because nothing else sets a token for `npm.pkg.github.com`. The green install in `ci.yml` (pnpm 10) is the empirical proof for pnpm 10. No pnpm 11 run exists in this repository, so pnpm 11 stays **documented, not exercised**.
+
+### No scope clash
+
+<div class="callout success">
+<strong>The release pipeline is left alone.</strong> A registry mapping is per scope. The new line maps <code>@joymify</code> only. This repository's own libraries are <code>@montionugera/ucsa-core</code> and <code>@montionugera/ucsa-cli</code>; no line mentions <code>@montionugera</code>, so npm keeps resolving that scope the way it does today, through the plain <code>registry</code> setting, which is npmjs.com (default, <code>publishConfig.registry</code> in both manifests, and <code>registry-url</code> in <code>release.yml</code>).
 </div>
 
-Sources for the precedence: `pickRegistry` in `npm/npm-registry-fetch` `lib/index.js` (scope mapping, then `registry`); `#getManifest` in `npm/cli` `lib/commands/publish.js` (publishConfig is flattened into the options, minus any key given as a command-line flag); `flatten` in `npm/cli` `workspaces/config/lib/definitions/index.js` (keys matching `@…:registry` are accepted); npm config docs (command line, then environment, then project, user, global). Read from source on 2026-10-09. A local dry-run probe was not permitted in the audit session, so the acceptance checks below are the empirical proof.
+An earlier revision of this spec had the Joymify packages under `@montionugera`, the same scope as the libraries, and so needed a mitigation: an explicit npmjs.com flag on the three registry calls (the `npm view` in `scripts/release/next-release.mjs` line 41, and the `npm view` and `npm publish` lines in `release.yml`) and a `"@montionugera:registry"` key in the `publishConfig` of both library manifests. With the packages under `@joymify` there is nothing to defend against, so **all of that is removed from the design**: `next-release.mjs`, the publish step, `packages/core/package.json` and `apps/cli/package.json` are not edited.
 
-Fix, two layers, both keeping npmjs.com as the destination:
+What stays is one cheap regression check, so that a later edit which adds a `@montionugera` mapping (or a blanket `registry=` line) to the root `.npmrc` is caught before it reaches a release: from the repository root, `npm config get @montionugera:registry` prints `undefined`, and `node scripts/release/next-release.mjs` (no `--apply`, no token in the environment) exits 0, which exercises the real `npm view` against npmjs.com. Both are in the phase 1a acceptance criteria.
 
-1. **Bind the target to the packages.** In `packages/core/package.json` and `apps/cli/package.json`, add the key `"@montionugera:registry": "https://registry.npmjs.org/"` to the existing `publishConfig`. npm applies publishConfig on top of the project `.npmrc` at publish time, so every `npm publish` of these two packages goes to npmjs.com whichever line or person runs it, including the README's manual recipe. This covers publish only.
-2. **Explicit flag on every registry call.** `--@montionugera:registry=https://registry.npmjs.org/` on all three calls listed in "Current state": the `npm view` arguments in `scripts/release/next-release.mjs`, and the `npm view` and `npm publish` lines in `release.yml`. A command-line flag outranks the project `.npmrc`. `npm view` reads no manifest, so the flag is the only thing protecting the two lookups.
-
-The publish step is edited in place; the file is not renamed and no `environment:` is added, so trusted publishing keeps working (the token exchange uses the registry npm picked, which stays npmjs.com). `pnpm install` of the workspace is unaffected: `workspace:*` never touches a registry, and no script installs the published libraries.
+`pnpm install` of the workspace does not fetch the libraries at all: `workspace:*` never touches a registry, and no script installs the published libraries.
 
 ### Alias removal
 
+Simpler than first specified, because the base branch already imports the final names (nine files import `@joymify/react`; `main.tsx` imports `@joymify/tokens/theme.css`). **No import statement changes.** Only the route to the packages changes, from alias to `node_modules`:
+
 - Delete `apps/docs/joy-alias.ts`; remove it from `vite.config.ts` and `vitest.config.ts`, along with `resolve.dedupe` (one React copy once the sibling checkout is gone).
 - Remove the four `@joymify/*` paths and the two `react` paths from `apps/docs/tsconfig.json`, returning it to main's single `@montionugera/ucsa-core` path.
-- Rename imports: `@joymify/react` to `@montionugera/joy-react`, `@joymify/tokens/theme.css` to `@montionugera/joy-tokens/theme.css`.
 - Root `pnpm typecheck` then resolves the packages through `apps/docs/node_modules` with no extra configuration.
 
 ### CI package access
@@ -125,20 +134,30 @@ The publish step is edited in place; the file is not renamed and no `environment
 flowchart LR
   PR[Pull request] --> CI[ci.yml install]
   MERGE[Merge to main] --> REL[release.yml install]
-  CI --> GHP[GitHub Packages]
+  SECRET[Read token secret] --> CI
+  SECRET --> REL
+  CI --> GHP[GitHub Packages org joymify]
   REL --> GHP
   REL --> NPMJS[npmjs.com publish]
-  GHP --> JOY[joy packages private]
+  GHP --> JOY[joymify packages private]
 ```
 
-Both workflows install the whole workspace, so both need read access to four private packages owned by another repository. Chosen approach (option A): on each of the four packages, in Package settings, "Manage Actions access", add `montionugera/cli-state-handler` with Read. Then both workflows add `packages: read` to `permissions`, add one step before install that appends the literal line `//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}` to the user-level config (`"${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"`; `release.yml` has that variable set by `actions/setup-node`), and pass `GITHUB_TOKEN: ${{ github.token }}` as `env` on the install step only. No stored secret; `ci.yml` stays secret-free.
+Both workflows install the whole workspace, so both need read access to four private packages owned by the organisation `joymify`. The job's own token cannot read them (they belong to another owner), so access is a stored token:
 
-Coverage: the only two jobs that run `pnpm install` are `precheck` in `ci.yml` and `publish` in `release.yml`; both are covered. No later step installs (`pnpm pack`, `pnpm --filter ... build` and `pnpm test` do not fetch). `scripts/precheck.sh` re-runs `pnpm install` inside the CI job after the install step; with the store already filled it fetches nothing, so it needs no token there.
+- **The secret.** An Actions secret in `cli-state-handler` named `JOYMIFY_PACKAGES_READ_TOKEN`. Its value is a classic personal access token with the single scope `read:packages`, created by an account that can read the four packages, and authorised for the `joymify` organisation where the organisation requires it. Classic, because GitHub Packages does not accept fine-grained tokens (GitHub documentation, not re-read in this revision). The token expires; rotation is an owner task and its expiry date belongs in the README.
+- **The workflow change, same in both files.** One step before `pnpm install` appends the literal token line shown above (placeholder intact, quoted so the shell does not expand it) to `"${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"`. The install step gets `env: JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}`. In `release.yml` the user-level file is the one `actions/setup-node` already wrote for npmjs.com; the line is appended, nothing in it is replaced.
+- **No `permissions` change.** `packages: read` is not added: it governs the job token, which is not used for this.
+- **Action versions are not touched** (owned by I-046).
+- **`ci.yml` no longer "no secrets".** Its header comment says so today and must be corrected in the same change. The secret is read-only for packages and is exposed to the install step only.
+
+Coverage: the only two jobs that run `pnpm install` are `precheck` in `ci.yml` and `publish` in `release.yml`; both are covered. No later step fetches (`pnpm pack`, `pnpm --filter ... build` and `pnpm test` do not). `scripts/precheck.sh` re-runs `pnpm install` inside the CI job after the install step, with the store already filled and without the variable. Whether pnpm then only warns about the unresolved placeholder or fails is **not verified**; if it fails, the same `env` goes on the precheck step as well, and the green `ci.yml` run is what settles it.
+
+Pull requests that do not receive Actions secrets (forks, Dependabot) would fail at install. The repository is private and has no Dependabot configuration today, so this is recorded rather than designed for.
 
 Two consequences the owner should know about:
 
-- **Write-capable token in the install step of `release.yml`.** That job's token has `contents: write` and `id-token: write`, and the workflow today keeps it out of install, build and test on purpose (its own comment says so). Passing it to install exposes it to dependency install scripts. Exposure is limited because pnpm 10 runs install scripts only for the allowlist in `pnpm-workspace.yaml` (`better-sqlite3`, `esbuild`). Option B (a read-only token) removes the exposure at the cost of a stored secret.
-- **Library publishing now depends on GitHub Packages.** The whole-workspace install runs before publish, and root `pnpm test` includes the docs tests, so a revoked grant or a GitHub Packages outage blocks an npm release, against the workflow's stated intent that a docs break must not block one. Recovery is the existing manual re-run of the Release workflow once access is back. Decoupling (installing only the libraries before publish and the docs afterwards) would need the release test scope split and is left as a separate idea. Fallback (option B): a classic personal access token with `read:packages` stored as the secret `JOY_PACKAGES_TOKEN` and passed as `GITHUB_TOKEN` on the install step; it expires and must be rotated, so it is second choice.
+- **`release.yml` installs the whole workspace, so its install step needs the read token too.** The write-capable job token (`contents: write`, `id-token: write`) is still kept out of install, build and test, as the workflow's own comment intends: the installer sees only the read-only package token. That is an improvement on the earlier design, which passed the job token to install.
+- **Library publishing now depends on GitHub Packages.** The whole-workspace install runs before publish, and root `pnpm test` includes the docs tests, so an expired or revoked token, a missing secret or a GitHub Packages outage blocks an npm release, against the workflow's stated intent that a docs break must not block one. Recovery is the existing manual re-run of the Release workflow once access is back. Decoupling (installing only the libraries before publish and the docs afterwards) would need the release test scope split and is left as a separate idea.
 
 ### Theme tokens and toggle
 
@@ -168,7 +187,7 @@ Add `@fontsource-variable/inter` and `@fontsource-variable/jetbrains-mono` (npmj
 
 | Today | Becomes | Phase |
 | --- | --- | --- |
-| `Button`, `Badge`, `Input`, `MetricTile` via `@joymify/react` | same components via `@montionugera/joy-react` | 1 |
+| `Button`, `Badge`, `Input`, `MetricTile` via `@joymify/react` through the alias | same components, same import, from the installed `@joymify/react` | 1a |
 | `CodeBlock` in `Prose.tsx` (plain `<pre>`) | Joymify `CodeBlock` with highlighting and copy | 2 |
 | `<pre class="mp-code">` per platform in `MultiPlatformDocs.tsx` | Joymify `PolyglotCodeTabs` (TypeScript, Dart, C#) where a guide shows all three; `CodeBlock` for single snippets | 2 |
 | `Callout` in `Prose.tsx` | Joymify `Alert` | 2 |
@@ -187,7 +206,7 @@ Keep the existing anchor sidebar, styled with tokens. The Joymify `Menu` renders
 ### Bundle size
 
 - No Mermaid library is added: the upstream renderer is in-house code (about 740 lines), so the cost is small.
-- `joy-react` has one entry point and `sideEffects: false`; Vite drops unused components.
+- `@joymify/react` has one entry point and `sideEffects: false`; Vite drops unused components.
 - The markdown, code and diagram components are loaded with `React.lazy` from a single wrapper module, so the first page does not pay for them.
 - The tokens stylesheet is about 240 kB before compression and covers every Joymify component. It is accepted as is; the gzip size is recorded in the pull request.
 
@@ -195,29 +214,31 @@ Keep the existing anchor sidebar, styled with tokens. The Joymify `Menu` renders
 
 - **Baseline.** Record the passing docs test count on the rebased branch before any change (320 on the old base, plus main's two new test files). That number never drops. A test may be edited only where it asserts markup a Joymify component replaced; none is deleted.
 - **New unit tests (Vitest + jsdom):** the toggle sets and clears `data-theme` and the saved key; the saved choice is applied on load; storage that throws does not break render; `CodeBlock` output contains highlight spans; a flowchart source produces an `<svg>`; an unsupported diagram type shows its source and does not throw.
-- **Release safety test:** with the root `.npmrc` in place, a dry run of the publish step and a real `npm view` prove the libraries still resolve to npmjs.com, and a negative control (same commands without the flag and without the publishConfig key) shows GitHub Packages, proving the test can fail. A unit test in `scripts/release/lib.test.mjs` (or beside it) asserts the `npm view` arguments built by the release script include the scope flag.
+- **Release safety check:** with the root `.npmrc` in place and no token in the environment, `npm config get @montionugera:registry` prints `undefined` and `node scripts/release/next-release.mjs` exits 0. No new unit test and no change to the release script: the earlier scope flag, and the test asserting it, are gone with the scope clash.
 - **Browser check:** every route in `src/routes.ts` at 360px and 1280px, in light and in dark: no horizontal page scroll, drawer opens and closes at 360px, no console errors, text legible on every surface.
 
 ## Risks and open questions
 
-- **CI package access (highest risk).** The default token of `cli-state-handler` cannot read private packages owned by `joy-design` until each of the four packages grants this repository access. This is a manual step by the owner in GitHub settings, and it is not verifiable from a local machine. If it is missed, `release.yml` fails at install, which **blocks library publishing**, not just the docs. Mitigation: the same install runs in `ci.yml` on the pull request, so a red check appears before merge. Do not merge on a red or skipped install.
-- **Scope collision.** Covered in the design by two layers; the checks below are the guard. A fourth registry call added later without the flag would be redirected silently, so the acceptance grep lists every call. If either layer proves insufficient on the runner's npm, the fallback is to run the npm commands from a temporary directory that has no project `.npmrc`.
-- **First merge is the real test.** Trusted publishing cannot be exercised before merge. The first merge to main after phase 1a must be watched: "Decide release" green, and a publish (if one is due) landing on npmjs.com. Undo is a revert of the phase 1a commit, which removes the `.npmrc`.
-- **pnpm major upgrade.** A committed token line would stop working on pnpm 11.5.3 or later; the design avoids it by keeping the token line in user-level config.
-- **Tarball contents.** `joy-react` source declares its siblings as `workspace:*`. The published 0.2.0 must list real versions; if it does not, install fails and the fix is upstream.
-- **Local installs now need a token.** `pnpm install` fails with 401 unless the user-level `~/.npmrc` has the token line and `GITHUB_TOKEN` holds a token with `read:packages` (for example `export GITHUB_TOKEN=$(gh auth token)`; the token needs the `read:packages` or `write:packages` scope, added with `gh auth refresh -s read:packages` if missing). This affects every contributor and every agent worktree, including work unrelated to docs, and the local gates `scripts/precheck.sh` and `scripts/epic-check.sh`. The README must give the one-time setup.
+- **Packages not published yet (blocks everything).** F-073 is not on `joy-design` main and nothing is on the registry. No phase starts until the four packages resolve (rollout step 0). If the published versions differ from 0.2.0 / 0.3.0, the ranges in this spec are corrected first.
+- **CI package access (highest risk once published).** The secret `JOYMIFY_PACKAGES_READ_TOKEN` is created by the owner in GitHub settings; its value cannot be checked from a local machine, only its presence (`gh secret list`). If it is missing, wrong or expired, `release.yml` fails at install, which **blocks library publishing**, not just the docs. Mitigation: the same install runs in `ci.yml` on the pull request, so a red check appears before merge. Do not merge on a red or skipped install.
+- **Token expiry.** A classic token expires. An expiry between releases shows up as a red install on the next pull request or merge. Mitigation: expiry date in the README, and the fix is a new token in the same secret, then a re-run.
+- **Release pipeline regression.** The `.npmrc` does not map `@montionugera`, so no clash exists. The regression check in phase 1a guards against a later edit introducing one.
+- **First merge is still watched.** Trusted publishing cannot be exercised before merge. The first merge to main after phase 1a must be watched: install green, "Decide release" green, and a publish (if one is due) landing on npmjs.com. Undo is a revert of the phase 1a commit, which removes the `.npmrc` and the workflow steps.
+- **pnpm versions.** A committed token line is already ignored by current pnpm 10 and by pnpm 11; the design avoids it by keeping the token line in user-level config. pnpm 11 behaviour is from documentation only.
+- **Tarball contents.** `@joymify/react` source declares its siblings as `workspace:*`. The published 0.2.0 must list real `@joymify/*` versions; if it does not, install fails and the fix is upstream.
+- **Local installs now need a token.** `pnpm install` fails with 401 unless the user-level `~/.npmrc` has the token line and `JOYMIFY_PACKAGES_READ_TOKEN` is exported with a token that has `read:packages` and can read the `joymify` organisation's packages (for example `export JOYMIFY_PACKAGES_READ_TOKEN=$(gh auth token)` once the `gh` login has that scope, added with `gh auth refresh -s read:packages`). This affects every contributor and every agent worktree, including work unrelated to docs, and the local gates `scripts/precheck.sh` and `scripts/epic-check.sh`. In shells where the variable is not exported, npm and pnpm meet an unresolved placeholder in `~/.npmrc`; whether that is silent, a warning or an error in other projects is **not verified**. The fallback is to store the token itself with `npm config set //npm.pkg.github.com/:_authToken <token>`, which writes it to `~/.npmrc` in clear text. The README must give the one-time setup and both forms.
 - **Markdown and Mermaid coverage.** No lists, links or images; flowcharts and sequence diagrams only. Phase 3 depends on an upstream release.
 - **Rebase conflicts.** `vite.config.ts`, `MultiPlatformDocs.tsx` and `routes.ts` changed on both sides.
 - **Worktree ownership.** The base worktree is owned by another session; the feature claim must take it over rather than edit beside it.
-- **Open question for the owner:** option A (grant repository access, no secret) is assumed, which also means accepting the write-capable job token in the install step of `release.yml` and the dependency of library publishing on GitHub Packages (both described under "CI package access"). Say so if a stored read-only token (option B) is preferred.
+- **No open question on access.** The owner chose the stored read-only token. The earlier "Manage Actions access" grant on the personal-account packages is void and is not requested.
 
 ## Rollout
 
 Each phase is shippable alone: after it, `main` builds, tests pass, and the release pipeline still publishes to npmjs.com.
 
-0. Prerequisite, not a code change: owner grants `cli-state-handler` read access on the four packages (option A). Nothing merges before this, because the install in `ci.yml` cannot go green without it.
+0. Preconditions, not code changes, both owner actions. (a) `joy-design` F-073 reaches main and the four `@joymify/*` packages are published. (b) The secret `JOYMIFY_PACKAGES_READ_TOKEN` exists in `cli-state-handler`. Nothing merges before both, because the install in `ci.yml` cannot go green without them.
 1. Rebase `fix/docs-design-nav` onto `release/1.10`; resolve conflicts; record the test baseline.
-2. **Phase 1a, wiring.** Registry dependencies, `.npmrc`, the registry pinning (publishConfig key and the three flags), alias removal, workflow changes, README. Open a draft pull request first to prove the install in `ci.yml`. The portal looks as it does on the base branch (dark only). Ships alone.
+2. **Phase 1a, wiring.** Registry dependencies, `.npmrc`, alias removal, the token step and `env` in both workflows, the `ci.yml` header comment, README. No change to the release script, the publish commands or the library manifests. Open a draft pull request first to prove the install in `ci.yml`. The portal looks as it does on the base branch (dark only). Ships alone.
 3. **Phase 1b, themes.** Toggle, no-flash script, fonts, inline styles onto tokens. Depends on 1a only.
 4. **Phase 2, code and diagrams.** `CodeBlock`, `PolyglotCodeTabs`, `Alert`, the Overview diagram, lazy loading. Depends on 1a only.
 5. **Phase 3**, a separate feature after the upstream release: markdown for release notes and tutorial prose. It gets its own acceptance criteria when it is specified; none below belong to it.
@@ -226,26 +247,31 @@ Each phase ends with verify, independent review, refactor, re-verify. Undo is a 
 
 ## Acceptance criteria
 
+Phase 0, preconditions (owner actions, checked before any code change):
+
+- [ ] With a token that has `read:packages` exported as `JOYMIFY_PACKAGES_READ_TOKEN` and the user-level token line in place, each of `npm view @joymify/tokens@0.2.0 version`, `npm view @joymify/icons@0.3.0 version`, `npm view @joymify/brand@0.2.0 version` and `npm view @joymify/react@0.2.0 version`, run with `--@joymify:registry=https://npm.pkg.github.com`, prints that version.
+- [ ] `npm view @joymify/react@0.2.0 dependencies --@joymify:registry=https://npm.pkg.github.com` lists `@joymify/*` names with version ranges, none starting with `workspace:`.
+- [ ] `gh secret list` in `cli-state-handler` shows `JOYMIFY_PACKAGES_READ_TOKEN`.
+
 Phase 1a, wiring:
 
-- [ ] `test ! -e apps/docs/joy-alias.ts` succeeds, and `grep -rn -E "@joymify/|joy-design/packages" apps/docs --include='*.ts' --include='*.tsx' --include='*.json' --exclude-dir=node_modules` prints nothing.
-- [ ] `grep -n "joy-" apps/docs/package.json` shows `@montionugera/joy-react` and `@montionugera/joy-tokens` with version ranges, not `workspace:` or `link:`.
-- [ ] `cat .npmrc` shows the `@montionugera:registry` line, and `grep -c '_authToken' .npmrc` prints 0.
-- [ ] With the user-level token line and `GITHUB_TOKEN` set, `pnpm install --frozen-lockfile` exits 0 on a fresh clone that has no sibling `joy-design` directory, and `node -p "require('./apps/docs/node_modules/@montionugera/joy-react/package.json').version"` prints `0.2.0`.
+- [ ] `test ! -e apps/docs/joy-alias.ts` succeeds, and `grep -rn -E "joy-design/packages|joy-alias|@montionugera/joy-" apps/docs --include='*.ts' --include='*.tsx' --include='*.json' --exclude-dir=node_modules` prints nothing.
+- [ ] `grep -n "@joymify/" apps/docs/package.json` shows `@joymify/react` and `@joymify/tokens` with version ranges, not `workspace:` or `link:`, and `grep -c "@joymify/" apps/docs/tsconfig.json` prints 0.
+- [ ] `grep -rl -E "from ['\"]@joymify/react['\"]" apps/docs/src | wc -l` prints at least 9 (the importing files keep their imports; nothing was renamed), and `grep -c "@joymify/tokens/theme.css" apps/docs/src/main.tsx` prints 1.
+- [ ] `cat .npmrc` shows exactly one registry line, `@joymify:registry=https://npm.pkg.github.com`; `grep -c '_authToken' .npmrc` prints 0 and `grep -c 'montionugera' .npmrc` prints 0.
+- [ ] With the user-level token line and `JOYMIFY_PACKAGES_READ_TOKEN` set, `pnpm install --frozen-lockfile` exits 0 on a fresh clone that has no sibling `joy-design` directory, and `node -p "require('./apps/docs/node_modules/@joymify/react/package.json').version"` prints `0.2.0`.
+- [ ] `grep -c -E "MarkdownViewer|MermaidViewer|CodeBlock|PolyglotCodeTabs|Segmented|Alert" apps/docs/node_modules/@joymify/react/dist/index.d.ts` is at least 6 (adjust the path to the package's declared `types` entry), confirming the exports table against the published package.
 - [ ] `pnpm typecheck` at the repository root exits 0.
 - [ ] `bash scripts/precheck.sh` exits 0.
 - [ ] `pnpm --filter @ucsa/docs test` exits 0 with a passing count no lower than the baseline recorded after the rebase.
 - [ ] `pnpm --filter @ucsa/docs build` exits 0.
-- [ ] The pull request's `ci.yml` run is green (the runner has no cache and no sibling checkout, so a green install proves the registry fetch), and `grep -c "npm.pkg.github.com" .github/workflows/ci.yml .github/workflows/release.yml` is at least 1 in each file.
-- [ ] `grep -n "packages: read" .github/workflows/ci.yml .github/workflows/release.yml` matches in both files, `gh secret list` shows no new secret (option A), and in each file `GITHUB_TOKEN` appears as `env` on the install step only (plus the existing commit step in `release.yml`).
-- [ ] `grep -n '@montionugera:registry' packages/core/package.json apps/cli/package.json` shows `https://registry.npmjs.org/` inside `publishConfig` in both files.
-- [ ] `grep -rn -E "npm publish |npm view \"|\['view'" .github/workflows scripts/release --include='*.yml' --include='*.mjs' --exclude='*.test.mjs'` lists exactly three lines (today: `release.yml` 111 and 117, `next-release.mjs` 41), and each of those lines contains `@montionugera:registry=https://registry.npmjs.org/`.
-- [ ] From the repository root with the new `.npmrc` present and `GITHUB_TOKEN` unset, `npm view @montionugera/ucsa-core version --@montionugera:registry=https://registry.npmjs.org/` prints a version; the same command without the flag fails (negative control).
-- [ ] From the repository root, `npm publish --dry-run` on a tarball made by `pnpm pack` in `packages/core`, once with the flag and once without it, prints `registry.npmjs.org` as the target both times (the second run proves the publishConfig key survives `pnpm pack`).
-- [ ] From the repository root with `GITHUB_TOKEN` unset, `node scripts/release/next-release.mjs` (no `--apply`) exits 0.
+- [ ] The pull request's `ci.yml` run is green (the runner has no cache and no sibling checkout, so a green install proves the registry fetch and the token mechanism on pnpm 10), and `grep -c "npm.pkg.github.com" .github/workflows/ci.yml .github/workflows/release.yml` is at least 1 in each file.
+- [ ] `grep -n "JOYMIFY_PACKAGES_READ_TOKEN" .github/workflows/ci.yml .github/workflows/release.yml` shows, in each file, the placeholder line written to the user-level config and the secret passed as `env` on the install step (plus the precheck step in `ci.yml` only if that proved necessary); `grep -c "packages: read" .github/workflows/ci.yml .github/workflows/release.yml` prints 0 for both; `grep -n "no secrets" .github/workflows/ci.yml` prints nothing.
+- [ ] `git diff <rebased base>..HEAD -- .github/workflows | grep -E '^[+-] *- uses:|^[+-] *uses:'` prints nothing (no action version touched).
+- [ ] Release regression check: `git diff --stat <rebased base>..HEAD -- scripts/release packages/core/package.json apps/cli/package.json` prints nothing; from the repository root with the new `.npmrc` present and no token in the environment, `npm config get @montionugera:registry` prints `undefined` and `node scripts/release/next-release.mjs` (no `--apply`) exits 0.
 - [ ] `bash scripts/epic-check.sh E-009` still passes its release-workflow assertions.
-- [ ] After the merge to main, the Release workflow run is green through "Decide release", and `npm view @montionugera/ucsa-core version --registry=https://registry.npmjs.org/` run outside the repository still prints the latest released version.
-- [ ] `grep -n -E "GITHUB_TOKEN|read:packages" README.md` shows the install instructions.
+- [ ] After the merge to main, the Release workflow run is green through install and "Decide release", and `npm view @montionugera/ucsa-core version --registry=https://registry.npmjs.org/` run outside the repository still prints the latest released version.
+- [ ] `grep -n -E "JOYMIFY_PACKAGES_READ_TOKEN|read:packages" README.md` shows the install instructions and the token's expiry date.
 
 Phase 1b, themes:
 
@@ -276,3 +302,11 @@ Phase 2, code and diagrams:
   - Confirmed without change: every named export exists in `joy-design` `packages/react/src/index.ts` at `02b1dfc8`; `MarkdownViewer` has no lists, links or images; the diagram renderer handles flowchart or graph and sequence diagrams only; both jobs that run `pnpm install` are covered; nothing installs `@montionugera/ucsa-*` from a registry.
   - Not verified: a local `npm publish --dry-run` probe was not permitted in the audit session, so the precedence facts rest on npm and pnpm source and docs; the phase 1a criteria prove them. Whether pnpm keeps `publishConfig` in a packed tarball, and the GitHub "Manage Actions access" grant, are likewise proved only by those criteria.
   - Open: option A versus a stored read-only token (see "Risks and open questions").
+- 2026-10-09 (late) revision for a changed owner decision, recorded in `research.md` ("packages move to `@joymify`"). Not a new audit; the earlier findings stand except where listed.
+  - Renamed throughout: the dependencies are `@joymify/tokens` 0.2.0, `@joymify/icons` 0.3.0, `@joymify/brand` 0.2.0 and `@joymify/react` 0.2.0, private, organisation `joymify` on GitHub Packages (`joy-design` F-073, release 3.8). Stated as **to be published**; resolving from the registry is now rollout step 0 with its own acceptance checks.
+  - Removed: the scope-clash mitigation from the first audit (CRITICAL and two HIGH items above). The registry line is `@joymify:registry=...` and does not touch `@montionugera`, so the three explicit npmjs.com flags (`release.yml` `npm view` and `npm publish`, `scripts/release/next-release.mjs:41`), the `"@montionugera:registry"` key in `publishConfig`, the negative-control publish dry runs and the unit test for the flag are all dropped. Replaced by one regression check (`npm config get @montionugera:registry` is `undefined`, and the release script's dry run exits 0).
+  - Changed: CI access is a classic `read:packages` token in the Actions secret `JOYMIFY_PACKAGES_READ_TOKEN`. The "Manage Actions access" grant route, `packages: read`, and the option A / option B question are removed. Side effect: the write-capable job token no longer reaches the install step of `release.yml`.
+  - Kept and tightened: the token line stays out of the committed `.npmrc`. Re-read of the pnpm documentation found the placeholder restriction also applies to pnpm 10 from v10.34.2 (not only pnpm 11 from v11.5.3), so a committed line would already fail on the CI runner. The user-level placeholder line is documented to work on both.
+  - Simplified: alias removal no longer renames imports; the base branch already imports `@joymify/react` in nine files.
+  - Kept without change: phases each shippable alone, the exports table and the limits of `MarkdownViewer` and `MermaidViewer`, fonts, the sidebar decision, the 360px checks, the coupling of library releases to GitHub Packages. Workflow action versions are left to I-046.
+  - Not verified in this revision: that F-073 keeps the exports of `02b1dfc8` (checked in phase 1a); pnpm 10 and 11 placeholder behaviour beyond the documentation (pnpm 10 proved by the green `ci.yml` run, pnpm 11 not exercised); how npm and pnpm treat the unresolved placeholder when the variable is not exported; that GitHub Packages still rejects fine-grained tokens; the `types` path used in the exports check.
