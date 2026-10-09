@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Bump pinned GitHub Actions off Node 20 and confirm Ubuntu 26 readiness</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07090d;
+      --surface: #10141b;
+      --surface-2: #161b24;
+      --surface-3: #1b212c;
+      --border: #2a3340;
+      --border-soft: #1c232e;
+      --ink: #d6dde7;
+      --ink-bright: #f6f8fb;
+      --ink-dim: #8392a3;
+      --accent: #4ee39b;
+      --accent-dim: #2f8f63;
+      --amber: #ffc746;
+      --amber-dim: #a37a1a;
+      --blue: #74b0ff;
+      --blue-dim: #3a5d8a;
+      --red: #ff6b6b;
+      --red-dim: #a14242;
+      --purple: #b288ff;
+      --purple-dim: #7a4dc5;
+      --teal: #4ed2c8;
+      --teal-dim: #347e7a;
+      --serif-display: "Fraunces", Georgia, serif;
+      --serif-body: "Spectral", Georgia, serif;
+      --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: var(--serif-body);
+      font-size: 19.5px;
+      line-height: 1.66;
+      color: var(--ink);
+      background: var(--bg);
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 64px 30px 160px;
+      counter-reset: sec;
+      animation: riseIn .55s cubic-bezier(.2,.7,.2,1) both;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body::before {
+      content: "";
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(900px 500px at 80% -10%, rgba(78,227,155,.10), transparent 62%),
+        radial-gradient(720px 520px at -4% 110%, rgba(255,199,70,.055), transparent 60%),
+        linear-gradient(rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 100% 30px,
+        linear-gradient(90deg, rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 30px 100%;
+    }
+
+    @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    /* ---------- headings ---------- */
+    h1, h2, h3, h4 { font-family: var(--serif-display); color: var(--ink-bright); line-height: 1.16; letter-spacing: -.012em; font-weight: 600; }
+    h1 {
+      font-size: 3.2rem; font-weight: 700; margin: 0 0 .25em; letter-spacing: -.028em;
+      background: linear-gradient(180deg, #ffffff, #afb9c5);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    h2 {
+      counter-increment: sec;
+      font-size: 2rem; margin: 2.8em 0 .7em; padding-top: .65em;
+      border-top: 1px solid var(--border-soft);
+      display: flex; align-items: baseline; gap: .55em; flex-wrap: wrap;
+      font-weight: 700;
+    }
+    h2::before {
+      content: "§" counter(sec, decimal-leading-zero);
+      font-family: var(--mono); font-size: .74rem; font-weight: 600;
+      color: var(--accent); letter-spacing: .04em;
+      border: 1px solid var(--accent-dim); border-radius: 6px;
+      padding: .3em .55em; transform: translateY(-.22em);
+      background: rgba(78,227,155,.06);
+    }
+    h3 { font-size: 1.42rem; margin: 2.1em 0 .55em; color: var(--ink-bright); font-weight: 600; }
+    h3 code { font-size: .88em; }
+    h4 { font-size: 1.1rem; margin: 1.5em 0 .4em; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-family: var(--mono); font-weight: 600; }
+
+    p { margin: .95em 0; }
+    strong { color: var(--ink-bright); font-weight: 600; }
+    em { color: #d4dce6; }
+
+    mark {
+      background: linear-gradient(180deg, rgba(255,199,70,.0) 60%, rgba(255,199,70,.32) 60%);
+      color: var(--ink-bright); padding: 0 .2em; border-radius: 3px;
+    }
+
+    /* ---------- links ---------- */
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(78,227,155,.32); transition: border-color .15s, color .15s; }
+    a:hover { color: #8af0c2; border-bottom-color: var(--accent); }
+
+    /* ---------- inline code & code blocks ---------- */
+    code { font-family: var(--mono); font-size: .85em; background: var(--surface-2); color: #e0ecf6; padding: .14em .45em; border-radius: 5px; border: 1px solid var(--border-soft); }
+    pre {
+      position: relative; font-size: .82rem; line-height: 1.62;
+      background: linear-gradient(180deg, #0e1219, #0a0d13);
+      border: 1px solid var(--border); border-radius: 11px;
+      padding: 20px 20px 18px; margin: 1.4em 0; overflow-x: auto;
+      box-shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 18px 44px -28px rgba(0,0,0,.9);
+    }
+    pre::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--accent), transparent); border-radius: 11px 0 0 11px; opacity: .6; }
+    pre code { background: none; border: none; padding: 0; color: #d3e4f3; font-size: 1em; }
+
+    kbd { font-family: var(--mono); font-size: .82em; background: var(--surface-2); border: 1px solid var(--border); border-bottom-width: 2px; padding: 2px 8px; border-radius: 6px; color: var(--ink-bright); box-shadow: 0 1px 0 var(--border-soft); }
+
+    /* ---------- tables ---------- */
+    table { border-collapse: collapse; width: 100%; margin: 1.4em 0; font-size: .87rem; font-family: var(--mono); }
+    th, td { border: 1px solid var(--border); padding: 11px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--surface); color: var(--ink-bright); font-weight: 600; border-bottom: 2px solid var(--accent-dim); text-transform: uppercase; font-size: .76rem; letter-spacing: .08em; }
+    tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+    tr:hover td { background: rgba(78,227,155,.04); }
+    td code { font-size: .94em; }
+    td strong { color: var(--amber); }
+
+    /* ---------- lists ---------- */
+    ul, ol { padding-left: 1.5em; margin: .9em 0; }
+    li { margin: .4em 0; }
+    li::marker { color: var(--accent-dim); font-weight: 600; }
+    ul ul, ol ol, ul ol, ol ul { margin: .3em 0; }
+
+    /* ---------- blockquote (used by pandoc) ---------- */
+    blockquote { border-left: 3px solid var(--accent-dim); margin: 1.2em 0; padding: .2em 0 .2em 18px; color: var(--ink-dim); font-style: italic; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 2.6em 0; }
+
+    /* ---------- masthead (h1 + first p) ---------- */
+    h1 + p { font-family: var(--mono); font-size: .82rem; color: var(--ink-dim); line-height: 2; letter-spacing: .02em; border-bottom: 1px solid var(--border-soft); padding-bottom: 1.2em; }
+    h1 + p strong { color: var(--amber); font-weight: 500; }
+
+    /* ---------- TOC ---------- */
+    #TOC {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 22px; margin: 1.8em 0 2.4em; font-family: var(--mono); font-size: .78rem;
+    }
+    #TOC::before { content: "CONTENTS"; display: block; color: var(--accent); letter-spacing: .22em; font-size: .7rem; margin-bottom: .7em; font-weight: 600; }
+    #TOC ul { list-style: none; padding-left: 0; margin: 0; }
+    #TOC > ul > li { margin: .22em 0; }
+    #TOC ul ul { padding-left: 1.1em; border-left: 1px solid var(--border-soft); margin: .25em 0 .5em; }
+    #TOC a { color: var(--ink); border: none; }
+    #TOC a:hover { color: var(--accent); }
+
+    @media (min-width: 1320px) {
+      #TOC {
+        position: fixed; top: 0; left: 0; bottom: 0; width: 300px; margin: 0;
+        border-radius: 0; border: none; border-right: 1px solid var(--border);
+        padding: 64px 28px; overflow-y: auto;
+        background: linear-gradient(180deg, rgba(13,17,23,.92), rgba(8,10,14,.92));
+        backdrop-filter: blur(6px);
+      }
+      body { max-width: 1320px; padding-left: 360px; }
+    }
+
+    /* ============================================================
+       CALLOUTS — info / warn / success / danger / idea / metric
+       Use via:
+         ::: callout-warn
+         **Heading**
+         body text
+         :::
+       or raw <div class="callout warn"> ... </div>
+       ============================================================ */
+    /* Robust layout: icon is absolutely positioned and the content is padded.
+       (An earlier `display:grid` + `.callout > * { grid-column: 2 }` approach broke
+       when pandoc emitted loose prose as bare text nodes — those became anonymous
+       grid items that fell into the icon column and wrapped one word per line.
+       Absolute icon + padding flows ANY content structure correctly: loose text,
+       multiple inline elements, nested lists.) */
+    .callout {
+      position: relative;
+      margin: 1.7em 0;
+      padding: 18px 22px 16px 58px;
+      border-radius: 13px;
+      border: 1px solid var(--callout-border, var(--border));
+      border-left-width: 4px;
+      background: var(--callout-bg, var(--surface));
+    }
+    .callout::before {
+      content: var(--callout-icon, "·");
+      position: absolute;
+      left: 14px; top: 16px;
+      width: 30px; text-align: center;
+      font-size: 28px; line-height: 1.1;
+      color: var(--callout-accent, var(--accent));
+    }
+    .callout > * { min-width: 0; margin-top: 0; }
+    .callout > * + * { margin-top: .55em; }
+    .callout > p:first-child strong:first-child {
+      display: block;
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--callout-accent, var(--ink-bright));
+      letter-spacing: -.01em;
+      margin-bottom: .35em;
+    }
+    .callout p { line-height: 1.55; }
+    .callout code { background: rgba(0,0,0,.28); border-color: rgba(255,255,255,.06); }
+
+    .callout.info,    .callout-info    { --callout-border: var(--blue-dim);   --callout-bg: rgba(116,176,255,.08);   --callout-accent: var(--blue);   --callout-icon: "ℹ"; }
+    .callout.warn,    .callout-warn    { --callout-border: var(--amber-dim);  --callout-bg: rgba(255,199,70,.09);    --callout-accent: var(--amber);  --callout-icon: "⚠"; }
+    .callout.success, .callout-success { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.08);    --callout-accent: var(--accent); --callout-icon: "✓"; }
+    .callout.danger,  .callout-danger  { --callout-border: var(--red-dim);    --callout-bg: rgba(255,107,107,.09);   --callout-accent: var(--red);    --callout-icon: "✕"; }
+    .callout.idea,    .callout-idea    { --callout-border: var(--purple-dim); --callout-bg: rgba(178,136,255,.08);   --callout-accent: var(--purple); --callout-icon: "✦"; }
+    .callout.metric,  .callout-metric  { --callout-border: var(--teal-dim);   --callout-bg: rgba(78,210,200,.08);    --callout-accent: var(--teal);   --callout-icon: "Σ"; }
+    .callout.action,  .callout-action  { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.04);    --callout-accent: var(--accent); --callout-icon: "▸"; }
+
+    /* ============================================================
+       METRIC TILES — grid of big-number cards
+       Use via raw HTML:
+         <div class="metric-grid">
+           <div class="metric-tile alarm">
+             <div class="label">Pass all gates</div>
+             <div class="value">21%</div>
+             <div class="delta">39 / 187 results</div>
+           </div>
+         </div>
+       Variants: .alarm (red), .win (green), .info (blue), .warn (amber)
+       ============================================================ */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin: 1.5em 0;
+    }
+    .metric-tile {
+      background: linear-gradient(180deg, var(--surface), var(--bg));
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--tile-accent, var(--accent));
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .metric-tile .label {
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .14em;
+      color: var(--ink-dim);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .metric-tile .value {
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 2.55rem;
+      color: var(--tile-accent, var(--ink-bright));
+      line-height: 1;
+      letter-spacing: -.025em;
+    }
+    .metric-tile .delta {
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--ink-dim);
+    }
+    .metric-tile.alarm { --tile-accent: var(--red); }
+    .metric-tile.win   { --tile-accent: var(--accent); }
+    .metric-tile.info  { --tile-accent: var(--blue); }
+    .metric-tile.warn  { --tile-accent: var(--amber); }
+    .metric-tile.teal  { --tile-accent: var(--teal); }
+    .metric-tile.dim .value { color: var(--ink-bright); }
+
+    /* ============================================================
+       TOPIC CHIP — colored pill that can appear next to H2 text
+       ============================================================ */
+    .topic-chip {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .16em;
+      color: var(--bg);
+      background: var(--accent);
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-weight: 700;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+    .topic-chip.warn   { background: var(--amber); }
+    .topic-chip.danger { background: var(--red);   color: #fff; }
+    .topic-chip.info   { background: var(--blue);  color: var(--bg); }
+    .topic-chip.idea   { background: var(--purple); color: #fff; }
+    .topic-chip.teal   { background: var(--teal);  color: var(--bg); }
+
+    /* ============================================================
+       PULL QUOTE
+       ============================================================ */
+    .pullquote {
+      font-family: var(--serif-display);
+      font-size: 1.55rem;
+      font-weight: 500;
+      line-height: 1.38;
+      color: var(--ink-bright);
+      border-left: 4px solid var(--accent);
+      padding: 4px 0 4px 22px;
+      margin: 1.8em 0;
+      letter-spacing: -.012em;
+    }
+
+    /* ============================================================
+       SCHEMATIC — ASCII box-drawing diagrams, monospace canvas
+       Use via:
+         <div class="schematic">
+         ┌─────────┐    ┌─────────┐
+         │ Phase 0 │ ─→ │ Phase 1 │
+         └─────────┘    └─────────┘
+         </div>
+       ============================================================ */
+    .schematic {
+      font-family: var(--mono);
+      font-size: .86rem;
+      line-height: 1.4;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 28px;
+      margin: 1.6em 0;
+      color: #cfdcec;
+      white-space: pre;
+      overflow-x: auto;
+      position: relative;
+    }
+    .schematic::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--teal), transparent); border-radius: 12px 0 0 12px; opacity: .6; }
+
+    /* ============================================================
+       RAW SVG / inline diagrams
+       ============================================================ */
+    .diagram, svg.diagram, .figure {
+      display: block; margin: 1.6em auto; max-width: 100%;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 22px 14px;
+    }
+    .figure-caption {
+      text-align: center; font-family: var(--mono); font-size: .76rem;
+      color: var(--ink-dim); margin-top: -.6em; margin-bottom: 1.6em;
+      letter-spacing: .04em;
+    }
+
+    /* ============================================================
+       MERMAID block — bigger frame, softer glow
+       ============================================================ */
+    .mermaid {
+      margin: 1.6em 0; text-align: center;
+      background: linear-gradient(180deg, #0e1320, #0a0d13);
+      border: 1px solid var(--border); border-radius: 13px;
+      padding: 24px 14px;
+      box-shadow: 0 18px 50px -36px rgba(78,227,155,.55) inset;
+    }
+    .mermaid svg { max-width: 100%; height: auto; }
+
+    /* Hide pandoc's title-block if present */
+    #title-block-header { display: none; }
+
+    /* ============================================================
+       UTILITY ROW — two-up / three-up adjacent blocks
+       ============================================================ */
+    .row {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1fr;
+      margin: 1.5em 0;
+    }
+    .row.two { grid-template-columns: 1fr 1fr; }
+    .row.three { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 760px) {
+      .row.two, .row.three { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    const render = () => {
+      const blocks = new Set();
+      document.querySelectorAll('pre.mermaid, pre.sourceCode.mermaid').forEach((p) => blocks.add(p));
+      document.querySelectorAll('code.mermaid, code.language-mermaid').forEach((c) => {
+        const pre = c.closest('pre'); if (pre) blocks.add(pre);
+      });
+      blocks.forEach((pre) => {
+        const div = document.createElement('div');
+        div.className = 'mermaid';
+        div.textContent = pre.textContent.trim();
+        pre.replaceWith(div);
+      });
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        securityLevel: 'loose',
+        fontFamily: 'IBM Plex Mono, monospace',
+        themeVariables: {
+          background: '#0a0d13',
+          primaryColor: '#1a212c',
+          primaryTextColor: '#f0f3f7',
+          primaryBorderColor: '#4ee39b',
+          lineColor: '#6c7a8b',
+          secondaryColor: '#191e28',
+          tertiaryColor: '#11161e',
+          tertiaryBorderColor: '#2a3340',
+          clusterBkg: 'rgba(78,227,155,.05)',
+          clusterBorder: '#2f8f63',
+          titleColor: '#4ee39b',
+          actorBkg: '#1a212c',
+          actorBorder: '#4ee39b',
+          actorTextColor: '#f0f3f7',
+          signalColor: '#9aa7b6',
+          signalTextColor: '#d3dbe5',
+          noteBkgColor: 'rgba(255,199,70,.14)',
+          noteBorderColor: '#ffc746',
+          noteTextColor: '#f6f8fb',
+          fontSize: '14px'
+        }
+      });
+      mermaid.run();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
+    else render();
+  </script>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Bump pinned GitHub Actions off Node 20 and confirm
+Ubuntu 26 readiness</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a
+href="#bump-pinned-github-actions-off-node-20-and-confirm-ubuntu-26-readiness"
+id="toc-bump-pinned-github-actions-off-node-20-and-confirm-ubuntu-26-readiness">Bump
+pinned GitHub Actions off Node 20 and confirm Ubuntu 26 readiness</a>
+<ul>
+<li><a href="#problem" id="toc-problem">Problem</a></li>
+<li><a href="#why-now" id="toc-why-now">Why now</a></li>
+<li><a href="#sketch" id="toc-sketch">Sketch</a></li>
+<li><a href="#research-findings" id="toc-research-findings">Research
+findings</a></li>
+<li><a href="#verification-plan" id="toc-verification-plan">Verification
+plan</a></li>
+<li><a href="#acceptance-criteria"
+id="toc-acceptance-criteria">Acceptance criteria</a></li>
+<li><a href="#risks" id="toc-risks">Risks</a></li>
+<li><a href="#out-of-scope" id="toc-out-of-scope">Out of scope</a></li>
+<li><a href="#unverified" id="toc-unverified">UNVERIFIED</a></li>
+<li><a href="#audit-trail" id="toc-audit-trail">Audit trail</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1
+id="bump-pinned-github-actions-off-node-20-and-confirm-ubuntu-26-readiness">Bump
+pinned GitHub Actions off Node 20 and confirm Ubuntu 26 readiness</h1>
+<p><strong>In plain words.</strong> Our two automation files
+(<code>.github/workflows/ci.yml</code>, which checks every pull request,
+and <code>.github/workflows/release.yml</code>, which publishes the
+packages to npmjs.com) borrow three ready-made building blocks from
+GitHub and pnpm. We use old versions of those blocks, built for a
+runtime (Node.js 20) that GitHub has retired, so GitHub now force-runs
+them on a newer runtime and prints a warning on every run. This change
+swaps six version numbers for the current versions and proves, without
+publishing anything by accident, that both files still work, including
+on the newer Ubuntu machine image GitHub is about to make the
+default.</p>
+<h2 id="problem">Problem</h2>
+<ul>
+<li>Both workflows pin <code>actions/checkout@v4</code>,
+<code>pnpm/action-setup@v4</code> and
+<code>actions/setup-node@v4</code>. All three target Node.js 20.</li>
+<li>Release run 37930906435 (2026-10-09) carries this warning
+annotation: “Node.js 20 is deprecated. The following actions target
+Node.js 20 but are being forced to run on Node.js 24:
+actions/checkout@v4, actions/setup-node@v4, pnpm/action-setup@v4.”</li>
+<li>The same run carries a notice that the <code>ubuntu-latest</code>
+machine label migrates to Ubuntu 26. That run used image
+<code>ubuntu-24.04</code>; nothing in this repository has run on Ubuntu
+26 yet.</li>
+</ul>
+<h2 id="why-now">Why now</h2>
+<ul>
+<li>The forced-runtime shim is temporary; code we do not control is
+already running on a runtime it was not released for, inside the job
+that publishes.</li>
+<li><code>ubuntu-latest</code> starts moving to Ubuntu 26.04 on
+2026-10-19 and finishes by 2026-11-19 (actions/runner-images issue
+14748). The label <code>ubuntu-26.04</code> has been generally available
+since 2026-09-17 (issue 14747), so it can be trialled now.</li>
+<li>Constraint: idea I-038 (adopt the Joymify design system), owned by
+another session on the same release 1.10, edits both workflow files.
+This change is implemented only after I-038 has landed on
+<code>release/1.10</code>, on top of it.</li>
+</ul>
+<h2 id="sketch">Sketch</h2>
+<p>Decisions already made (not reopened here): move to the latest
+majors; keep pinning by major tag, matching the existing style; keep
+<code>runs-on: ubuntu-latest</code>.</p>
+<p>Exactly six lines change, three in each file, and nothing else:</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>From</th>
+<th>To</th>
+<th>Latest release checked</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>actions/checkout</code></td>
+<td><code>@v4</code></td>
+<td><code>@v7</code></td>
+<td>v7.0.1</td>
+</tr>
+<tr>
+<td><code>pnpm/action-setup</code></td>
+<td><code>@v4</code></td>
+<td><code>@v6</code></td>
+<td>v6.1.0</td>
+</tr>
+<tr>
+<td><code>actions/setup-node</code></td>
+<td><code>@v4</code></td>
+<td><code>@v7</code></td>
+<td>v7.1.0</td>
+</tr>
+</tbody>
+</table>
+<p>All three declare <code>using: node24</code> in their
+<code>action.yml</code> at those tags. Research concluded
+<code>runs-on</code> does not need to change. The commit subject is
+<code>ci: bump pinned GitHub Actions to Node 24 majors</code>; the type
+<code>ci</code> matters (see Verification plan).</p>
+<h2 id="research-findings">Research findings</h2>
+<p>Checked with read-only <code>gh api</code> calls on 2026-10-09:
+release notes of every major, <code>action.yml</code> and README at the
+target tags, and this repository’s workflow files and scripts.</p>
+<p><strong>1. setup-node v5, v6, v7.</strong> - v5 turned on automatic
+dependency caching when <code>package.json</code> has a
+<code>packageManager</code> field. v6 narrowed that to npm only. The
+root <code>package.json</code> has no <code>packageManager</code> field
+(<code>grep -c packageManager package.json</code> prints <code>0</code>)
+and we use pnpm, so no cache is created or restored. No effect. - v7
+stops exporting a placeholder <code>NODE_AUTH_TOKEN</code> (today’s logs
+show <code>NODE_AUTH_TOKEN: XXXXX-XXXXX-XXXXX-XXXXX</code> on every
+step). Its README states npm trusted publishing “is not affected, since
+it does not use <code>NODE_AUTH_TOKEN</code>”, and warns that with
+<code>registry-url</code> set and no token “pnpm may warn”.
+<code>release.yml</code> sets <code>registry-url</code>, so the npm
+settings file that setup-node writes will reference a variable that is
+no longer set. Expected result: a pnpm warning, no failure. This is the
+one behaviour change that touches the publish job, and
+<code>ci.yml</code> cannot exercise it because <code>ci.yml</code> sets
+no <code>registry-url</code>. - <code>node-version</code> and
+<code>registry-url</code> inputs are unchanged.</p>
+<p><strong>2. pnpm/action-setup v5, v6.</strong> - v5 only moved to
+Node.js 24. v6 changed the mechanism: it installs a newer bootstrap pnpm
+and then runs <code>pnpm self-update &lt;version&gt;</code>. The
+<code>version</code> input still exists and still wins; it throws only
+if <code>package.json</code> also names a different pnpm in
+<code>packageManager</code>, which ours does not. - Early v6 releases
+ignored <code>version: 10</code> and ran pnpm 11 (pnpm/action-setup
+issue 225, still open). The fix (pull request 230) merged 2026-04-18 and
+the v6.1.0 source orders the path entries so the requested version is
+found first. Because the issue is still open, the pnpm version is
+asserted in the acceptance criteria rather than assumed.</p>
+<p><strong>3. checkout v5, v6, v7.</strong> - v5 only moved to Node.js
+24. v6 stores persisted credentials in a separate file instead of
+<code>.git/config</code>. v7 blocks checking out fork pull requests for
+the <code>pull_request_target</code> and <code>workflow_run</code>
+triggers. - Neither change applies. Both workflows set
+<code>persist-credentials: false</code>, so nothing is persisted in
+either location, and the release job’s commit, tag and push pass their
+own header (<code>git -c http.extraheader=...</code>) on each command.
+<code>ci.yml</code> uses the <code>pull_request</code> trigger. The
+<code>ref</code>, <code>fetch-depth</code> and
+<code>persist-credentials</code> inputs are unchanged.</p>
+<p><strong>4. Ubuntu 26.</strong> - <code>better-sqlite3</code> is
+locked at 12.11.1, whose release publishes a prebuilt binary for Node.js
+22 on 64-bit Linux (<code>node-v127-linux-x64</code>). It is chosen by
+Node.js version and processor, not by Ubuntu version, so the same file
+is used on Ubuntu 24 and 26. - If that download fails, pnpm compiles
+from source. The Ubuntu 26.04 image lists GNU C++ 13/14/15 and Python
+3.14.4. The .NET tests need <code>net8.0</code>; the image lists .NET
+SDK 8.0.x.</p>
+<h2 id="verification-plan">Verification plan</h2>
+<p>The release decision script
+<code>scripts/release/next-release.mjs</code> publishes only when it
+prints <code>action=release</code> or <code>action=publish-only</code>.
+Reading <code>scripts/release/lib.mjs</code>: a commit releases only if
+its subject is <code>release &lt;major.minor&gt;</code> or if its
+subject or any body line starts with <code>feat</code>, <code>fix</code>
+or <code>perf</code> (or carries <code>!</code>). A <code>ci:</code>
+commit yields <code>action=none</code>. Run on <code>main</code> today
+it prints <code>action=none</code> and <code>version=0.2.0</code>.</p>
+<p><code>action=none</code> skips only two steps: commit-and-tag and the
+npm publish. The docs archive upload
+(<code>gh release upload --clobber</code>) and the developer-portal
+signal are gated on a different test, “is <code>docs-site.tgz</code>
+missing from the GitHub Release”, and that test reads any
+<code>gh</code> error as “missing”. Today release v0.2.0 has the asset,
+so they are skipped too, but not by the decision.</p>
+<p>Three checks, in order, all before the change is shipped into the
+release:</p>
+<ol type="1">
+<li><strong>Pull-request check.</strong> Open a draft pull request from
+the feature branch to <code>main</code> (never merged; closed
+afterwards; keep it a draft, because merging it would put release 1.10’s
+<code>feat</code> commits on <code>main</code> and publish).
+<code>ci.yml</code> runs only for pull requests into <code>main</code>.
+It proves the three new actions check out, install pnpm 10, set up
+Node.js 22, install with the frozen lockfile (including
+<code>better-sqlite3</code>) and pass the Gate 1 script
+<code>scripts/precheck.sh</code>.</li>
+<li><strong>Ubuntu 26 trial.</strong> On that same draft pull request,
+push one temporary commit changing <code>runs-on</code> in
+<code>ci.yml</code> to <code>ubuntu-26.04</code>, read the result, then
+revert it with a second commit. The final diff stays at six lines.</li>
+<li><strong>Release rehearsal, built so it cannot publish.</strong>
+Never start <code>release.yml</code> from the feature branch itself. A
+hand-started run uses the branch’s workflow file but checks out whatever
+<code>main</code> is at that moment (<code>ref: main</code>);
+<code>main</code> has no branch protection, the job’s token can push to
+it, and npmjs.com trusts the workflow file name only (its
+trusted-publisher form has no branch field). An unmodified branch run is
+therefore one stray <code>feat</code> or <code>fix</code> merge on
+<code>main</code> away from a permanent publish made by unreviewed pins.
+Instead create a throwaway branch <code>rehearsal/i-046</code> from the
+feature branch with one extra commit, in <code>release.yml</code> only:
+<ul>
+<li><code>contents: write</code> becomes <code>contents: read</code>,
+and the <code>id-token: write</code> line is deleted, so no push, no
+asset upload and no identity exchange with npmjs.com is possible. Any
+other permission line is left alone.</li>
+<li><code>if: false</code> replaces the condition on the four steps with
+outside effects: “Commit version bump and tag”, “Publish to npmjs.com
+(trusted publishing)”, “GitHub Release”, “Signal the developer portal”
+(the last uses its own secret, which the permission change does not
+disarm).</li>
+</ul>
+Push it (a branch push does not start <code>release.yml</code>) and run
+<code>gh workflow run release.yml --ref rehearsal/i-046</code>. The
+throwaway branch is never merged and never opened as a pull request;
+delete it afterwards.
+<ul>
+<li><strong>Run A (new pins, today’s <code>main</code> files).</strong>
+<code>ref: main</code> stays. Second barrier, checked immediately
+before:
+<code>git fetch origin --tags &amp;&amp; git switch --detach origin/main &amp;&amp; node scripts/release/next-release.mjs</code>
+prints <code>action=none</code>, and
+<code>gh release view v0.2.0 --json assets -q '.assets[].name'</code>
+prints <code>docs-site.tgz</code>. Otherwise do not start. Proves
+checkout, pnpm, setup-node, install and the “Decide release” registry
+read.</li>
+<li><strong>Run B (new pins, release 1.10 files).</strong> Run A pairs
+I-038’s workflow edits with <code>main</code>’s files, which lack
+I-038’s <code>.npmrc</code>, lockfile and script changes, so it says
+nothing about the two together. Add a second throwaway commit changing
+<code>ref: main</code> to <code>ref: rehearsal/i-046</code> and start it
+again. The decision may be <code>action=release</code>; that only edits
+files inside the runner. Build and unit tests run; nothing leaves the
+runner.</li>
+</ul></li>
+</ol>
+<p><strong>What cannot be proven without a real release:</strong> the
+push in “Commit version bump and tag” and the token-free identity
+exchange in “Publish to npmjs.com” never run in a rehearsal. Their first
+run on the new pins is the release 1.10 merge itself: its subject
+<code>release 1.10 (#N)</code> always releases, so that merge publishes
+a new permanent version through the new pins. Research finds no change
+that reaches either step; that is a reading, not a test.</p>
+<p><strong>Rollback.</strong> Before shipping:
+<code>git revert &lt;pin-commit&gt;</code> on the feature branch. After
+release 1.10 is on <code>main</code>: a hotfix pull request to
+<code>main</code> whose only commit is that revert, subject
+<code>ci: revert action pins</code>. What its merge does depends on how
+far the release got:</p>
+<ul>
+<li>Release 1.10 fully published: prints <code>action=none</code>,
+publishes nothing.</li>
+<li>Failed before the push (nothing tagged, nothing published):
+<code>release 1.10</code> is still newer than the last tag, so the
+hotfix merge prints <code>action=release</code> and performs the 1.10
+release on the old pins. This is intended, not an accident.</li>
+<li>Failed after the push (tag exists, one or both packages missing from
+npmjs.com): prints <code>action=publish-only</code> and publishes the
+tagged version on the old pins, skipping a package already there.</li>
+<li>“Re-run jobs” is not a rollback: it reuses the failed run’s workflow
+file, so it repeats the new pins. It only helps a transient failure.
+Never delete the tag or bump a version by hand.</li>
+</ul>
+<h2 id="acceptance-criteria">Acceptance criteria</h2>
+<p><code>&lt;base&gt;</code> is the commit the feature branch started
+from; <code>&lt;run&gt;</code> is the run id named in each item.</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />Only six lines change:
+<code>git diff --numstat &lt;base&gt;..HEAD</code> prints exactly
+<code>3 3 .github/workflows/ci.yml</code> and
+<code>3 3 .github/workflows/release.yml</code>.</label></li>
+<li><label><input type="checkbox" />Pins are correct:
+<code>grep -ohE '(actions|pnpm)/[a-z-]+@v[0-9]+' .github/workflows/ci.yml .github/workflows/release.yml | sort | uniq -c</code>
+prints <code>2 actions/checkout@v7</code>,
+<code>2 actions/setup-node@v7</code>,
+<code>2 pnpm/action-setup@v6</code>.</label></li>
+<li><label><input type="checkbox" />Publishing trust is untouched:
+<code>test -f .github/workflows/release.yml &amp;&amp; grep -cE '^\s+environment:' .github/workflows/release.yml</code>
+prints <code>0</code>, and
+<code>grep -c 'npm publish' .github/workflows/release.yml</code> prints
+<code>1</code>.</label></li>
+<li><label><input type="checkbox" />Pull-request check passes:
+<code>gh pr checks &lt;draft-pr&gt;</code> shows <code>precheck</code>
+as <code>pass</code>.</label></li>
+<li><label><input type="checkbox" />pnpm is still major 10:
+<code>gh run view &lt;run&gt; --log | grep -oE 'using pnpm v[0-9]+' | sort -u</code>
+prints <code>using pnpm v10</code> for the pull-request run and for the
+rehearsal run.</label></li>
+<li><label><input type="checkbox" />The deprecation warning is gone:
+<code>gh api repos/montionugera/cli-state-handler/check-runs/&lt;job-id&gt;/annotations -q '.[].message' | grep -c 'Node.js 20'</code>
+prints <code>0</code> for both runs.</label></li>
+<li><label><input type="checkbox" />Ubuntu 26 trial passes: for the
+temporary-commit run,
+<code>gh run view &lt;run&gt; --log | grep -m1 'Image: '</code> ends
+with <code>Image: ubuntu-26.04</code> and
+<code>gh run view &lt;run&gt; --json conclusion -q .conclusion</code>
+prints <code>success</code>.</label></li>
+<li><label><input type="checkbox" />The rehearsal branch is disarmed
+before any run:
+<code>git show rehearsal/i-046:.github/workflows/release.yml | grep -cE 'id-token|contents: write'</code>
+prints <code>0</code>, and
+<code>git show rehearsal/i-046:.github/workflows/release.yml | grep -c 'if: false'</code>
+prints <code>4</code>.</label></li>
+<li><label><input type="checkbox" />Each rehearsal run (A and B)
+publishes nothing:
+<code>gh run view &lt;run&gt; --json jobs -q '.jobs[0].steps[] | select(.name|test("Commit version|Publish to npmjs|GitHub Release|Signal the developer")) | .conclusion'</code>
+prints <code>skipped</code> four times; afterwards
+<code>npm view @montionugera/ucsa-cli version</code>,
+<code>git ls-remote origin refs/heads/main 'refs/tags/v*'</code> and
+<code>gh release view v0.2.0 --json assets -q '.assets[].updatedAt'</code>
+print exactly what they printed before.</label></li>
+<li><label><input type="checkbox" />Run A:
+<code>gh run view &lt;run&gt; --log | grep -oE 'action=[a-z-]+'</code>
+prints <code>action=none</code>.</label></li>
+<li><label><input type="checkbox" />Runs A and B end
+<code>success</code>, with the “Decide release” step
+<code>success</code> (this is the step that reads npmjs.com through the
+settings file setup-node v7 writes).</label></li>
+<li><label><input type="checkbox" />Clean-up:
+<code>git ls-remote origin refs/heads/rehearsal/i-046</code> prints
+nothing.</label></li>
+</ul>
+<h2 id="risks">Risks</h2>
+<ul>
+<li><strong>Permanent publish (highest).</strong> A version published to
+npmjs.com cannot be withdrawn and its number can never be reused. The
+rehearsal starts the real release workflow, and a precondition check
+alone leaves a gap between checking <code>main</code> and the job
+reading it. The rehearsal is therefore run only from the disarmed
+throwaway branch in step 3, never from the feature branch.</li>
+<li><strong>Unrehearsed steps.</strong> The push and the publish first
+run on the new pins during the release 1.10 merge, which always
+publishes. If the pins break them, recovery is the revert hotfix in
+Rollback, whose merge then completes the release on the old pins.</li>
+<li><strong>Trust binding.</strong> npmjs.com trusts exactly the file
+<code>.github/workflows/release.yml</code> with a blank environment.
+Renaming the file, moving the publish step or adding
+<code>environment:</code> breaks publishing. The third acceptance item
+guards this.</li>
+<li><strong>Moving tags.</strong> A major tag such as <code>@v7</code>
+follows new minor releases automatically; this is the existing accepted
+style and is unchanged.</li>
+<li><strong>Overlap with I-038.</strong> Starting before I-038 lands
+would cause merge conflicts in both files, and I-038’s planned install
+token could change how the settings file from setup-node v7 behaves. The
+rehearsal is run after I-038 for this reason.</li>
+</ul>
+<h2 id="out-of-scope">Out of scope</h2>
+<ul>
+<li>Any workflow change beyond the six pin lines: permissions, caching
+inputs, <code>package-manager-cache</code>, pinning by commit hash, or
+switching to the newer <code>pnpm/setup</code> action.</li>
+<li>Changing <code>runs-on</code> permanently, upgrading pnpm, Node.js
+or <code>better-sqlite3</code>, or adding a <code>packageManager</code>
+field.</li>
+<li>Anything owned by I-038, and any change to the release decision
+script.</li>
+</ul>
+<h2 id="unverified">UNVERIFIED</h2>
+<ul>
+<li>That pnpm 10 only warns (does not fail) when the settings file
+references the unset <code>NODE_AUTH_TOKEN</code>; stated by the
+setup-node README, proven only by the rehearsal.</li>
+<li>That npmjs.com accepts read requests from the “Decide release” step
+under setup-node v7; proven only by the rehearsal.</li>
+<li>That the token-free publish succeeds under setup-node v7; stated by
+its README, provable only by a real release.</li>
+<li>That starting <code>release.yml</code> from a non-default branch is
+permitted for this repository once I-038 has changed its
+permissions.</li>
+<li>That <code>pnpm/action-setup@v6</code> resolves
+<code>version: 10</code> to pnpm 10 on a GitHub-hosted runner; read from
+source, not observed in a run.</li>
+<li>The minimum system-library version the <code>better-sqlite3</code>
+prebuilt binary needs, and whether the source-compile fallback works
+with Python 3.14.</li>
+<li>What npm 11 sends when the settings file holds the literal text
+<code>${NODE_AUTH_TOKEN}</code>: setup-node v7
+<code>src/authutil.ts</code> still writes that <code>_authToken</code>
+line and no longer sets the variable. Today’s placeholder token is
+equally invalid and reads work, so the same is expected; runs A and B
+test the read, nothing tests the publish.</li>
+<li>That a run started from a branch whose <code>release.yml</code>
+lacks <code>id-token: write</code> behaves as designed; read from
+GitHub’s documentation, not observed here.</li>
+</ul>
+<h2 id="audit-trail">Audit trail</h2>
+<p>Independent audit, 2026-10-09, read-only (<code>release.yml</code>,
+<code>next-release.mjs</code>, <code>lib.mjs</code>, setup-node v7
+README and <code>src/authutil.ts</code>, npm trusted-publisher
+documentation, <code>gh api</code> for branch protection and release
+assets).</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Severity</th>
+<th>Finding</th>
+<th>What changed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CRITICAL</td>
+<td>The rehearsal from the feature branch had one barrier, a
+precondition with a time gap; <code>main</code> is unprotected and
+npmjs.com does not check the branch, so a merge in the gap meant a real
+publish on unreviewed pins.</td>
+<td>Step 3 now uses a throwaway branch with write and identity
+permissions removed and four steps set to <code>if: false</code>.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>“Every publishing step is skipped” was false: asset upload with
+<code>--clobber</code> and the portal signal are gated on the docs-asset
+test, which reads <code>gh</code> errors as “missing”.</td>
+<td>Gating described correctly; both steps disabled in the rehearsal;
+asset precondition and criterion added.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>Rollback claimed the revert hotfix “publishes nothing”. After a
+failed release 1.10 run it prints <code>action=release</code> or
+<code>action=publish-only</code> and publishes. Re-running repeats the
+new pins.</td>
+<td>Rollback rewritten per failure point.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>The rehearsal ran I-038’s workflow against <code>main</code>’s
+files, so it did not cover I-038 and the new pins together as
+claimed.</td>
+<td>Run B added on the release 1.10 files.</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td>Precondition did not fetch tags or pin <code>main</code> to the
+remote tip; draft pull request merge risk unstated.</td>
+<td>Both stated.</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>

@@ -619,6 +619,8 @@ id="toc-risks-and-open-questions">Risks and open questions</a></li>
 <li><a href="#rollout" id="toc-rollout">Rollout</a></li>
 <li><a href="#acceptance-criteria"
 id="toc-acceptance-criteria">Acceptance criteria</a></li>
+<li><a href="#appendix-audit-trail"
+id="toc-appendix-audit-trail">Appendix: audit trail</a></li>
 </ul></li>
 </ul>
 </nav>
@@ -629,21 +631,27 @@ Joymify design system in the docs portal</h1>
 that repo”.</p>
 <p>The docs portal in this repository (<code>apps/docs</code>, package
 <code>@ucsa/docs</code>, React 19 + Vite, hash routes) is built with the
-Joymify design system, installed as published packages from GitHub
-Packages. The portal stays in <code>cli-state-handler</code>. It gets a
-light and a dark theme with a toggle, renders markdown through the
-Joymify markdown component, and renders Mermaid diagrams.</p>
+Joymify design system, installed as the published
+<code>@joymify/*</code> packages from GitHub Packages (organisation
+<code>joymify</code>). The portal stays in
+<code>cli-state-handler</code>. It gets a light and a dark theme with a
+toggle, renders markdown through the Joymify markdown component, and
+renders Mermaid diagrams.</p>
 <h2 id="scope-and-non-goals">Scope and non-goals</h2>
 <p>In scope:</p>
 <ul>
 <li>Replace the sibling-checkout aliases with registry dependencies on
-<code>@montionugera/joy-react</code> 0.2.0 and
-<code>@montionugera/joy-tokens</code> 0.2.0 (which pull in
-<code>@montionugera/joy-icons</code> 0.3.0 and
-<code>@montionugera/joy-brand</code> 0.2.0).</li>
-<li>A repository <code>.npmrc</code>, and package access for the two
-GitHub Actions workflows (<code>ci.yml</code>,
-<code>release.yml</code>).</li>
+<code>@joymify/react</code> 0.2.0 and <code>@joymify/tokens</code> 0.2.0
+(which pull in <code>@joymify/icons</code> 0.3.0 and
+<code>@joymify/brand</code> 0.2.0). All four are to be published; see
+“Packages” under “Current state”.</li>
+<li>A repository <code>.npmrc</code> that maps only the
+<code>@joymify</code> scope, and package access for the two GitHub
+Actions workflows (<code>ci.yml</code>, <code>release.yml</code>)
+through one read-only token stored as an Actions secret.</li>
+<li>One regression check that the library release still targets
+npmjs.com. No change to the release script, the publish commands or the
+library manifests (see “No scope clash”).</li>
 <li>Light and dark themes, a toggle that remembers the choice, no flash
 of the wrong theme on load.</li>
 <li>Self-hosted fonts (Inter, JetBrains Mono) inside the build output.
@@ -658,8 +666,13 @@ diagrams rendered by Joymify components.</li>
 vendoring Joymify source, or linking a sibling checkout.</li>
 <li>Changing routes, page content, the playground models, or the
 sandbox.</li>
-<li>Changing how <code>@montionugera/ucsa-core</code> and
-<code>@montionugera/ucsa-cli</code> are published to npmjs.com.</li>
+<li>Changing where or how <code>@montionugera/ucsa-core</code> and
+<code>@montionugera/ucsa-cli</code> are published (npmjs.com, trusted
+publishing, <code>release.yml</code> not renamed, no
+<code>environment:</code>). The libraries keep the
+<code>@montionugera</code> scope.</li>
+<li>Bumping the pinned versions of the workflow actions. Another session
+owns that (idea I-046); this spec edits steps, not action versions.</li>
 <li>Adding the full <code>mermaid</code> npm library, or a general
 markdown library, inside this repository. Gaps in the Joymify components
 are fixed upstream in <code>joy-design</code> (platform rule: enhance
@@ -681,18 +694,19 @@ release branch <code>release/1.10</code> starts from it. Since
 <code>MultiPlatformDocs.tsx</code>, <code>routes.ts</code>, two new test
 files).</p>
 <p><strong>How the base branch reaches Joymify.</strong>
-<code>apps/docs/joy-alias.ts</code> maps the old names
+<code>apps/docs/joy-alias.ts</code> maps the names
 <code>@joymify/react</code>, <code>@joymify/icons/react</code>,
 <code>@joymify/brand</code>, <code>@joymify/tokens/theme.css</code> to
 <code>../../../joy-design/packages/...</code>. The aliases are spread
 into <code>vite.config.ts</code> and <code>vitest.config.ts</code>, and
 repeated as <code>paths</code> in <code>apps/docs/tsconfig.json</code>
 (plus two <code>react</code> type paths that exist only to stop
-duplicate React types from the sibling checkout). Eight source files
+duplicate React types from the sibling checkout). Nine source files
 import from <code>@joymify/react</code>; <code>main.tsx</code> imports
-<code>@joymify/tokens/theme.css</code>. The package names were since
-renamed upstream, so this wiring is broken twice over: wrong names, and
-no sibling checkout in CI.</p>
+<code>@joymify/tokens/theme.css</code>. The import names are already the
+names the packages will be published under, so the source files need no
+rename. What is broken is only the route: the aliases point at a sibling
+checkout that does not exist in CI.</p>
 <p><strong>Theme.</strong> <code>apps/docs/index.html</code> hard-codes
 <code>&lt;html data-theme="dark"&gt;</code>. <code>src/index.css</code>
 maps the portal’s own variables (<code>--bg-main</code>,
@@ -722,8 +736,8 @@ handling, <code>inert</code>, Escape to close.</p>
 deleted it. Two workflows remain:</p>
 <ul>
 <li><code>ci.yml</code> runs on every pull request to main,
-<code>permissions: contents: read</code>, and states “no secrets”. It
-runs <code>pnpm install --frozen-lockfile</code> then
+<code>permissions: contents: read</code>, and its header comment states
+“no secrets”. It runs <code>pnpm install --frozen-lockfile</code> then
 <code>scripts/precheck.sh</code> (the pre-ship build, typecheck and test
 check, which includes <code>apps/docs</code>).</li>
 <li><code>release.yml</code> runs on every merge to main. It runs
@@ -734,16 +748,72 @@ that the Joymify developer portal copies.</li>
 </ul>
 <p>The repository has no Actions secrets at all
 (<code>gh secret list</code> is empty).</p>
-<p><strong>Packages.</strong>
-<code>gh api /users/montionugera/packages/npm/joy-react</code> reports:
-one version <code>0.2.0</code>, visibility <strong>private</strong>,
-linked to the private repository <code>montionugera/joy-design</code>.
-<code>cli-state-handler</code> is also private.</p>
-<p><strong>What <code>@montionugera/joy-react</code> 0.2.0
-exports</strong> (read from <code>joy-design</code> main
-<code>02b1dfc8</code>, <code>packages/react/src/index.ts</code>; single
-entry point <code>"."</code>, <code>sideEffects: false</code>, peers
-<code>react</code> and <code>react-dom</code> <code>^19.0.0</code>):</p>
+<p><strong>Registry calls in the release pipeline (three).</strong> All
+run with the repository root as working directory, so all read a root
+<code>.npmrc</code>. All three are for <code>@montionugera/ucsa-*</code>
+names:</p>
+<ol type="1">
+<li><code>scripts/release/next-release.mjs</code> line 41,
+<code>npm view &lt;name&gt;@&lt;version&gt; version</code>, in the
+“Decide release” step. It runs on <strong>every</strong> merge to main.
+Only an <code>E404</code> counts as “not published”; any other failure
+throws and stops the run.</li>
+<li><code>release.yml</code>, “Publish to npmjs.com” step:
+<code>npm view "$name@$version" version</code> (any failure is read as
+“not published”).</li>
+<li>Same step:
+<code>npm publish "$RUNNER_TEMP"/npmjs/*.tgz --access public</code>.</li>
+</ol>
+<p><code>packages/core/package.json</code> and
+<code>apps/cli/package.json</code> already carry
+<code>publishConfig: { "access": "public", "registry": "https://registry.npmjs.org" }</code>.
+The README (around line 2672) also documents a manual
+<code>npm publish</code> recipe run from the repository root. Nothing in
+the repository installs <code>@montionugera/ucsa-*</code> from a
+registry: <code>apps/cli</code> and <code>apps/docs</code> use
+<code>workspace:*</code>, and there are no examples or smoke tests that
+install the published libraries.</p>
+<p><strong>Other install sites.</strong> Besides the two workflows,
+<code>scripts/precheck.sh</code> line 67 and
+<code>scripts/epic-check.sh</code> line 15 run <code>pnpm install</code>
+locally. Root <code>pnpm test</code> (used by <code>release.yml</code>
+“Unit tests” and by <code>precheck.sh</code>) runs the
+<code>apps/docs</code> tests too, so the docs dependencies are needed
+wherever tests run.</p>
+<p><strong>Tool versions.</strong> Both workflows pin
+<code>pnpm/action-setup</code> to <code>version: 10</code> (major only,
+so the runner gets the newest pnpm 10); the root
+<code>package.json</code> has no <code>packageManager</code> field; the
+local machine has pnpm 10.13.1. <code>release.yml</code> installs
+<code>npm@^11.5.1</code> for publishing. <code>actions/setup-node</code>
+in <code>release.yml</code> is given <code>registry-url</code>, which
+makes it write a user-level npm config file and export its path as
+<code>NPM_CONFIG_USERCONFIG</code>; in <code>ci.yml</code> it is not, so
+the user-level file there is <code>~/.npmrc</code>.</p>
+<p><strong>Packages (to be published; not a fact yet).</strong> The
+owner decided on 2026-10-09 to rename the Joymify packages and republish
+them as <code>@joymify/tokens</code> 0.2.0, <code>@joymify/icons</code>
+0.3.0, <code>@joymify/brand</code> 0.2.0 and <code>@joymify/react</code>
+0.2.0, private, on GitHub Packages under the organisation
+<code>joymify</code>. The work is <code>joy-design</code> feature F-073,
+shipped into that repository’s release 3.8. As reported on 2026-10-09 it
+is <strong>not yet on <code>joy-design</code> main and not yet
+published</strong>. This spec therefore treats “the four packages
+resolve from the registry” as a precondition with its own acceptance
+checks, not as current state. The earlier packages
+<code>@montionugera/joy-*</code> (one version <code>0.2.0</code>,
+private, under the personal account) are superseded and are not used.
+<code>cli-state-handler</code> is private.</p>
+<p><strong>What <code>@joymify/react</code> 0.2.0 is expected to
+export.</strong> The table was read from <code>joy-design</code> main
+<code>02b1dfc8</code>, <code>packages/react/src/index.ts</code>, which
+is the source the superseded <code>@montionugera/joy-react</code> 0.2.0
+was built from: single entry point <code>"."</code>,
+<code>sideEffects: false</code>, peers <code>react</code> and
+<code>react-dom</code> <code>^19.0.0</code>. F-073 is a rename, so the
+exports are assumed unchanged; that assumption is <strong>not
+verified</strong> and phase 1a checks it against the installed
+package.</p>
 <table>
 <colgroup>
 <col style="width: 33%" />
@@ -789,8 +859,8 @@ sequence diagrams only.</strong></td>
 <td>Theme control</td>
 <td>none</td>
 <td>No provider or hook. Theming is pure CSS in
-<code>@montionugera/joy-tokens/theme.css</code>. <code>Segmented</code>
-and <code>Switch</code> are available for the control itself.</td>
+<code>@joymify/tokens/theme.css</code>. <code>Segmented</code> and
+<code>Switch</code> are available for the control itself.</td>
 </tr>
 <tr>
 <td>Navigation</td>
@@ -800,45 +870,99 @@ with an <code>onSelect</code> callback, not links.</td>
 </tr>
 </tbody>
 </table>
-<p>The tarball itself could not be opened here (<code>npm view</code>
-returns 401 without a token); the table is the source that version 0.2.0
-was built from.</p>
+<p>No <code>@joymify/*</code> tarball exists to open yet; the table is
+source, not a published artefact.</p>
 <h2 id="design">Design</h2>
 <h3 id="dependencies-and-.npmrc">Dependencies and
 <code>.npmrc</code></h3>
 <p>Add to <code>apps/docs/package.json</code> dependencies:
-<code>@montionugera/joy-react</code> <code>^0.2.0</code> and
-<code>@montionugera/joy-tokens</code> <code>^0.2.0</code> (the
-stylesheet import needs tokens as a direct dependency under pnpm’s
-strict layout). <code>joy-icons</code> and <code>joy-brand</code> arrive
-as dependencies of <code>joy-react</code>.</p>
-<p>Add a repository-root <code>.npmrc</code>:</p>
-<pre><code>@montionugera:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}</code></pre>
-<div class="callout danger">
-<p><strong>Scope collision.</strong> This repository’s own libraries are
-<code><span class="citation"
+<code>@joymify/react</code> <code>^0.2.0</code> and
+<code>@joymify/tokens</code> <code>^0.2.0</code> (the stylesheet import
+needs tokens as a direct dependency under pnpm’s strict layout).
+<code>@joymify/icons</code> and <code>@joymify/brand</code> arrive as
+dependencies of <code>@joymify/react</code>. If any file under
+<code>apps/docs/src</code> imports <code>@joymify/icons</code> or
+<code>@joymify/brand</code> directly (the alias file maps both), that
+package becomes a direct dependency too, for the same reason.</p>
+<p>Add a repository-root <code>.npmrc</code> with the scope mapping
+only:</p>
+<pre><code>@joymify:registry=https://npm.pkg.github.com</code></pre>
+<p>The token line does <strong>not</strong> go in the committed file. It
+goes in the user-level npm config, as the literal text:</p>
+<pre><code>//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}</code></pre>
+<p>“User-level” means <code>~/.npmrc</code> on a developer machine, and
+on a runner the file named by <code>NPM_CONFIG_USERCONFIG</code> when
+that variable is set, otherwise <code>~/.npmrc</code>. The token itself
+is never written to disk; it is present only where the environment
+variable <code>JOYMIFY_PACKAGES_READ_TOKEN</code> is exported. The
+variable is deliberately not called <code>GITHUB_TOKEN</code>, so the
+workflow’s own job token is never the one handed to the installer.</p>
+<div class="callout warn">
+<p><strong>Why not a token line in the repository
+<code>.npmrc</code>.</strong> pnpm no longer expands <code><span
+class="math inline"><em>N</em><em>A</em><em>M</em><em>E</em> &lt; /<em>c</em><em>o</em><em>d</em><em>e</em> &gt; <em>i</em><em>n</em><em>a</em><em>p</em><em>r</em><em>o</em><em>j</em><em>e</em><em>c</em><em>t</em> − <em>l</em><em>e</em><em>v</em><em>e</em><em>l</em> &lt; <em>c</em><em>o</em><em>d</em><em>e</em> &gt; .<em>n</em><em>p</em><em>m</em><em>r</em><em>c</em> &lt; /<em>c</em><em>o</em><em>d</em><em>e</em> &gt; <em>f</em><em>o</em><em>r</em><em>r</em><em>e</em><em>g</em><em>i</em><em>s</em><em>t</em><em>r</em><em>y</em><em>U</em><em>R</em><em>L</em><em>s</em>, <em>U</em><em>R</em><em>L</em> − <em>s</em><em>c</em><em>o</em><em>p</em><em>e</em><em>d</em><em>k</em><em>e</em><em>y</em><em>s</em><em>a</em><em>n</em><em>d</em><em>c</em><em>r</em><em>e</em><em>d</em><em>e</em><em>n</em><em>t</em><em>i</em><em>a</em><em>l</em><em>v</em><em>a</em><em>l</em><em>u</em><em>e</em><em>s</em> : <em>s</em><em>u</em><em>c</em><em>h</em><em>a</em><em>l</em><em>i</em><em>n</em><em>e</em><em>i</em><em>s</em><em>i</em><em>g</em><em>n</em><em>o</em><em>r</em><em>e</em><em>d</em><em>w</em><em>i</em><em>t</em><em>h</em><em>a</em><em>w</em><em>a</em><em>r</em><em>n</em><em>i</em><em>n</em><em>g</em>.<em>T</em><em>h</em><em>e</em><em>p</em><em>n</em><em>p</em><em>m</em>11<em>d</em><em>o</em><em>c</em><em>u</em><em>m</em><em>e</em><em>n</em><em>t</em><em>a</em><em>t</em><em>i</em><em>o</em><em>n</em><em>d</em><em>a</em><em>t</em><em>e</em><em>s</em><em>t</em><em>h</em><em>i</em><em>s</em><em>t</em><em>o</em><em>v</em>11.5.3; <em>t</em><em>h</em><em>e</em><em>p</em><em>n</em><em>p</em><em>m</em>10<em>d</em><em>o</em><em>c</em><em>u</em><em>m</em><em>e</em><em>n</em><em>t</em><em>a</em><em>t</em><em>i</em><em>o</em><em>n</em><em>d</em><em>a</em><em>t</em><em>e</em><em>s</em><em>t</em><em>h</em><em>e</em><em>s</em><em>a</em><em>m</em><em>e</em><em>r</em><em>e</em><em>s</em><em>t</em><em>r</em><em>i</em><em>c</em><em>t</em><em>i</em><em>o</em><em>n</em><em>t</em><em>o</em><em>v</em>10.34.2(<em>s</em><em>e</em><em>c</em><em>u</em><em>r</em><em>i</em><em>t</em><em>y</em><em>a</em><em>d</em><em>v</em><em>i</em><em>s</em><em>o</em><em>r</em><em>y</em><em>G</em><em>H</em><em>S</em><em>A</em> − 3<em>q</em><em>h</em><em>v</em> − 2<em>r</em><em>g</em><em>h</em> − <em>x</em>77<em>r</em>; <em>s</em><em>o</em><em>u</em><em>r</em><em>c</em><em>e</em><em>s</em> : <em>p</em><em>n</em><em>p</em><em>m</em>.<em>i</em><em>o</em>/<em>n</em><em>p</em><em>m</em><em>r</em><em>c</em><em>a</em><em>n</em><em>d</em><em>p</em><em>n</em><em>p</em><em>m</em>.<em>i</em><em>o</em>/10.<em>x</em>/<em>n</em><em>p</em><em>m</em><em>r</em><em>c</em>, <em>r</em><em>e</em><em>a</em><em>d</em>2026 − 10 − 09).<em>C</em><em>I</em><em>p</em><em>i</em><em>n</em><em>s</em><em>p</em><em>n</em><em>p</em><em>m</em><em>t</em><em>o</em><em>m</em><em>a</em><em>j</em><em>o</em><em>r</em>10<em>o</em><em>n</em><em>l</em><em>y</em>, <em>s</em><em>o</em><em>t</em><em>h</em><em>e</em><em>r</em><em>u</em><em>n</em><em>n</em><em>e</em><em>r</em><em>i</em><em>s</em><em>a</em><em>l</em><em>r</em><em>e</em><em>a</em><em>d</em><em>y</em><em>o</em><em>n</em><em>a</em><em>p</em><em>n</em><em>p</em><em>m</em>10<em>t</em><em>h</em><em>a</em><em>t</em><em>i</em><em>g</em><em>n</em><em>o</em><em>r</em><em>e</em><em>s</em><em>s</em><em>u</em><em>c</em><em>h</em><em>a</em><em>l</em><em>i</em><em>n</em><em>e</em> : <em>a</em><em>c</em><em>o</em><em>m</em><em>m</em><em>i</em><em>t</em><em>t</em><em>e</em><em>d</em> &lt; <em>c</em><em>o</em><em>d</em><em>e</em>&gt;<sub><em>a</em></sub><em>u</em><em>t</em><em>h</em><em>T</em><em>o</em><em>k</em><em>e</em><em>n</em>=</span>{…}</code>
+line would answer 401 today, not only after a move to pnpm 11. Both
+documentation sets state that placeholders are still expanded in the
+user-level <code>.npmrc</code>, and that pnpm honours
+<code>NPM_CONFIG_USERCONFIG</code>. The scope mapping line has no
+placeholder, so it is unaffected.</p>
+</div>
+<p>Two limits of what was checked: the behaviour above is taken from the
+pnpm documentation, not from a run; and both documentation sets list
+<code>~/.npmrc</code> as a fallback behind pnpm’s own auth file, which
+is fine here because nothing else sets a token for
+<code>npm.pkg.github.com</code>. The green install in
+<code>ci.yml</code> (pnpm 10) is the empirical proof for pnpm 10. No
+pnpm 11 run exists in this repository, so pnpm 11 stays
+<strong>documented, not exercised</strong>.</p>
+<h3 id="no-scope-clash">No scope clash</h3>
+<div class="callout success">
+<p><strong>The release pipeline is left alone.</strong> A registry
+mapping is per scope. The new line maps <code><span class="citation"
+data-cites="joymify">@joymify</span></code> only. This repository’s own
+libraries are <code><span class="citation"
 data-cites="montionugera/ucsa-core">@montionugera/ucsa-core</span></code>
 and <code><span class="citation"
-data-cites="montionugera/ucsa-cli">@montionugera/ucsa-cli</span></code>,
-published to npmjs.com. They share the <code><span class="citation"
-data-cites="montionugera">@montionugera</span></code> scope with the
-Joymify packages on GitHub Packages. A registry mapping is per scope,
-not per package, and for npm a scope mapping outranks both
-<code>–registry</code> and <code>publishConfig.registry</code>. Left
-alone, the new <code>.npmrc</code> would point the release workflow’s
-<code>npm view</code> check and <code>npm publish</code> at GitHub
-Packages.</p>
+data-cites="montionugera/ucsa-cli">@montionugera/ucsa-cli</span></code>;
+no line mentions <code><span class="citation"
+data-cites="montionugera">@montionugera</span></code>, so npm keeps
+resolving that scope the way it does today, through the plain
+<code>registry</code> setting, which is npmjs.com (default,
+<code>publishConfig.registry</code> in both manifests, and
+<code>registry-url</code> in <code>release.yml</code>).</p>
 </div>
-<p>Fix, in <code>release.yml</code> only: the two npm commands in the
-“Publish to npmjs.com” step get an explicit flag
-<code>--@montionugera:registry=https://registry.npmjs.org/</code>. A
-command-line flag outranks the project <code>.npmrc</code>. The step is
-edited in place; the file is not renamed and no
-<code>environment:</code> is added, so trusted publishing keeps working.
-Workspace dependencies (<code>workspace:*</code>) never touch a
-registry, so installs are unaffected.</p>
+<p>An earlier revision of this spec had the Joymify packages under
+<code>@montionugera</code>, the same scope as the libraries, and so
+needed a mitigation: an explicit npmjs.com flag on the three registry
+calls (the <code>npm view</code> in
+<code>scripts/release/next-release.mjs</code> line 41, and the
+<code>npm view</code> and <code>npm publish</code> lines in
+<code>release.yml</code>) and a <code>"@montionugera:registry"</code>
+key in the <code>publishConfig</code> of both library manifests. With
+the packages under <code>@joymify</code> there is nothing to defend
+against, so <strong>all of that is removed from the design</strong>:
+<code>next-release.mjs</code>, the publish step,
+<code>packages/core/package.json</code> and
+<code>apps/cli/package.json</code> are not edited.</p>
+<p>What stays is one cheap regression check, so that a later edit which
+adds a <code>@montionugera</code> mapping (or a blanket
+<code>registry=</code> line) to the root <code>.npmrc</code> is caught
+before it reaches a release: from the repository root,
+<code>npm config get @montionugera:registry</code> prints
+<code>undefined</code>, and
+<code>node scripts/release/next-release.mjs</code> (no
+<code>--apply</code>, no token in the environment) exits 0, which
+exercises the real <code>npm view</code> against npmjs.com. Both are in
+the phase 1a acceptance criteria.</p>
+<p><code>pnpm install</code> of the workspace does not fetch the
+libraries at all: <code>workspace:*</code> never touches a registry, and
+no script installs the published libraries.</p>
 <h3 id="alias-removal">Alias removal</h3>
+<p>Simpler than first specified, because the base branch already imports
+the final names (nine files import <code>@joymify/react</code>;
+<code>main.tsx</code> imports <code>@joymify/tokens/theme.css</code>).
+<strong>No import statement changes.</strong> Only the route to the
+packages changes, from alias to <code>node_modules</code>:</p>
 <ul>
 <li>Delete <code>apps/docs/joy-alias.ts</code>; remove it from
 <code>vite.config.ts</code> and <code>vitest.config.ts</code>, along
@@ -848,10 +972,6 @@ checkout is gone).</li>
 <code>react</code> paths from <code>apps/docs/tsconfig.json</code>,
 returning it to main’s single <code>@montionugera/ucsa-core</code>
 path.</li>
-<li>Rename imports: <code>@joymify/react</code> to
-<code>@montionugera/joy-react</code>,
-<code>@joymify/tokens/theme.css</code> to
-<code>@montionugera/joy-tokens/theme.css</code>.</li>
 <li>Root <code>pnpm typecheck</code> then resolves the packages through
 <code>apps/docs/node_modules</code> with no extra configuration.</li>
 </ul>
@@ -859,23 +979,79 @@ path.</li>
 <pre class="mermaid"><code>flowchart LR
   PR[Pull request] --&gt; CI[ci.yml install]
   MERGE[Merge to main] --&gt; REL[release.yml install]
-  CI --&gt; GHP[GitHub Packages]
+  SECRET[Read token secret] --&gt; CI
+  SECRET --&gt; REL
+  CI --&gt; GHP[GitHub Packages org joymify]
   REL --&gt; GHP
   REL --&gt; NPMJS[npmjs.com publish]
-  GHP --&gt; JOY[joy packages private]</code></pre>
+  GHP --&gt; JOY[joymify packages private]</code></pre>
 <p>Both workflows install the whole workspace, so both need read access
-to four private packages owned by another repository. Chosen approach
-(option A): on each of the four packages, in Package settings, “Manage
-Actions access”, add <code>montionugera/cli-state-handler</code> with
-Read. Then both workflows add <code>packages: read</code> to
-<code>permissions</code> and pass
-<code>GITHUB_TOKEN: ${{ github.token }}</code> as <code>env</code> on
-the install step. No stored secret; <code>ci.yml</code> stays
-secret-free. Fallback (option B): a classic personal access token with
-<code>read:packages</code> stored as the secret
-<code>JOY_PACKAGES_TOKEN</code> and passed as <code>GITHUB_TOKEN</code>
-on the install step; it expires and must be rotated, so it is second
-choice.</p>
+to four private packages owned by the organisation <code>joymify</code>.
+The job’s own token cannot read them (they belong to another owner), so
+access is a stored token:</p>
+<ul>
+<li><strong>The secret.</strong> An Actions secret in
+<code>cli-state-handler</code> named
+<code>JOYMIFY_PACKAGES_READ_TOKEN</code>. Its value is a classic
+personal access token with the single scope <code>read:packages</code>,
+created by an account that can read the four packages, and authorised
+for the <code>joymify</code> organisation where the organisation
+requires it. Classic, because GitHub Packages does not accept
+fine-grained tokens (GitHub documentation, not re-read in this
+revision). The token expires; rotation is an owner task and its expiry
+date belongs in the README.</li>
+<li><strong>The workflow change, same in both files.</strong> One step
+before <code>pnpm install</code> appends the literal token line shown
+above (placeholder intact, quoted so the shell does not expand it) to
+<code>"${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"</code>. The install step
+gets
+<code>env: JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}</code>.
+In <code>release.yml</code> the user-level file is the one
+<code>actions/setup-node</code> already wrote for npmjs.com; the line is
+appended, nothing in it is replaced.</li>
+<li><strong>No <code>permissions</code> change.</strong>
+<code>packages: read</code> is not added: it governs the job token,
+which is not used for this.</li>
+<li><strong>Action versions are not touched</strong> (owned by
+I-046).</li>
+<li><strong><code>ci.yml</code> no longer “no secrets”.</strong> Its
+header comment says so today and must be corrected in the same change.
+The secret is read-only for packages and is exposed to the install step
+only.</li>
+</ul>
+<p>Coverage: the only two jobs that run <code>pnpm install</code> are
+<code>precheck</code> in <code>ci.yml</code> and <code>publish</code> in
+<code>release.yml</code>; both are covered. No later step fetches
+(<code>pnpm pack</code>, <code>pnpm --filter ... build</code> and
+<code>pnpm test</code> do not). <code>scripts/precheck.sh</code> re-runs
+<code>pnpm install</code> inside the CI job after the install step, with
+the store already filled and without the variable. Whether pnpm then
+only warns about the unresolved placeholder or fails is <strong>not
+verified</strong>; if it fails, the same <code>env</code> goes on the
+precheck step as well, and the green <code>ci.yml</code> run is what
+settles it.</p>
+<p>Pull requests that do not receive Actions secrets (forks, Dependabot)
+would fail at install. The repository is private and has no Dependabot
+configuration today, so this is recorded rather than designed for.</p>
+<p>Two consequences the owner should know about:</p>
+<ul>
+<li><strong><code>release.yml</code> installs the whole workspace, so
+its install step needs the read token too.</strong> The write-capable
+job token (<code>contents: write</code>, <code>id-token: write</code>)
+is still kept out of install, build and test, as the workflow’s own
+comment intends: the installer sees only the read-only package token.
+That is an improvement on the earlier design, which passed the job token
+to install.</li>
+<li><strong>Library publishing now depends on GitHub Packages.</strong>
+The whole-workspace install runs before publish, and root
+<code>pnpm test</code> includes the docs tests, so an expired or revoked
+token, a missing secret or a GitHub Packages outage blocks an npm
+release, against the workflow’s stated intent that a docs break must not
+block one. Recovery is the existing manual re-run of the Release
+workflow once access is back. Decoupling (installing only the libraries
+before publish and the docs afterwards) would need the release test
+scope split and is left as a separate idea.</li>
+</ul>
 <h3 id="theme-tokens-and-toggle">Theme tokens and toggle</h3>
 <p>The tokens stylesheet already does the work:
 <code>[data-theme="dark"]</code> forces dark,
@@ -928,9 +1104,11 @@ and no request leaves the origin.</p>
 <tbody>
 <tr>
 <td><code>Button</code>, <code>Badge</code>, <code>Input</code>,
-<code>MetricTile</code> via <code>@joymify/react</code></td>
-<td>same components via <code>@montionugera/joy-react</code></td>
-<td>1</td>
+<code>MetricTile</code> via <code>@joymify/react</code> through the
+alias</td>
+<td>same components, same import, from the installed
+<code>@joymify/react</code></td>
+<td>1a</td>
 </tr>
 <tr>
 <td><code>CodeBlock</code> in <code>Prose.tsx</code> (plain
@@ -992,7 +1170,7 @@ request, filed separately.</p>
 <ul>
 <li>No Mermaid library is added: the upstream renderer is in-house code
 (about 740 lines), so the cost is small.</li>
-<li><code>joy-react</code> has one entry point and
+<li><code>@joymify/react</code> has one entry point and
 <code>sideEffects: false</code>; Vite drops unused components.</li>
 <li>The markdown, code and diagram components are loaded with
 <code>React.lazy</code> from a single wrapper module, so the first page
@@ -1014,8 +1192,13 @@ is applied on load; storage that throws does not break render;
 <code>CodeBlock</code> output contains highlight spans; a flowchart
 source produces an <code>&lt;svg&gt;</code>; an unsupported diagram type
 shows its source and does not throw.</li>
-<li><strong>Release safety test:</strong> a dry run of the publish step
-proves the libraries still target npmjs.com.</li>
+<li><strong>Release safety check:</strong> with the root
+<code>.npmrc</code> in place and no token in the environment,
+<code>npm config get @montionugera:registry</code> prints
+<code>undefined</code> and
+<code>node scripts/release/next-release.mjs</code> exits 0. No new unit
+test and no change to the release script: the earlier scope flag, and
+the test asserting it, are gone with the scope clash.</li>
 <li><strong>Browser check:</strong> every route in
 <code>src/routes.ts</code> at 360px and 1280px, in light and in dark: no
 horizontal page scroll, drawer opens and closes at 360px, no console
@@ -1023,28 +1206,61 @@ errors, text legible on every surface.</li>
 </ul>
 <h2 id="risks-and-open-questions">Risks and open questions</h2>
 <ul>
-<li><strong>CI package access (highest risk).</strong> The default token
-of <code>cli-state-handler</code> cannot read private packages owned by
-<code>joy-design</code> until each of the four packages grants this
-repository access. This is a manual step by the owner in GitHub
-settings, and it is not verifiable from a local machine. If it is
-missed, <code>release.yml</code> fails at install, which <strong>blocks
-library publishing</strong>, not just the docs. Mitigation: the same
-install runs in <code>ci.yml</code> on the pull request, so a red check
-appears before merge. Do not merge on a red or skipped install.</li>
-<li><strong>Scope collision.</strong> Covered in the design; the dry-run
-check below is the guard. If the flag proves insufficient, the fallback
-is to publish from a temporary directory that has no project
-<code>.npmrc</code>.</li>
-<li><strong>Tarball contents.</strong> <code>joy-react</code> source
-declares its siblings as <code>workspace:*</code>. The published 0.2.0
-must list real versions; if it does not, install fails and the fix is
-upstream.</li>
+<li><strong>Packages not published yet (blocks everything).</strong>
+F-073 is not on <code>joy-design</code> main and nothing is on the
+registry. No phase starts until the four packages resolve (rollout step
+0). If the published versions differ from 0.2.0 / 0.3.0, the ranges in
+this spec are corrected first.</li>
+<li><strong>CI package access (highest risk once published).</strong>
+The secret <code>JOYMIFY_PACKAGES_READ_TOKEN</code> is created by the
+owner in GitHub settings; its value cannot be checked from a local
+machine, only its presence (<code>gh secret list</code>). If it is
+missing, wrong or expired, <code>release.yml</code> fails at install,
+which <strong>blocks library publishing</strong>, not just the docs.
+Mitigation: the same install runs in <code>ci.yml</code> on the pull
+request, so a red check appears before merge. Do not merge on a red or
+skipped install.</li>
+<li><strong>Token expiry.</strong> A classic token expires. An expiry
+between releases shows up as a red install on the next pull request or
+merge. Mitigation: expiry date in the README, and the fix is a new token
+in the same secret, then a re-run.</li>
+<li><strong>Release pipeline regression.</strong> The
+<code>.npmrc</code> does not map <code>@montionugera</code>, so no clash
+exists. The regression check in phase 1a guards against a later edit
+introducing one.</li>
+<li><strong>First merge is still watched.</strong> Trusted publishing
+cannot be exercised before merge. The first merge to main after phase 1a
+must be watched: install green, “Decide release” green, and a publish
+(if one is due) landing on npmjs.com. Undo is a revert of the phase 1a
+commit, which removes the <code>.npmrc</code> and the workflow
+steps.</li>
+<li><strong>pnpm versions.</strong> A committed token line is already
+ignored by current pnpm 10 and by pnpm 11; the design avoids it by
+keeping the token line in user-level config. pnpm 11 behaviour is from
+documentation only.</li>
+<li><strong>Tarball contents.</strong> <code>@joymify/react</code>
+source declares its siblings as <code>workspace:*</code>. The published
+0.2.0 must list real <code>@joymify/*</code> versions; if it does not,
+install fails and the fix is upstream.</li>
 <li><strong>Local installs now need a token.</strong>
-<code>pnpm install</code> fails with 401 unless
-<code>GITHUB_TOKEN</code> holds a token with <code>read:packages</code>.
-This affects every contributor and every agent worktree, including work
-unrelated to docs. The README must say so.</li>
+<code>pnpm install</code> fails with 401 unless the user-level
+<code>~/.npmrc</code> has the token line and
+<code>JOYMIFY_PACKAGES_READ_TOKEN</code> is exported with a token that
+has <code>read:packages</code> and can read the <code>joymify</code>
+organisation’s packages (for example
+<code>export JOYMIFY_PACKAGES_READ_TOKEN=$(gh auth token)</code> once
+the <code>gh</code> login has that scope, added with
+<code>gh auth refresh -s read:packages</code>). This affects every
+contributor and every agent worktree, including work unrelated to docs,
+and the local gates <code>scripts/precheck.sh</code> and
+<code>scripts/epic-check.sh</code>. In shells where the variable is not
+exported, npm and pnpm meet an unresolved placeholder in
+<code>~/.npmrc</code>; whether that is silent, a warning or an error in
+other projects is <strong>not verified</strong>. The fallback is to
+store the token itself with
+<code>npm config set //npm.pkg.github.com/:_authToken &lt;token&gt;</code>,
+which writes it to <code>~/.npmrc</code> in clear text. The README must
+give the one-time setup and both forms.</li>
 <li><strong>Markdown and Mermaid coverage.</strong> No lists, links or
 images; flowcharts and sequence diagrams only. Phase 3 depends on an
 upstream release.</li>
@@ -1054,45 +1270,98 @@ both sides.</li>
 <li><strong>Worktree ownership.</strong> The base worktree is owned by
 another session; the feature claim must take it over rather than edit
 beside it.</li>
-<li><strong>Open question for the owner:</strong> option A (grant
-repository access, no secret) is assumed. Say so if a stored token is
-preferred.</li>
+<li><strong>No open question on access.</strong> The owner chose the
+stored read-only token. The earlier “Manage Actions access” grant on the
+personal-account packages is void and is not requested.</li>
 </ul>
 <h2 id="rollout">Rollout</h2>
-<ol type="1">
-<li>Owner grants <code>cli-state-handler</code> read access on the four
-packages (option A).</li>
+<p>Each phase is shippable alone: after it, <code>main</code> builds,
+tests pass, and the release pipeline still publishes to npmjs.com.</p>
+<ol start="0" type="1">
+<li>Preconditions, not code changes, both owner actions. (a)
+<code>joy-design</code> F-073 reaches main and the four
+<code>@joymify/*</code> packages are published. (b) The secret
+<code>JOYMIFY_PACKAGES_READ_TOKEN</code> exists in
+<code>cli-state-handler</code>. Nothing merges before both, because the
+install in <code>ci.yml</code> cannot go green without them.</li>
 <li>Rebase <code>fix/docs-design-nav</code> onto
 <code>release/1.10</code>; resolve conflicts; record the test
 baseline.</li>
-<li>Phase 1: registry dependencies, <code>.npmrc</code>, alias removal,
-workflow changes, README. Open a draft pull request early to prove the
-install in <code>ci.yml</code>.</li>
-<li>Phase 1 continued: themes, toggle, fonts, inline styles onto
-tokens.</li>
-<li>Phase 2: <code>CodeBlock</code>, <code>PolyglotCodeTabs</code>,
-<code>Alert</code>, the Overview diagram, lazy loading.</li>
-<li>Phase 3, separate feature after the upstream release: markdown for
-release notes and tutorial prose.</li>
+<li><strong>Phase 1a, wiring.</strong> Registry dependencies,
+<code>.npmrc</code>, alias removal, the token step and <code>env</code>
+in both workflows, the <code>ci.yml</code> header comment, README. No
+change to the release script, the publish commands or the library
+manifests. Open a draft pull request first to prove the install in
+<code>ci.yml</code>. The portal looks as it does on the base branch
+(dark only). Ships alone.</li>
+<li><strong>Phase 1b, themes.</strong> Toggle, no-flash script, fonts,
+inline styles onto tokens. Depends on 1a only.</li>
+<li><strong>Phase 2, code and diagrams.</strong> <code>CodeBlock</code>,
+<code>PolyglotCodeTabs</code>, <code>Alert</code>, the Overview diagram,
+lazy loading. Depends on 1a only.</li>
+<li><strong>Phase 3</strong>, a separate feature after the upstream
+release: markdown for release notes and tutorial prose. It gets its own
+acceptance criteria when it is specified; none below belong to it.</li>
 </ol>
 <p>Each phase ends with verify, independent review, refactor, re-verify.
 Undo is a revert of the phase’s commits; nothing is published or
 migrated.</p>
 <h2 id="acceptance-criteria">Acceptance criteria</h2>
+<p>Phase 0, preconditions (owner actions, checked before any code
+change):</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />With a token that has
+<code>read:packages</code> exported as
+<code>JOYMIFY_PACKAGES_READ_TOKEN</code> and the user-level token line
+in place, each of <code>npm view @joymify/tokens@0.2.0 version</code>,
+<code>npm view @joymify/icons@0.3.0 version</code>,
+<code>npm view @joymify/brand@0.2.0 version</code> and
+<code>npm view @joymify/react@0.2.0 version</code>, run with
+<code>--@joymify:registry=https://npm.pkg.github.com</code>, prints that
+version.</label></li>
+<li><label><input
+type="checkbox" /><code>npm view @joymify/react@0.2.0 dependencies --@joymify:registry=https://npm.pkg.github.com</code>
+lists <code>@joymify/*</code> names with version ranges, none starting
+with <code>workspace:</code>.</label></li>
+<li><label><input type="checkbox" /><code>gh secret list</code> in
+<code>cli-state-handler</code> shows
+<code>JOYMIFY_PACKAGES_READ_TOKEN</code>.</label></li>
+</ul>
+<p>Phase 1a, wiring:</p>
 <ul class="task-list">
 <li><label><input
 type="checkbox" /><code>test ! -e apps/docs/joy-alias.ts</code>
 succeeds, and
-<code>grep -rn -E "@joymify/|joy-design/packages" apps/docs --include='*.ts' --include='*.tsx' --include='*.json' --exclude-dir=node_modules</code>
+<code>grep -rn -E "joy-design/packages|joy-alias|@montionugera/joy-" apps/docs --include='*.ts' --include='*.tsx' --include='*.json' --exclude-dir=node_modules</code>
 prints nothing.</label></li>
 <li><label><input
-type="checkbox" /><code>grep -n "joy-" apps/docs/package.json</code>
-shows <code>@montionugera/joy-react</code> and
-<code>@montionugera/joy-tokens</code> with version ranges, not
-<code>workspace:</code> or <code>link:</code>.</label></li>
-<li><label><input type="checkbox" />With <code>GITHUB_TOKEN</code> set,
+type="checkbox" /><code>grep -n "@joymify/" apps/docs/package.json</code>
+shows <code>@joymify/react</code> and <code>@joymify/tokens</code> with
+version ranges, not <code>workspace:</code> or <code>link:</code>, and
+<code>grep -c "@joymify/" apps/docs/tsconfig.json</code> prints
+0.</label></li>
+<li><label><input
+type="checkbox" /><code>grep -rl -E "from ['\"]@joymify/react['\"]" apps/docs/src | wc -l</code>
+prints at least 9 (the importing files keep their imports; nothing was
+renamed), and
+<code>grep -c "@joymify/tokens/theme.css" apps/docs/src/main.tsx</code>
+prints 1.</label></li>
+<li><label><input type="checkbox" /><code>cat .npmrc</code> shows
+exactly one registry line,
+<code>@joymify:registry=https://npm.pkg.github.com</code>;
+<code>grep -c '_authToken' .npmrc</code> prints 0 and
+<code>grep -c 'montionugera' .npmrc</code> prints 0.</label></li>
+<li><label><input type="checkbox" />With the user-level token line and
+<code>JOYMIFY_PACKAGES_READ_TOKEN</code> set,
 <code>pnpm install --frozen-lockfile</code> exits 0 on a fresh clone
-that has no sibling <code>joy-design</code> directory.</label></li>
+that has no sibling <code>joy-design</code> directory, and
+<code>node -p "require('./apps/docs/node_modules/@joymify/react/package.json').version"</code>
+prints <code>0.2.0</code>.</label></li>
+<li><label><input
+type="checkbox" /><code>grep -c -E "MarkdownViewer|MermaidViewer|CodeBlock|PolyglotCodeTabs|Segmented|Alert" apps/docs/node_modules/@joymify/react/dist/index.d.ts</code>
+is at least 6 (adjust the path to the package’s declared
+<code>types</code> entry), confirming the exports table against the
+published package.</label></li>
 <li><label><input type="checkbox" /><code>pnpm typecheck</code> at the
 repository root exits 0.</label></li>
 <li><label><input
@@ -1106,19 +1375,46 @@ rebase.</label></li>
 type="checkbox" /><code>pnpm --filter @ucsa/docs build</code> exits
 0.</label></li>
 <li><label><input type="checkbox" />The pull request’s
-<code>ci.yml</code> run is green, and its install step log shows
-packages fetched from <code>npm.pkg.github.com</code>.</label></li>
+<code>ci.yml</code> run is green (the runner has no cache and no sibling
+checkout, so a green install proves the registry fetch and the token
+mechanism on pnpm 10), and
+<code>grep -c "npm.pkg.github.com" .github/workflows/ci.yml .github/workflows/release.yml</code>
+is at least 1 in each file.</label></li>
 <li><label><input
-type="checkbox" /><code>grep -n "packages: read" .github/workflows/ci.yml .github/workflows/release.yml</code>
-matches in both files, and <code>gh secret list</code> shows no new
-secret (option A).</label></li>
-<li><label><input type="checkbox" />From the repository root,
-<code>npm publish --dry-run --@montionugera:registry=https://registry.npmjs.org/</code>
-on a packed <code>packages/core</code> tarball reports
-<code>registry.npmjs.org</code> as the target, and
-<code>git diff main -- .github/workflows/release.yml</code> shows the
-same flag on both the <code>npm view</code> and <code>npm publish</code>
-lines.</label></li>
+type="checkbox" /><code>grep -n "JOYMIFY_PACKAGES_READ_TOKEN" .github/workflows/ci.yml .github/workflows/release.yml</code>
+shows, in each file, the placeholder line written to the user-level
+config and the secret passed as <code>env</code> on the install step
+(plus the precheck step in <code>ci.yml</code> only if that proved
+necessary);
+<code>grep -c "packages: read" .github/workflows/ci.yml .github/workflows/release.yml</code>
+prints 0 for both;
+<code>grep -n "no secrets" .github/workflows/ci.yml</code> prints
+nothing.</label></li>
+<li><label><input
+type="checkbox" /><code>git diff &lt;rebased base&gt;..HEAD -- .github/workflows | grep -E '^[+-] *- uses:|^[+-] *uses:'</code>
+prints nothing (no action version touched).</label></li>
+<li><label><input type="checkbox" />Release regression check:
+<code>git diff --stat &lt;rebased base&gt;..HEAD -- scripts/release packages/core/package.json apps/cli/package.json</code>
+prints nothing; from the repository root with the new
+<code>.npmrc</code> present and no token in the environment,
+<code>npm config get @montionugera:registry</code> prints
+<code>undefined</code> and
+<code>node scripts/release/next-release.mjs</code> (no
+<code>--apply</code>) exits 0.</label></li>
+<li><label><input
+type="checkbox" /><code>bash scripts/epic-check.sh E-009</code> still
+passes its release-workflow assertions.</label></li>
+<li><label><input type="checkbox" />After the merge to main, the Release
+workflow run is green through install and “Decide release”, and
+<code>npm view @montionugera/ucsa-core version --registry=https://registry.npmjs.org/</code>
+run outside the repository still prints the latest released
+version.</label></li>
+<li><label><input
+type="checkbox" /><code>grep -n -E "JOYMIFY_PACKAGES_READ_TOKEN|read:packages" README.md</code>
+shows the install instructions and the token’s expiry date.</label></li>
+</ul>
+<p>Phase 1b, themes:</p>
+<ul class="task-list">
 <li><label><input
 type="checkbox" /><code>grep -c 'data-theme="dark"' apps/docs/index.html</code>
 prints 0.</label></li>
@@ -1134,6 +1430,14 @@ type="checkbox" /><code>ls apps/docs/dist/assets | grep -c -E "\.woff2$"</code>
 prints at least 2, and
 <code>grep -rn -E "fonts\.googleapis|fonts\.gstatic" apps/docs/dist</code>
 prints nothing.</label></li>
+<li><label><input type="checkbox" />Every route in
+<code>apps/docs/src/routes.ts</code>, at 360px and at 1280px, in light
+and in dark:
+<code>document.documentElement.scrollWidth &lt;= window.innerWidth</code>
+and the console shows no errors.</label></li>
+</ul>
+<p>Phase 2, code and diagrams:</p>
+<ul class="task-list">
 <li><label><input type="checkbox" />New tests pass: Joymify
 <code>CodeBlock</code> output contains at least one
 <code>joy-syntax-</code> span; <code>MermaidViewer</code> with a
@@ -1144,14 +1448,110 @@ diagram (an <code>svg</code>, not raw text) in both themes.</label></li>
 type="checkbox" /><code>grep -l "joy-mermaid" apps/docs/dist/assets/*.js</code>
 lists a file that is not the entry chunk named in
 <code>apps/docs/dist/index.html</code>.</label></li>
-<li><label><input type="checkbox" />Every route in
-<code>apps/docs/src/routes.ts</code>, at 360px and at 1280px, in light
-and in dark:
-<code>document.documentElement.scrollWidth &lt;= window.innerWidth</code>
-and the console shows no errors.</label></li>
-<li><label><input
-type="checkbox" /><code>grep -n -E "GITHUB_TOKEN|read:packages" README.md</code>
-shows the install instructions.</label></li>
+<li><label><input type="checkbox" />The route check above (360px and
+1280px, light and dark, no horizontal scroll, no console errors) is
+repeated and passes.</label></li>
+</ul>
+<h2 id="appendix-audit-trail">Appendix: audit trail</h2>
+<ul>
+<li>2026-10-09 self-grill-audit (independent, read against the source
+tree): verdict <strong>safe with fixes</strong>. Corrected:
+<ul>
+<li>CRITICAL: the spec pinned two registry calls; there are three.
+<code>scripts/release/next-release.mjs</code> runs <code>npm view</code>
+on every merge to main and throws on anything but <code>E404</code>, so
+the scope mapping would have turned the release workflow red on every
+merge. Added to current state, design and acceptance criteria.</li>
+<li>HIGH: the committed token line
+<code>_authToken=${GITHUB_TOKEN}</code> relies on placeholder expansion
+that pnpm removed from project-level <code>.npmrc</code> in v11.5.3
+(pnpm.io/npmrc). Moved the token line to user-level config; the
+committed file keeps only the scope mapping.</li>
+<li>HIGH: the manifests already had <code>publishConfig.registry</code>
+and it does not override a scope mapping (npm-registry-fetch
+<code>pickRegistry</code>). Added the
+<code>@montionugera:registry</code> key to <code>publishConfig</code> as
+a second layer, so manual publishes are covered too.</li>
+<li>HIGH: the release safety check had no <code>npm view</code> check,
+no negative control and no post-merge check. Added.</li>
+<li>HIGH: acceptance criterion “install log shows packages fetched from
+npm.pkg.github.com” is not observable (pnpm does not log registry
+hosts). Replaced with a green uncached run plus the installed
+version.</li>
+<li>HIGH: two rollout steps were both “Phase 1” and the criteria were
+not tied to phases. Split into 1a and 1b, stated what each depends on,
+grouped the criteria by phase.</li>
+<li>Recorded, not changed: the write-capable job token reaches the
+install step of <code>release.yml</code>; library publishing now depends
+on GitHub Packages. Both are owner decisions under option A.</li>
+<li>LOW: nine files import <code>@joymify/react</code>, not eight. The
+count of 54 inline styles is all inline styles on the base branch, not
+only those carrying colours.</li>
+<li>Confirmed without change: every named export exists in
+<code>joy-design</code> <code>packages/react/src/index.ts</code> at
+<code>02b1dfc8</code>; <code>MarkdownViewer</code> has no lists, links
+or images; the diagram renderer handles flowchart or graph and sequence
+diagrams only; both jobs that run <code>pnpm install</code> are covered;
+nothing installs <code>@montionugera/ucsa-*</code> from a registry.</li>
+<li>Not verified: a local <code>npm publish --dry-run</code> probe was
+not permitted in the audit session, so the precedence facts rest on npm
+and pnpm source and docs; the phase 1a criteria prove them. Whether pnpm
+keeps <code>publishConfig</code> in a packed tarball, and the GitHub
+“Manage Actions access” grant, are likewise proved only by those
+criteria.</li>
+<li>Open: option A versus a stored read-only token (see “Risks and open
+questions”).</li>
+</ul></li>
+<li>2026-10-09 (late) revision for a changed owner decision, recorded in
+<code>research.md</code> (“packages move to <code>@joymify</code>”). Not
+a new audit; the earlier findings stand except where listed.
+<ul>
+<li>Renamed throughout: the dependencies are
+<code>@joymify/tokens</code> 0.2.0, <code>@joymify/icons</code> 0.3.0,
+<code>@joymify/brand</code> 0.2.0 and <code>@joymify/react</code> 0.2.0,
+private, organisation <code>joymify</code> on GitHub Packages
+(<code>joy-design</code> F-073, release 3.8). Stated as <strong>to be
+published</strong>; resolving from the registry is now rollout step 0
+with its own acceptance checks.</li>
+<li>Removed: the scope-clash mitigation from the first audit (CRITICAL
+and two HIGH items above). The registry line is
+<code>@joymify:registry=...</code> and does not touch
+<code>@montionugera</code>, so the three explicit npmjs.com flags
+(<code>release.yml</code> <code>npm view</code> and
+<code>npm publish</code>,
+<code>scripts/release/next-release.mjs:41</code>), the
+<code>"@montionugera:registry"</code> key in <code>publishConfig</code>,
+the negative-control publish dry runs and the unit test for the flag are
+all dropped. Replaced by one regression check
+(<code>npm config get @montionugera:registry</code> is
+<code>undefined</code>, and the release script’s dry run exits 0).</li>
+<li>Changed: CI access is a classic <code>read:packages</code> token in
+the Actions secret <code>JOYMIFY_PACKAGES_READ_TOKEN</code>. The “Manage
+Actions access” grant route, <code>packages: read</code>, and the option
+A / option B question are removed. Side effect: the write-capable job
+token no longer reaches the install step of
+<code>release.yml</code>.</li>
+<li>Kept and tightened: the token line stays out of the committed
+<code>.npmrc</code>. Re-read of the pnpm documentation found the
+placeholder restriction also applies to pnpm 10 from v10.34.2 (not only
+pnpm 11 from v11.5.3), so a committed line would already fail on the CI
+runner. The user-level placeholder line is documented to work on
+both.</li>
+<li>Simplified: alias removal no longer renames imports; the base branch
+already imports <code>@joymify/react</code> in nine files.</li>
+<li>Kept without change: phases each shippable alone, the exports table
+and the limits of <code>MarkdownViewer</code> and
+<code>MermaidViewer</code>, fonts, the sidebar decision, the 360px
+checks, the coupling of library releases to GitHub Packages. Workflow
+action versions are left to I-046.</li>
+<li>Not verified in this revision: that F-073 keeps the exports of
+<code>02b1dfc8</code> (checked in phase 1a); pnpm 10 and 11 placeholder
+behaviour beyond the documentation (pnpm 10 proved by the green
+<code>ci.yml</code> run, pnpm 11 not exercised); how npm and pnpm treat
+the unresolved placeholder when the variable is not exported; that
+GitHub Packages still rejects fine-grained tokens; the
+<code>types</code> path used in the exports check.</li>
+</ul></li>
 </ul>
 </body>
 </html>
