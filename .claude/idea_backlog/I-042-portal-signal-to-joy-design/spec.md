@@ -21,6 +21,5 @@ See the epic spec: `.claude/epic_backlog/E-009-merge-to-release-pipeline-publish
 
 ## Acceptance criteria
 
-Every step of Task 4 is checked off with its expected output observed, the task is committed, and its phase gate (verify, independent review, simplify, re-verify) has passed.
-
-The portal signal check from Task 4 passes, and the workflow logs a warning and succeeds when `PORTAL_DISPATCH_TOKEN` is absent.
+- [ ] Every step of Task 4 is checked off with its expected output observed, the task is committed, and its phase gate (verify, independent review, simplify, re-verify) has passed.
+- [ ] The portal signal check from Task 4 passes, and the workflow logs a warning and succeeds when `PORTAL_DISPATCH_TOKEN` is absent.

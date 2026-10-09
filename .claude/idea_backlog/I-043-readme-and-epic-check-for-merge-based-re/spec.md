@@ -21,6 +21,5 @@ See the epic spec: `.claude/epic_backlog/E-009-merge-to-release-pipeline-publish
 
 ## Acceptance criteria
 
-Every step of Task 5 is checked off with its expected output observed, the task is committed, and its phase gate (verify, independent review, simplify, re-verify) has passed.
-
-Epic verification assertions 1 to 5 (`verification.md`) all pass via `scripts/epic-check.sh E-009`.
+- [ ] Every step of Task 5 is checked off with its expected output observed, the task is committed, and its phase gate (verify, independent review, simplify, re-verify) has passed.
+- [ ] Epic verification assertions 1 to 5 (`verification.md`) all pass via `scripts/epic-check.sh E-009`.

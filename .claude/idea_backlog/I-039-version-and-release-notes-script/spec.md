@@ -21,6 +21,5 @@ See the epic spec: `.claude/epic_backlog/E-009-merge-to-release-pipeline-publish
 
 ## Acceptance criteria
 
-Every step of Task 1 is checked off with its expected output observed, the task is committed, and its phase gate (verify, independent review, simplify, re-verify) has passed.
-
-Epic verification assertions 1 and 2 (`verification.md`) hold for this slice.
+- [ ] Every step of Task 1 is checked off with its expected output observed, the task is committed, and its phase gate (verify, independent review, simplify, re-verify) has passed.
+- [ ] Epic verification assertions 1 and 2 (`verification.md`) hold for this slice.
