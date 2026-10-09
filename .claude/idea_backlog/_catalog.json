@@ -274,7 +274,7 @@
     "id": "I-040",
     "title": "Release-on-merge workflow",
     "created_at": "2026-10-09T08:57:56.321006+00:00",
-    "promoted_to": null,
+    "promoted_to": "F-039",
     "epic": "E-009"
   },
   {
