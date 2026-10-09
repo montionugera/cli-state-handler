@@ -521,9 +521,10 @@
     "title": "Version and release-notes script",
     "from_idea": "I-039",
     "created_at": "2026-10-09T09:22:13.403618+00:00",
-    "claimed_by": null,
-    "status": "open",
+    "claimed_by": "claude-a6c35399",
+    "status": "claimed",
     "release_version": null,
-    "epic": "E-009"
+    "epic": "E-009",
+    "claimed_at": "2026-10-09T09:22:29.789872+00:00"
   }
 ]
