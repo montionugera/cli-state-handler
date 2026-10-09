@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Merge-to-release pipeline: publish, portal docs, release notes</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07090d;
+      --surface: #10141b;
+      --surface-2: #161b24;
+      --surface-3: #1b212c;
+      --border: #2a3340;
+      --border-soft: #1c232e;
+      --ink: #d6dde7;
+      --ink-bright: #f6f8fb;
+      --ink-dim: #8392a3;
+      --accent: #4ee39b;
+      --accent-dim: #2f8f63;
+      --amber: #ffc746;
+      --amber-dim: #a37a1a;
+      --blue: #74b0ff;
+      --blue-dim: #3a5d8a;
+      --red: #ff6b6b;
+      --red-dim: #a14242;
+      --purple: #b288ff;
+      --purple-dim: #7a4dc5;
+      --teal: #4ed2c8;
+      --teal-dim: #347e7a;
+      --serif-display: "Fraunces", Georgia, serif;
+      --serif-body: "Spectral", Georgia, serif;
+      --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: var(--serif-body);
+      font-size: 19.5px;
+      line-height: 1.66;
+      color: var(--ink);
+      background: var(--bg);
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 64px 30px 160px;
+      counter-reset: sec;
+      animation: riseIn .55s cubic-bezier(.2,.7,.2,1) both;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body::before {
+      content: "";
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(900px 500px at 80% -10%, rgba(78,227,155,.10), transparent 62%),
+        radial-gradient(720px 520px at -4% 110%, rgba(255,199,70,.055), transparent 60%),
+        linear-gradient(rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 100% 30px,
+        linear-gradient(90deg, rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 30px 100%;
+    }
+
+    @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    /* ---------- headings ---------- */
+    h1, h2, h3, h4 { font-family: var(--serif-display); color: var(--ink-bright); line-height: 1.16; letter-spacing: -.012em; font-weight: 600; }
+    h1 {
+      font-size: 3.2rem; font-weight: 700; margin: 0 0 .25em; letter-spacing: -.028em;
+      background: linear-gradient(180deg, #ffffff, #afb9c5);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    h2 {
+      counter-increment: sec;
+      font-size: 2rem; margin: 2.8em 0 .7em; padding-top: .65em;
+      border-top: 1px solid var(--border-soft);
+      display: flex; align-items: baseline; gap: .55em; flex-wrap: wrap;
+      font-weight: 700;
+    }
+    h2::before {
+      content: "§" counter(sec, decimal-leading-zero);
+      font-family: var(--mono); font-size: .74rem; font-weight: 600;
+      color: var(--accent); letter-spacing: .04em;
+      border: 1px solid var(--accent-dim); border-radius: 6px;
+      padding: .3em .55em; transform: translateY(-.22em);
+      background: rgba(78,227,155,.06);
+    }
+    h3 { font-size: 1.42rem; margin: 2.1em 0 .55em; color: var(--ink-bright); font-weight: 600; }
+    h3 code { font-size: .88em; }
+    h4 { font-size: 1.1rem; margin: 1.5em 0 .4em; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-family: var(--mono); font-weight: 600; }
+
+    p { margin: .95em 0; }
+    strong { color: var(--ink-bright); font-weight: 600; }
+    em { color: #d4dce6; }
+
+    mark {
+      background: linear-gradient(180deg, rgba(255,199,70,.0) 60%, rgba(255,199,70,.32) 60%);
+      color: var(--ink-bright); padding: 0 .2em; border-radius: 3px;
+    }
+
+    /* ---------- links ---------- */
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(78,227,155,.32); transition: border-color .15s, color .15s; }
+    a:hover { color: #8af0c2; border-bottom-color: var(--accent); }
+
+    /* ---------- inline code & code blocks ---------- */
+    code { font-family: var(--mono); font-size: .85em; background: var(--surface-2); color: #e0ecf6; padding: .14em .45em; border-radius: 5px; border: 1px solid var(--border-soft); }
+    pre {
+      position: relative; font-size: .82rem; line-height: 1.62;
+      background: linear-gradient(180deg, #0e1219, #0a0d13);
+      border: 1px solid var(--border); border-radius: 11px;
+      padding: 20px 20px 18px; margin: 1.4em 0; overflow-x: auto;
+      box-shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 18px 44px -28px rgba(0,0,0,.9);
+    }
+    pre::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--accent), transparent); border-radius: 11px 0 0 11px; opacity: .6; }
+    pre code { background: none; border: none; padding: 0; color: #d3e4f3; font-size: 1em; }
+
+    kbd { font-family: var(--mono); font-size: .82em; background: var(--surface-2); border: 1px solid var(--border); border-bottom-width: 2px; padding: 2px 8px; border-radius: 6px; color: var(--ink-bright); box-shadow: 0 1px 0 var(--border-soft); }
+
+    /* ---------- tables ---------- */
+    table { border-collapse: collapse; width: 100%; margin: 1.4em 0; font-size: .87rem; font-family: var(--mono); }
+    th, td { border: 1px solid var(--border); padding: 11px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--surface); color: var(--ink-bright); font-weight: 600; border-bottom: 2px solid var(--accent-dim); text-transform: uppercase; font-size: .76rem; letter-spacing: .08em; }
+    tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+    tr:hover td { background: rgba(78,227,155,.04); }
+    td code { font-size: .94em; }
+    td strong { color: var(--amber); }
+
+    /* ---------- lists ---------- */
+    ul, ol { padding-left: 1.5em; margin: .9em 0; }
+    li { margin: .4em 0; }
+    li::marker { color: var(--accent-dim); font-weight: 600; }
+    ul ul, ol ol, ul ol, ol ul { margin: .3em 0; }
+
+    /* ---------- blockquote (used by pandoc) ---------- */
+    blockquote { border-left: 3px solid var(--accent-dim); margin: 1.2em 0; padding: .2em 0 .2em 18px; color: var(--ink-dim); font-style: italic; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 2.6em 0; }
+
+    /* ---------- masthead (h1 + first p) ---------- */
+    h1 + p { font-family: var(--mono); font-size: .82rem; color: var(--ink-dim); line-height: 2; letter-spacing: .02em; border-bottom: 1px solid var(--border-soft); padding-bottom: 1.2em; }
+    h1 + p strong { color: var(--amber); font-weight: 500; }
+
+    /* ---------- TOC ---------- */
+    #TOC {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 22px; margin: 1.8em 0 2.4em; font-family: var(--mono); font-size: .78rem;
+    }
+    #TOC::before { content: "CONTENTS"; display: block; color: var(--accent); letter-spacing: .22em; font-size: .7rem; margin-bottom: .7em; font-weight: 600; }
+    #TOC ul { list-style: none; padding-left: 0; margin: 0; }
+    #TOC > ul > li { margin: .22em 0; }
+    #TOC ul ul { padding-left: 1.1em; border-left: 1px solid var(--border-soft); margin: .25em 0 .5em; }
+    #TOC a { color: var(--ink); border: none; }
+    #TOC a:hover { color: var(--accent); }
+
+    @media (min-width: 1320px) {
+      #TOC {
+        position: fixed; top: 0; left: 0; bottom: 0; width: 300px; margin: 0;
+        border-radius: 0; border: none; border-right: 1px solid var(--border);
+        padding: 64px 28px; overflow-y: auto;
+        background: linear-gradient(180deg, rgba(13,17,23,.92), rgba(8,10,14,.92));
+        backdrop-filter: blur(6px);
+      }
+      body { max-width: 1320px; padding-left: 360px; }
+    }
+
+    /* ============================================================
+       CALLOUTS — info / warn / success / danger / idea / metric
+       Use via:
+         ::: callout-warn
+         **Heading**
+         body text
+         :::
+       or raw <div class="callout warn"> ... </div>
+       ============================================================ */
+    /* Robust layout: icon is absolutely positioned and the content is padded.
+       (An earlier `display:grid` + `.callout > * { grid-column: 2 }` approach broke
+       when pandoc emitted loose prose as bare text nodes — those became anonymous
+       grid items that fell into the icon column and wrapped one word per line.
+       Absolute icon + padding flows ANY content structure correctly: loose text,
+       multiple inline elements, nested lists.) */
+    .callout {
+      position: relative;
+      margin: 1.7em 0;
+      padding: 18px 22px 16px 58px;
+      border-radius: 13px;
+      border: 1px solid var(--callout-border, var(--border));
+      border-left-width: 4px;
+      background: var(--callout-bg, var(--surface));
+    }
+    .callout::before {
+      content: var(--callout-icon, "·");
+      position: absolute;
+      left: 14px; top: 16px;
+      width: 30px; text-align: center;
+      font-size: 28px; line-height: 1.1;
+      color: var(--callout-accent, var(--accent));
+    }
+    .callout > * { min-width: 0; margin-top: 0; }
+    .callout > * + * { margin-top: .55em; }
+    .callout > p:first-child strong:first-child {
+      display: block;
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--callout-accent, var(--ink-bright));
+      letter-spacing: -.01em;
+      margin-bottom: .35em;
+    }
+    .callout p { line-height: 1.55; }
+    .callout code { background: rgba(0,0,0,.28); border-color: rgba(255,255,255,.06); }
+
+    .callout.info,    .callout-info    { --callout-border: var(--blue-dim);   --callout-bg: rgba(116,176,255,.08);   --callout-accent: var(--blue);   --callout-icon: "ℹ"; }
+    .callout.warn,    .callout-warn    { --callout-border: var(--amber-dim);  --callout-bg: rgba(255,199,70,.09);    --callout-accent: var(--amber);  --callout-icon: "⚠"; }
+    .callout.success, .callout-success { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.08);    --callout-accent: var(--accent); --callout-icon: "✓"; }
+    .callout.danger,  .callout-danger  { --callout-border: var(--red-dim);    --callout-bg: rgba(255,107,107,.09);   --callout-accent: var(--red);    --callout-icon: "✕"; }
+    .callout.idea,    .callout-idea    { --callout-border: var(--purple-dim); --callout-bg: rgba(178,136,255,.08);   --callout-accent: var(--purple); --callout-icon: "✦"; }
+    .callout.metric,  .callout-metric  { --callout-border: var(--teal-dim);   --callout-bg: rgba(78,210,200,.08);    --callout-accent: var(--teal);   --callout-icon: "Σ"; }
+    .callout.action,  .callout-action  { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.04);    --callout-accent: var(--accent); --callout-icon: "▸"; }
+
+    /* ============================================================
+       METRIC TILES — grid of big-number cards
+       Use via raw HTML:
+         <div class="metric-grid">
+           <div class="metric-tile alarm">
+             <div class="label">Pass all gates</div>
+             <div class="value">21%</div>
+             <div class="delta">39 / 187 results</div>
+           </div>
+         </div>
+       Variants: .alarm (red), .win (green), .info (blue), .warn (amber)
+       ============================================================ */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin: 1.5em 0;
+    }
+    .metric-tile {
+      background: linear-gradient(180deg, var(--surface), var(--bg));
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--tile-accent, var(--accent));
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .metric-tile .label {
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .14em;
+      color: var(--ink-dim);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .metric-tile .value {
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 2.55rem;
+      color: var(--tile-accent, var(--ink-bright));
+      line-height: 1;
+      letter-spacing: -.025em;
+    }
+    .metric-tile .delta {
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--ink-dim);
+    }
+    .metric-tile.alarm { --tile-accent: var(--red); }
+    .metric-tile.win   { --tile-accent: var(--accent); }
+    .metric-tile.info  { --tile-accent: var(--blue); }
+    .metric-tile.warn  { --tile-accent: var(--amber); }
+    .metric-tile.teal  { --tile-accent: var(--teal); }
+    .metric-tile.dim .value { color: var(--ink-bright); }
+
+    /* ============================================================
+       TOPIC CHIP — colored pill that can appear next to H2 text
+       ============================================================ */
+    .topic-chip {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .16em;
+      color: var(--bg);
+      background: var(--accent);
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-weight: 700;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+    .topic-chip.warn   { background: var(--amber); }
+    .topic-chip.danger { background: var(--red);   color: #fff; }
+    .topic-chip.info   { background: var(--blue);  color: var(--bg); }
+    .topic-chip.idea   { background: var(--purple); color: #fff; }
+    .topic-chip.teal   { background: var(--teal);  color: var(--bg); }
+
+    /* ============================================================
+       PULL QUOTE
+       ============================================================ */
+    .pullquote {
+      font-family: var(--serif-display);
+      font-size: 1.55rem;
+      font-weight: 500;
+      line-height: 1.38;
+      color: var(--ink-bright);
+      border-left: 4px solid var(--accent);
+      padding: 4px 0 4px 22px;
+      margin: 1.8em 0;
+      letter-spacing: -.012em;
+    }
+
+    /* ============================================================
+       SCHEMATIC — ASCII box-drawing diagrams, monospace canvas
+       Use via:
+         <div class="schematic">
+         ┌─────────┐    ┌─────────┐
+         │ Phase 0 │ ─→ │ Phase 1 │
+         └─────────┘    └─────────┘
+         </div>
+       ============================================================ */
+    .schematic {
+      font-family: var(--mono);
+      font-size: .86rem;
+      line-height: 1.4;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 28px;
+      margin: 1.6em 0;
+      color: #cfdcec;
+      white-space: pre;
+      overflow-x: auto;
+      position: relative;
+    }
+    .schematic::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--teal), transparent); border-radius: 12px 0 0 12px; opacity: .6; }
+
+    /* ============================================================
+       RAW SVG / inline diagrams
+       ============================================================ */
+    .diagram, svg.diagram, .figure {
+      display: block; margin: 1.6em auto; max-width: 100%;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 22px 14px;
+    }
+    .figure-caption {
+      text-align: center; font-family: var(--mono); font-size: .76rem;
+      color: var(--ink-dim); margin-top: -.6em; margin-bottom: 1.6em;
+      letter-spacing: .04em;
+    }
+
+    /* ============================================================
+       MERMAID block — bigger frame, softer glow
+       ============================================================ */
+    .mermaid {
+      margin: 1.6em 0; text-align: center;
+      background: linear-gradient(180deg, #0e1320, #0a0d13);
+      border: 1px solid var(--border); border-radius: 13px;
+      padding: 24px 14px;
+      box-shadow: 0 18px 50px -36px rgba(78,227,155,.55) inset;
+    }
+    .mermaid svg { max-width: 100%; height: auto; }
+
+    /* Hide pandoc's title-block if present */
+    #title-block-header { display: none; }
+
+    /* ============================================================
+       UTILITY ROW — two-up / three-up adjacent blocks
+       ============================================================ */
+    .row {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1fr;
+      margin: 1.5em 0;
+    }
+    .row.two { grid-template-columns: 1fr 1fr; }
+    .row.three { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 760px) {
+      .row.two, .row.three { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    const render = () => {
+      const blocks = new Set();
+      document.querySelectorAll('pre.mermaid, pre.sourceCode.mermaid').forEach((p) => blocks.add(p));
+      document.querySelectorAll('code.mermaid, code.language-mermaid').forEach((c) => {
+        const pre = c.closest('pre'); if (pre) blocks.add(pre);
+      });
+      blocks.forEach((pre) => {
+        const div = document.createElement('div');
+        div.className = 'mermaid';
+        div.textContent = pre.textContent.trim();
+        pre.replaceWith(div);
+      });
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        securityLevel: 'loose',
+        fontFamily: 'IBM Plex Mono, monospace',
+        themeVariables: {
+          background: '#0a0d13',
+          primaryColor: '#1a212c',
+          primaryTextColor: '#f0f3f7',
+          primaryBorderColor: '#4ee39b',
+          lineColor: '#6c7a8b',
+          secondaryColor: '#191e28',
+          tertiaryColor: '#11161e',
+          tertiaryBorderColor: '#2a3340',
+          clusterBkg: 'rgba(78,227,155,.05)',
+          clusterBorder: '#2f8f63',
+          titleColor: '#4ee39b',
+          actorBkg: '#1a212c',
+          actorBorder: '#4ee39b',
+          actorTextColor: '#f0f3f7',
+          signalColor: '#9aa7b6',
+          signalTextColor: '#d3dbe5',
+          noteBkgColor: 'rgba(255,199,70,.14)',
+          noteBorderColor: '#ffc746',
+          noteTextColor: '#f6f8fb',
+          fontSize: '14px'
+        }
+      });
+      mermaid.run();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
+    else render();
+  </script>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Merge-to-release pipeline: publish, portal docs,
+release notes</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a
+href="#merge-to-release-pipeline-publish-portal-docs-release-notes"
+id="toc-merge-to-release-pipeline-publish-portal-docs-release-notes">Merge-to-release
+pipeline: publish, portal docs, release notes</a>
+<ul>
+<li><a href="#outcome" id="toc-outcome">Outcome</a></li>
+<li><a href="#where-we-start-verified-2026-10-09"
+id="toc-where-we-start-verified-2026-10-09">Where we start <span
+class="topic-chip">verified 2026-10-09</span></a></li>
+<li><a href="#decisions" id="toc-decisions">Decisions</a></li>
+<li><a href="#how-a-release-flows" id="toc-how-a-release-flows">How a
+release flows</a></li>
+<li><a href="#failure-handling" id="toc-failure-handling">Failure
+handling</a></li>
+<li><a href="#slices" id="toc-slices">Slices</a></li>
+<li><a href="#out-of-scope" id="toc-out-of-scope">Out of scope</a></li>
+<li><a href="#open-points-to-settle-inside-the-slices"
+id="toc-open-points-to-settle-inside-the-slices">Open points to settle
+inside the slices</a></li>
+<li><a href="#appendix-audit-trail"
+id="toc-appendix-audit-trail">Appendix — audit trail</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1
+id="merge-to-release-pipeline-publish-portal-docs-release-notes">Merge-to-release
+pipeline: publish, portal docs, release notes</h1>
+<div class="callout info">
+<p><strong>In one sentence.</strong> Merging to <code>main</code> is the
+whole release: the libraries are versioned and published, the docs and
+playgrounds appear on the developer portal, and release notes are
+written, with no manual step.</p>
+</div>
+<h2 id="outcome">Outcome</h2>
+<p>Once every slice has shipped, a merge to <code>main</code> of
+<code>cli-state-handler</code> that contains a real change does all of
+the following without anyone touching a terminal:</p>
+<ol type="1">
+<li>Picks the next version of <code>@montionugera/ucsa-core</code> and
+<code>@montionugera/ucsa-cli</code> (they move together).</li>
+<li>Writes the release notes into <code>CHANGELOG.md</code>, commits the
+bump back to <code>main</code>, and tags it.</li>
+<li>Publishes both packages to npmjs.com through trusted publishing (no
+token).</li>
+<li>Creates a GitHub Release carrying the notes and the built docs site
+as one archive.</li>
+<li>Makes the developer portal at
+<code>https://dev.joymify.com/cli-state-handler/</code> serve that docs
+build, including a public “Release notes” page.</li>
+</ol>
+<div class="metric-grid">
+<div class="metric-tile">
+<strong>0</strong><br>manual steps per release
+</div>
+<div class="metric-tile">
+<strong>0</strong><br>extra servers in the cluster
+</div>
+<div class="metric-tile">
+<strong>3</strong><br>places release notes land
+</div>
+</div>
+<h2 id="where-we-start-verified-2026-10-09">Where we start <span
+class="topic-chip">verified 2026-10-09</span></h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Area</th>
+<th>Today</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Publish</td>
+<td>Works, token-free, but only when someone pushes a <code>v*</code>
+tag after bumping versions by hand
+(<code>.github/workflows/release.yml</code>; <code>v0.1.1</code> is
+live).</td>
+</tr>
+<tr>
+<td>Docs and playgrounds</td>
+<td>Built by <code>apps/docs</code> (Vite + React; playgrounds are
+components inside it). <code>.github/workflows/docs.yml</code> tries
+GitHub Pages on every merge and fails, because Pages is off.</td>
+</tr>
+<tr>
+<td>Where docs really live</td>
+<td>The <code>joy-design</code> repo serves <code>dev.joymify.com</code>
+from one web server in the cluster. It holds a hand-copied build of
+these docs in
+<code>apps/storybook-hub/portal-bundles/cli-state-handler</code>.
+Nothing refreshes it.</td>
+</tr>
+<tr>
+<td>Release notes</td>
+<td>None. No changelog, no GitHub Releases.</td>
+</tr>
+<tr>
+<td>Release catalog</td>
+<td><code>.claude/refined_backlog/_catalog.json</code> lists every
+feature with <code>id</code>, <code>title</code> and
+<code>release_version</code>. It is the reliable record of what a
+planned release contains. The merge commit is titled
+<code>release 1.8</code> (older, direct promotes, empty body) or
+<code>release 1.9 (#N)</code> (pull-request promotes, body holding every
+commit message). At that commit the release’s features already carry
+<code>release_version</code> with status <code>shipped</code>; they turn
+<code>promoted</code> one commit later.</td>
+</tr>
+<tr>
+<td>Branch state</td>
+<td><code>release/1.9</code> forked before today’s publishing work. It
+still has the old package name <code>@ucsa/core</code> and no
+<code>release.yml</code>.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="decisions">Decisions</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Choice</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>What triggers a release</td>
+<td>Every merge to <code>main</code></td>
+<td>Chosen by the user: add a feature, merge, done.</td>
+</tr>
+<tr>
+<td>How docs reach the portal</td>
+<td>The portal stays one server and downloads each library’s docs
+archive when it builds</td>
+<td>The user asked for a small memory footprint; a server per library
+was rejected for that reason.</td>
+</tr>
+<tr>
+<td>Where notes go</td>
+<td><code>CHANGELOG.md</code>, a GitHub Release, and a page in the
+portal docs</td>
+<td>The repo is private, so the portal page is the only copy outsiders
+can read. Default taken without asking.</td>
+</tr>
+<tr>
+<td>Tooling</td>
+<td>One small script in this repo, not an off-the-shelf release
+tool</td>
+<td>Off-the-shelf tools read commit titles; a planned release here
+arrives as one commit titled <code>release 1.9</code>, so they would see
+nothing. The catalog has to be read.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="how-a-release-flows">How a release flows</h2>
+<p>Two separate flows, kept apart on purpose: the first must be fast and
+safe to re-run; the second is slower and may fail without undoing the
+first.</p>
+<p><strong>Flow A: library release (this repo)</strong></p>
+<pre class="mermaid"><code>flowchart LR
+  M[Merge to main] --&gt; D{Real change?}
+  D -- no --&gt; X[Stop: nothing released]
+  D -- yes --&gt; V[Pick version and write notes]
+  V --&gt; C[Commit bump and tag]
+  C --&gt; P[Publish both packages]
+  P --&gt; R[GitHub Release with docs archive]
+  R --&gt; S[Signal the portal]</code></pre>
+<p><strong>Flow B: portal refresh (<code>joy-design</code>
+repo)</strong></p>
+<pre class="mermaid"><code>flowchart LR
+  S[Signal received] --&gt; F[Download latest docs archive per library]
+  F -- download fails --&gt; K[Use the committed copy]
+  F --&gt; B[Build the one portal image]
+  K --&gt; B
+  B --&gt; O[Roll out and smoke-test]</code></pre>
+<h3 id="picking-the-version">Picking the version</h3>
+<p>The script looks at every commit on <code>main</code> since the last
+<code>v*</code> tag, not only the commit that started the run. GitHub
+keeps a single waiting run per queue, so a run started by a later
+housekeeping commit must still find the release commit before it.</p>
+<ul>
+<li><strong>Planned release</strong> (a commit in that range titled
+<code>release X.Y</code> or <code>release X.Y (#N)</code>): the features
+in the catalog whose <code>release_version</code> is <code>X.Y</code>,
+whatever their status, are the notes. The commit body is ignored on this
+path. One or more features means a feature-level bump; a planned release
+with no features is a fix-level bump with the note “maintenance
+release”.</li>
+<li><strong>Any other merge</strong> (a hotfix or a direct pull
+request): the commit types in its title and body are the notes.
+<code>feat</code> is a feature-level bump, <code>fix</code> and
+<code>perf</code> are a fix-level bump.</li>
+<li><strong>Already bumped, not yet published</strong> (the version in
+<code>package.json</code> has a tag but is missing from the registry):
+no new version; publish that one. This is what makes a re-run after a
+failed publish work.</li>
+<li><strong>Housekeeping only</strong> (<code>chore</code>,
+<code>docs</code>, <code>ci</code>, <code>test</code>, and the
+workflow’s own <code>finalize ... cleanup</code> commit): no
+release.</li>
+<li><strong>Breaking change</strong> (a <code>!</code> after the type,
+or <code>BREAKING CHANGE</code> in the body): the next major version,
+except while the version is below 1.0, where it is a feature-level
+bump.</li>
+</ul>
+<p>Both packages always get the same version.</p>
+<h3 id="committing-the-bump">Committing the bump</h3>
+<p>The workflow commits <code>CHANGELOG.md</code> and the two
+<code>package.json</code> files back to <code>main</code> with
+<code>[skip ci]</code>, then tags <code>v&lt;version&gt;</code>. Because
+the planned-release flow pushes a second commit seconds after the merge,
+runs are queued one at a time and the workflow rebases onto the latest
+<code>main</code> before pushing. <code>main</code> has no branch
+protection or rulesets today, so the push is allowed once the workflow
+is given write access to repository contents.</p>
+<div class="callout danger">
+<p><strong>Do not break the publishing trust.</strong> npmjs.com trusts
+the workflow file named <code>release.yml</code> with no environment.
+Changing its trigger is safe. Renaming the file, moving the publish step
+into a shared workflow, or adding an <code>environment:</code> to the
+job would make every publish fail.</p>
+</div>
+<div class="callout warn">
+<p><strong>Side effect to accept.</strong> <code>main</code> gains a
+commit the local release tooling did not make, so <code>psrw
+sync-main</code> is needed before starting the next release. The tooling
+already reports this as “behind origin/main”.</p>
+</div>
+<h3 id="handing-the-docs-to-the-portal">Handing the docs to the
+portal</h3>
+<p>The docs are built after the packages are published, so a docs
+problem can never block a library release. The build is archived from
+inside <code>apps/docs/dist</code> (it is already built for the
+<code>/cli-state-handler/</code> path) and attached to the GitHub
+Release as <code>docs-site.tgz</code>. The docs embed the released
+version in a small <code>version.json</code> so the portal can be
+checked for the right build. Then this repo starts the portal’s deploy
+workflow.</p>
+<p>On the portal side, a step in its pipeline, before the image is
+built, downloads the latest archive for each library and unpacks it over
+the committed copy in
+<code>apps/storybook-hub/portal-bundles/&lt;library&gt;</code>. The
+image build itself is unchanged. If the download fails, the committed
+copy is simply still there, so the docs section is never empty.</p>
+<h2 id="failure-handling">Failure handling</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>What fails</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tests or build</td>
+<td>Nothing is committed, tagged or published.</td>
+</tr>
+<tr>
+<td>Publish</td>
+<td>The bump commit and tag exist but the registry does not have the
+version. Starting the workflow again by hand on <code>main</code> hits
+the “already bumped, not yet published” rule and publishes it; a version
+already on the registry is skipped.</td>
+</tr>
+<tr>
+<td>Docs build</td>
+<td>Packages are published. No docs archive is attached and the portal
+is not signalled, so it keeps the previous docs. The run is red.</td>
+</tr>
+<tr>
+<td>GitHub Release or signal</td>
+<td>Packages are published. The run is red; starting it again repeats
+only the missing steps.</td>
+</tr>
+<tr>
+<td>Portal build or rollout</td>
+<td>The portal keeps serving the previous docs. The failure shows in
+<code>joy-design</code>, not here.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="slices">Slices</h2>
+<p>Before any slice: bring <code>release/1.9</code> up to date with
+<code>main</code> (<code>psrw sync-main</code>), because the publishing
+workflow and the package rename exist only on <code>main</code>.</p>
+<ol type="1">
+<li>Version and release-notes script: reads the commits since the last
+tag and the catalog, returns the next version and the changelog entry,
+covered by unit tests for every rule in “Picking the version”.</li>
+<li>Release-on-merge workflow: runs the script, commits the bump, tags,
+publishes, then builds the docs and creates the GitHub Release with
+<code>docs-site.tgz</code>; removes the tag trigger and the failing
+GitHub Pages workflow. Keeps the file name <code>release.yml</code> and
+adds no environment.</li>
+<li>Release notes page in the docs site, rendered from
+<code>CHANGELOG.md</code>, plus the <code>version.json</code>
+marker.</li>
+<li>Portal signal: start the <code>joy-design</code> deploy workflow
+after a successful release.</li>
+<li>README and epic check: document the release flow and extend the
+existing <code>scripts/epic-check.sh</code> with the pre-merge
+assertions in <code>verification.md</code>.</li>
+</ol>
+<p><strong>Needed from other repos (not slices of this
+epic):</strong></p>
+<ul>
+<li><code>joy-design</code>: download docs archives in its pipeline
+before the image build, skip the Flutter build when the run was started
+by a library release (today a manually started run always builds
+Flutter), and make its production smoke test compare
+<code>version.json</code>. Tracked as its own work item there. Slice 4
+and the portal assertion cannot be proven until it ships.</li>
+<li>An access credential that lets this repo start the portal workflow
+and lets the portal read this repo’s releases; the built-in Actions
+token can do neither across repos. Only the repo owner can create it.
+The <code>gh-secrets</code> repo, which distributes such secrets, has no
+entry for either repo yet.</li>
+</ul>
+<h2 id="out-of-scope">Out of scope</h2>
+<ul>
+<li><code>node-server-decorator</code> adopting the same pipeline, and
+<code>joy-design</code> publishing its <code>@joymify</code> packages to
+npmjs.com. Both are agreed goals with their own specs to follow.
+Publishing <code>@joymify</code> packages first needs proof that the
+<code>@joymify</code> name on npmjs.com belongs to the owner.</li>
+<li>The docs visual design and navigation, owned by separate work in
+<code>fix/docs-design-nav</code>.</li>
+<li><code>zen-ui</code>.</li>
+</ul>
+<h2 id="open-points-to-settle-inside-the-slices">Open points to settle
+inside the slices</h2>
+<ul>
+<li>The narrowest permission the credential needs to start a workflow in
+another private repo (slice 4).</li>
+<li>When one release is promoted and the next is started in a single
+chain, the next release branch is cut before the bump commit lands, so
+it starts one commit behind <code>main</code>. Accepted;
+<code>psrw sync-main</code> closes it.</li>
+<li>No architecture drawing in draw.io format was produced for this
+spec; the two flowcharts above are its diagrams.</li>
+</ul>
+<h2 id="appendix-audit-trail">Appendix — audit trail</h2>
+<ul>
+<li>2026-10-09 self-grill-audit: verdict safe-with-fixes. Corrected:
+release commit title now matches both promote styles; version is derived
+from all commits since the last tag (a queued run could otherwise be
+replaced and a release dropped); added the “already bumped, not yet
+published” rule so re-runs work; added syncing <code>release/1.9</code>
+with <code>main</code> as a precondition; recorded the
+<code>release.yml</code> file-name constraint of the npm trust; moved
+the docs build after publish and added it to the failure table; portal
+download moved to a pipeline step before the image build; added
+<code>version.json</code> so the portal build is checkable;
+<code>verification.md</code> split into pre-merge and post-merge checks;
+catalog open point closed (confirmed on the 1.8 merge commit).
+Spot-checked by the author: stale <code>release/1.9</code>, existing
+<code>scripts/epic-check.sh</code>, squash-merge setting. Not
+independently re-checked: the claim that the release tool runs the epic
+check before the merge. Open: the cross-repo credential (owner must
+create it); <code>joy-design</code> work item not yet opened.</li>
+</ul>
+</body>
+</html>

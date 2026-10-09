@@ -262,5 +262,40 @@
     "title": "Adopt the Joymify design system in the docs portal",
     "created_at": "2026-10-09T06:12:18.506769+00:00",
     "promoted_to": null
+  },
+  {
+    "id": "I-039",
+    "title": "Version and release-notes script",
+    "created_at": "2026-10-09T08:57:56.318367+00:00",
+    "promoted_to": null,
+    "epic": "E-009"
+  },
+  {
+    "id": "I-040",
+    "title": "Release-on-merge workflow",
+    "created_at": "2026-10-09T08:57:56.321006+00:00",
+    "promoted_to": null,
+    "epic": "E-009"
+  },
+  {
+    "id": "I-041",
+    "title": "Release notes page and version marker in docs",
+    "created_at": "2026-10-09T08:57:56.321710+00:00",
+    "promoted_to": null,
+    "epic": "E-009"
+  },
+  {
+    "id": "I-042",
+    "title": "Portal signal to joy-design",
+    "created_at": "2026-10-09T08:57:56.322260+00:00",
+    "promoted_to": null,
+    "epic": "E-009"
+  },
+  {
+    "id": "I-043",
+    "title": "README and epic check for merge-based releases",
+    "created_at": "2026-10-09T08:57:56.322919+00:00",
+    "promoted_to": null,
+    "epic": "E-009"
   }
 ]
