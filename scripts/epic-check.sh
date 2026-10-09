@@ -88,16 +88,12 @@ else
   fail 7 "apps/docs/tests/parity.test.tsx missing or lacks the SUBSYSTEMS list / platform loop / one-row-per-subsystem assertions (arrives with F-035)"
 fi
 
-# 8. Pages workflow exists, parses as YAML, references apps/docs
-if python3 -c '
-import sys, yaml
-d = yaml.safe_load(open(".github/workflows/docs.yml"))
-assert isinstance(d, dict) and "jobs" in d
-assert "apps/docs" in open(".github/workflows/docs.yml").read()
-' 2>/dev/null; then
-  pass 8 ".github/workflows/docs.yml parses as YAML and references apps/docs"
+# 8. Docs are built and attached by the release workflow; no GitHub Pages workflow
+if [ ! -e .github/workflows/docs.yml ] && grep -q "docs-site.tgz" .github/workflows/release.yml \
+   && grep -q "@ucsa/docs build" .github/workflows/release.yml; then
+  pass 8 "release.yml builds apps/docs and attaches docs-site.tgz; no Pages workflow"
 else
-  fail 8 ".github/workflows/docs.yml missing, invalid YAML, or does not reference apps/docs"
+  fail 8 "release.yml does not build and attach the docs, or docs.yml still exists"
 fi
 
 # 9. README names every route title and the four commands

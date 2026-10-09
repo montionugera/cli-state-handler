@@ -1593,9 +1593,9 @@ The sidebar groups are derived from each route's `group` in order of first appea
 
 To add a page, add one line to `routes` in `apps/docs/src/routes.ts` plus your own component and CSS files. Do not otherwise edit `App.tsx` or `index.css` (a convention stated in `routes.ts`, not enforced). Use `Prose`, `Callout` and `CodeBlock` from `src/components/Prose.tsx` for text pages.
 
-### Deploying (GitHub Pages)
+### Deploying
 
-`.github/workflows/docs.yml` runs on every push to `main` (and manually): it installs with pnpm, builds `@montionugera/ucsa-core`, runs the `apps/docs` tests, builds `apps/docs`, uploads `apps/docs/dist` as the Pages artifact and deploys it. The build uses the base path `/cli-state-handler/`, so the site is served at `https://<owner>.github.io/cli-state-handler/`. The repository currently has no git remote and no CI, so the workflow exists as a file only and has never run; to use it, add a remote and set Settings > Pages > Source to "GitHub Actions". See `docs/handoff/ucsa-docs-portal.md` for state and follow-ups, and `scripts/epic-check.sh E-008` for the epic's automated verification.
+The docs are not deployed from this repo directly. On every release, `.github/workflows/release.yml` builds `apps/docs`, attaches the build to the GitHub Release as `docs-site.tgz`, and signals the developer portal (`dev.joymify.com/cli-state-handler/`, served from the `joy-design` repo). The base path stays `/cli-state-handler/`. See "Publishing".
 
 ---
 
