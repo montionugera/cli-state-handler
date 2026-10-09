@@ -541,5 +541,15 @@
     "claimed_at": "2026-10-09T09:50:19.119159+00:00",
     "shipped_at": "2026-10-09T10:02:01.168930+00:00",
     "shipped_sha": "30ee523469f5ce5d8b2cc39ca12d9306c8e572c5"
+  },
+  {
+    "id": "F-040",
+    "title": "Release notes page and version marker in docs",
+    "from_idea": "I-041",
+    "created_at": "2026-10-09T10:02:12.135380+00:00",
+    "claimed_by": null,
+    "status": "open",
+    "release_version": null,
+    "epic": "E-009"
   }
 ]

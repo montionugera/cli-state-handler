@@ -281,7 +281,7 @@
     "id": "I-041",
     "title": "Release notes page and version marker in docs",
     "created_at": "2026-10-09T08:57:56.321710+00:00",
-    "promoted_to": null,
+    "promoted_to": "F-040",
     "epic": "E-009"
   },
   {
