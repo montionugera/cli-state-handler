@@ -295,7 +295,7 @@
     "id": "I-043",
     "title": "README and epic check for merge-based releases",
     "created_at": "2026-10-09T08:57:56.322919+00:00",
-    "promoted_to": null,
+    "promoted_to": "F-042",
     "epic": "E-009"
   }
 ]
