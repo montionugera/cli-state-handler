@@ -3,7 +3,8 @@ name: Release
 # Publishes @montionugera/ucsa-core and @montionugera/ucsa-cli to npmjs.com via
 # trusted publishing (OIDC). No npm token is stored anywhere: npmjs trusts this
 # workflow (owner montionugera, repo cli-state-handler, workflow release.yml,
-# environment blank). Needs npm >= 11.5.1.
+# environment blank). Needs npm >= 11.5.1. Re-runnable: a package version that is
+# already on the registry is skipped, so a half-finished publish can be re-run.
 on:
   push:
     tags: ['v*']
@@ -28,23 +29,42 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Check tag matches package versions
+        if: github.ref_type == 'tag'
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          for pkg in packages/core apps/cli; do
+            have="$(node -p "require('./$pkg/package.json').version")"
+            if [ "$have" != "$want" ]; then
+              echo "::error::tag $GITHUB_REF_NAME ($want) != $pkg/package.json version ($have)"
+              exit 1
+            fi
+          done
+
       - run: pnpm install --frozen-lockfile
 
+      # Only the published packages (and the workspace deps they need); a
+      # docs-site break must not block a release.
       - name: Build
-        run: pnpm -r build
+        run: pnpm --filter "@montionugera/ucsa-cli..." build
 
       - name: Unit tests
         run: pnpm test
 
       - name: Publish to npmjs.com (trusted publishing)
         run: |
-          npm install -g npm@latest
+          npm install -g npm@^11.5.1
           mkdir -p "$RUNNER_TEMP/npmjs"
           # pnpm pack rewrites workspace:* to the real version; npm uploads
           # (the OIDC exchange lives in the npm CLI). Core before cli.
           for dir in packages/core apps/cli; do
+            name="$(node -p "require('./$dir/package.json').name")"
+            version="$(node -p "require('./$dir/package.json').version")"
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "skip: $name@$version is already on the registry"
+              continue
+            fi
+            rm -f "$RUNNER_TEMP"/npmjs/*.tgz
             (cd "$dir" && pnpm pack --pack-destination "$RUNNER_TEMP/npmjs")
-          done
-          for tgz in "$RUNNER_TEMP"/npmjs/montionugera-ucsa-core-*.tgz "$RUNNER_TEMP"/npmjs/montionugera-ucsa-cli-*.tgz; do
-            npm publish "$tgz" --access public
+            npm publish "$RUNNER_TEMP"/npmjs/*.tgz --access public
           done

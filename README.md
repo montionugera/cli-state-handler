@@ -2662,13 +2662,20 @@ UnityEngine.Debug.Log($"Completed story: {finalStory}");
 
 `@montionugera/ucsa-core` and `@montionugera/ucsa-cli` are published to npmjs.com by `.github/workflows/release.yml` using npm trusted publishing (OIDC). No npm token is stored.
 
-**Cutting a release**
+**First publish (one-time, manual)**
 
-1. Bump `version` in both `packages/core/package.json` and `apps/cli/package.json` (keep them equal, and keep the cli dependency on core as `workspace:*`).
-2. Commit, then tag: `git tag vX.Y.Z`.
-3. Push the tag: `git push origin vX.Y.Z`. The workflow builds, runs the unit tests, packs both packages with `pnpm pack`, and publishes core before cli.
+A trusted publisher can only be attached to a package that already exists on npmjs.com, so the very first publish of each package is done by the maintainer from a laptop:
 
-**One-time setup on npmjs.com** (for each of the two packages, under Settings, Trusted Publisher, GitHub Actions):
+```bash
+npm login
+pnpm install --frozen-lockfile && pnpm --filter "@montionugera/ucsa-cli..." build
+(cd packages/core && pnpm pack --pack-destination /tmp/ucsa-pack)
+(cd apps/cli && pnpm pack --pack-destination /tmp/ucsa-pack)
+npm publish /tmp/ucsa-pack/montionugera-ucsa-core-0.1.0.tgz --access public   # core first
+npm publish /tmp/ucsa-pack/montionugera-ucsa-cli-0.1.0.tgz --access public
+```
+
+Then, for each of the two packages on npmjs.com (Settings, Trusted Publisher, GitHub Actions), configure:
 
 | Field | Value |
 | --- | --- |
@@ -2676,6 +2683,21 @@ UnityEngine.Debug.Log($"Completed story: {finalStory}");
 | Repository | `cli-state-handler` |
 | Workflow filename | `release.yml` |
 | Environment | (blank) |
+
+and tick "Allow npm publish". From then on every release is token-free.
+
+**Cutting a release**
+
+1. Bump `version` in both `packages/core/package.json` and `apps/cli/package.json` (keep them equal, and keep the cli dependency on core as `workspace:*`).
+2. Commit, then tag: `git tag vX.Y.Z`.
+3. Push the tag: `git push origin vX.Y.Z`.
+
+The workflow first fails fast if the tag (without the `v`) differs from either package's `version` (skipped on manual `workflow_dispatch` runs). It then builds only the two published packages (`pnpm --filter "@montionugera/ucsa-cli..." build`, so a docs-site break cannot block a release), runs the unit tests, installs `npm@^11.5.1`, and for core and then cli packs with `pnpm pack` and publishes with `npm publish`. A `name@version` already on the registry is skipped with a log line, so re-running the workflow after a half-finished publish is safe.
+
+**Requirements and notes**
+
+- Node >= 22.14 and npm >= 11.5.1 (the workflow uses Node 22 and installs `npm@^11.5.1`).
+- The repository is private, so npm generates no provenance attestation for these releases.
 
 ---
 
