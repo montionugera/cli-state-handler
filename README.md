@@ -1545,7 +1545,7 @@ $ node apps/cli/bin/ucsa.js tutorial --dry-run
 
 ## Interactive Storybook Tutorial & Live Documentation Studio (`apps/docs`)
 
-`apps/docs` (package `@ucsa/docs`) is a standalone, hash-routed documentation portal built with React 19 and Vite. Each page is an interactive visualiser of one UCSA subsystem. The portal runs entirely in the browser against the browser-safe entry of `@ucsa/core` (`packages/core/src/browser.ts`); it never touches SQLite or the filesystem.
+`apps/docs` (package `@ucsa/docs`) is a standalone, hash-routed documentation portal built with React 19 and Vite. Each page is an interactive visualiser of one UCSA subsystem. The portal runs entirely in the browser against the browser-safe entry of `@montionugera/ucsa-core` (`packages/core/src/browser.ts`); it never touches SQLite or the filesystem.
 
 ### Pages
 
@@ -1567,7 +1567,7 @@ The pages are the entries of the `routes` array in `apps/docs/src/routes.ts` (th
 | WAL Storage | `#/wal` | Visualisers | Labelled simulation of SQLite WAL: readers, checkpoint, crash recovery, rollback-journal mode. |
 | TS / Dart / Unity C# | `#/multiplatform` | Guides | Per-subsystem code snippets for TypeScript, Dart and C#, as tabs or side by side; each names its source file. |
 | Platform Parity Matrix | `#/parity` | Guides | Table of how much of each subsystem exists per platform (full / partial / none), with reasons and source files. |
-| TypeScript Sandbox | `#/sandbox` | Sandbox | Editable TypeScript with presets; Run executes it against `@ucsa/core` in a sandboxed iframe (`allow-scripts` only) and shows console output and errors. Types are stripped, not checked. |
+| TypeScript Sandbox | `#/sandbox` | Sandbox | Editable TypeScript with presets; Run executes it against `@montionugera/ucsa-core` in a sandboxed iframe (`allow-scripts` only) and shows console output and errors. Types are stripped, not checked. |
 
 An unknown hash renders a not-found page. The sandbox is not a network-isolation guarantee; the page says so.
 
@@ -1595,7 +1595,7 @@ To add a page, add one line to `routes` in `apps/docs/src/routes.ts` plus your o
 
 ### Deploying (GitHub Pages)
 
-`.github/workflows/docs.yml` runs on every push to `main` (and manually): it installs with pnpm, builds `@ucsa/core`, runs the `apps/docs` tests, builds `apps/docs`, uploads `apps/docs/dist` as the Pages artifact and deploys it. The build uses the base path `/cli-state-handler/`, so the site is served at `https://<owner>.github.io/cli-state-handler/`. The repository currently has no git remote and no CI, so the workflow exists as a file only and has never run; to use it, add a remote and set Settings > Pages > Source to "GitHub Actions". See `docs/handoff/ucsa-docs-portal.md` for state and follow-ups, and `scripts/epic-check.sh E-008` for the epic's automated verification.
+`.github/workflows/docs.yml` runs on every push to `main` (and manually): it installs with pnpm, builds `@montionugera/ucsa-core`, runs the `apps/docs` tests, builds `apps/docs`, uploads `apps/docs/dist` as the Pages artifact and deploys it. The build uses the base path `/cli-state-handler/`, so the site is served at `https://<owner>.github.io/cli-state-handler/`. The repository currently has no git remote and no CI, so the workflow exists as a file only and has never run; to use it, add a remote and set Settings > Pages > Source to "GitHub Actions". See `docs/handoff/ucsa-docs-portal.md` for state and follow-ups, and `scripts/epic-check.sh E-008` for the epic's automated verification.
 
 ---
 

@@ -10,7 +10,7 @@ export const timing: Guide = {
     sources: [`${CORE}/query/query-engine.ts`, `${CORE}/consumer/observer.ts`],
     code: `// Checked against: packages/core/src/query/query-engine.ts (fetchQuery debounceMs),
 // packages/core/src/consumer/observer.ts (createSelectorObserver)
-import { createSelectorObserver } from "@ucsa/core";
+import { createSelectorObserver } from "@montionugera/ucsa-core";
 
 // 1. Observer: limit how often listeners are told about the selected slice.
 const fpsObserver = createSelectorObserver(

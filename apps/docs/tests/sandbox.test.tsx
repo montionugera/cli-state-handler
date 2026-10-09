@@ -44,14 +44,14 @@ describe("transpile", () => {
 });
 
 describe("frame program", () => {
-  it("resolves import from @ucsa/core against the inlined bundle and allows top-level await", async () => {
+  it("resolves import from @montionugera/ucsa-core against the inlined bundle and allows top-level await", async () => {
     const out = logs(
-      await runCode('import { hashQueryKey } from "@ucsa/core";\nawait Promise.resolve();\nconsole.log(typeof hashQueryKey);')
+      await runCode('import { hashQueryKey } from "@montionugera/ucsa-core";\nawait Promise.resolve();\nconsole.log(typeof hashQueryKey);')
     );
     expect(out).toEqual(["function"]);
   });
 
-  it("rejects imports of anything other than @ucsa/core", async () => {
+  it("rejects imports of anything other than @montionugera/ucsa-core", async () => {
     const messages = await runCode('import fs from "fs";\nconsole.log(fs);');
     expect(messages).toContainEqual(expect.objectContaining({ type: "error", text: expect.stringContaining("fs") }));
   });

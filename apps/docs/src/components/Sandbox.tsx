@@ -162,7 +162,7 @@ export function Sandbox({ limitMs = RUN_LIMIT_MS }: { limitMs?: number }) {
       core = (await import("virtual:ucsa-core-iife")).default;
     } catch (err) {
       if (runId !== runCounter.current) return;
-      addError(`Could not load the @ucsa/core bundle: ${err instanceof Error ? err.message : String(err)}`);
+      addError(`Could not load the @montionugera/ucsa-core bundle: ${err instanceof Error ? err.message : String(err)}`);
       setStatus("idle");
       return;
     }
@@ -230,7 +230,7 @@ export function Sandbox({ limitMs = RUN_LIMIT_MS }: { limitMs?: number }) {
     <div className="sbx">
       <h1>TypeScript Sandbox</h1>
       <p className="sbx-lead">
-        Edit TypeScript, press Run, and watch real <code>@ucsa/core</code> execute in your browser. Types are stripped,
+        Edit TypeScript, press Run, and watch real <code>@montionugera/ucsa-core</code> execute in your browser. Types are stripped,
         not checked.
       </p>
 
@@ -336,7 +336,7 @@ export function Sandbox({ limitMs = RUN_LIMIT_MS }: { limitMs?: number }) {
             Your code runs in a sandboxed frame with no access to this page, its storage or its origin. The frame's content
             security policy blocks direct <code>fetch</code>, <code>XMLHttpRequest</code> and <code>WebSocket</code> calls,
             but this is not a full network-isolation guarantee; a run that navigates the frame away is ended. Only{" "}
-            <code>import ... from "@ucsa/core"</code> is available; other imports fail.
+            <code>import ... from "@montionugera/ucsa-core"</code> is available; other imports fail.
           </li>
           <li>
             Each run uses a fresh frame. A run still going after {limitMs / 1000} seconds is ended by discarding the

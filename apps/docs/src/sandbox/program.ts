@@ -57,8 +57,8 @@ if (__g.addEventListener) {
   __g.addEventListener("unhandledrejection", function (ev) { __report(ev.reason); });
 }
 var __require = function (name) {
-  if (name === "@ucsa/core") return UcsaCore;
-  throw new Error('Cannot import "' + name + '": only "@ucsa/core" is available in the sandbox');
+  if (name === "@montionugera/ucsa-core") return UcsaCore;
+  throw new Error('Cannot import "' + name + '": only "@montionugera/ucsa-core" is available in the sandbox');
 };
 `;
 

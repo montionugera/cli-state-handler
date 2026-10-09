@@ -1,5 +1,5 @@
-import { LifecycleFSM } from "@ucsa/core";
-import type { QueryStatus } from "@ucsa/core";
+import { LifecycleFSM } from "@montionugera/ucsa-core";
+import type { QueryStatus } from "@montionugera/ucsa-core";
 
 export const LIFECYCLE_STATES: readonly QueryStatus[] = ["idle", "loading", "success", "retrying", "error"];
 

@@ -12,7 +12,7 @@
  *  - Completing a mutation is not fenced by lease owner: a worker whose lease was taken
  *    over can still settle the row by id.
  */
-import type { ConflictPolicy, OutboxMutation, OutboxMutationStatus } from "@ucsa/core";
+import type { ConflictPolicy, OutboxMutation, OutboxMutationStatus } from "@montionugera/ucsa-core";
 
 export type { ConflictPolicy, OutboxMutation, OutboxMutationStatus };
 
