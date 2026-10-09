@@ -2658,6 +2658,27 @@ UnityEngine.Debug.Log($"Completed story: {finalStory}");
 
 ---
 
+## Publishing
+
+`@montionugera/ucsa-core` and `@montionugera/ucsa-cli` are published to npmjs.com by `.github/workflows/release.yml` using npm trusted publishing (OIDC). No npm token is stored.
+
+**Cutting a release**
+
+1. Bump `version` in both `packages/core/package.json` and `apps/cli/package.json` (keep them equal, and keep the cli dependency on core as `workspace:*`).
+2. Commit, then tag: `git tag vX.Y.Z`.
+3. Push the tag: `git push origin vX.Y.Z`. The workflow builds, runs the unit tests, packs both packages with `pnpm pack`, and publishes core before cli.
+
+**One-time setup on npmjs.com** (for each of the two packages, under Settings, Trusted Publisher, GitHub Actions):
+
+| Field | Value |
+| --- | --- |
+| Owner | `montionugera` |
+| Repository | `cli-state-handler` |
+| Workflow filename | `release.yml` |
+| Environment | (blank) |
+
+---
+
 ## Development & Verification
 
 ### Verified Test Coverage Metrics
