@@ -3,7 +3,7 @@ import {
   MutationOutbox,
   type ConflictPolicy,
   type OutboxMutation,
-} from '@ucsa/core';
+} from '@montionugera/ucsa-core';
 
 export interface OutboxCommandOptions {
   db?: string;

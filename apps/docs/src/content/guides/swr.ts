@@ -9,7 +9,7 @@ export const swr: Guide = {
     available: true,
     sources: [`${CORE}/query/query-engine.ts`, `${CORE}/storage/sqlite-adapter.ts`],
     code: `// Checked against: packages/core/src/query/query-engine.ts (useQuery, fetchQuery)
-import { QueryEngine, SqliteAdapter } from "@ucsa/core";
+import { QueryEngine, SqliteAdapter } from "@montionugera/ucsa-core";
 
 const sqlite = new SqliteAdapter("./app-cache.db");
 const engine = new QueryEngine({ sqliteAdapter: sqlite, defaultStaleTime: 5000 });

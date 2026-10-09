@@ -10,7 +10,7 @@ export const ucb1: Guide = {
     sources: [`${CORE}/ipc/bus-hub.ts`, `${CORE}/ipc/bus-client.ts`, `${CORE}/ipc/frame-codec.ts`],
     code: `// Checked against: packages/core/src/ipc/bus-hub.ts (BusHub.electOrConnect),
 // packages/core/src/ipc/bus-client.ts (BusClient.connect, publish, subscribeEvents)
-import { BusHub, BusClient } from "@ucsa/core";
+import { BusHub, BusClient } from "@montionugera/ucsa-core";
 
 // The first process to elect itself owns the hub; the others get role 'client'.
 const hub = new BusHub({ sqliteAdapter: sqlite });

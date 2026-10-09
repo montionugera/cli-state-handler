@@ -10,7 +10,7 @@ export const presets: Preset[] = [
     id: "first-query",
     title: "First query",
     description: "fetchQuery runs the function once; the second call is served from the cache while the entry is fresh.",
-    code: `import { QueryEngine } from "@ucsa/core";
+    code: `import { QueryEngine } from "@montionugera/ucsa-core";
 
 const engine = new QueryEngine({ defaultStaleTime: 1000 });
 let calls = 0;
@@ -32,7 +32,7 @@ console.log("status:", engine.getQueryState(["user", 1])?.status);
     title: "Stale-while-revalidate",
     description:
       "A fetched entry is fresh until defaultStaleTime (1000 ms here) has passed since its fetch resolved, then stale. Reading a fresh entry returns the cached data with isFetching false and starts no fetch; reading a stale one returns the old data at once with isFetching true and refetches in the background. The fresh read happens right after the first fetch resolves, and the code waits for each fetch by subscribing to the query rather than sleeping, so only the one stale-time sleep depends on the clock (a throttled tab only makes it longer, which is still stale).",
-    code: `import { QueryEngine } from "@ucsa/core";
+    code: `import { QueryEngine } from "@montionugera/ucsa-core";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -70,7 +70,7 @@ console.log("4 after revalidation:", stale.getSnapshot().data);
     id: "debounce",
     title: "Debounce",
     description: "Rapid debounceQuery calls for the same key collapse into one queryFn run that all callers share.",
-    code: `import { QueryEngine, debounceQuery } from "@ucsa/core";
+    code: `import { QueryEngine, debounceQuery } from "@montionugera/ucsa-core";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -98,7 +98,7 @@ console.log("results:", results);
     id: "selector-observer",
     title: "Selector observer",
     description: "The observer notifies only when the selected slice (the name) changes, not when other fields do.",
-    code: `import { QueryEngine, createSelectorObserver } from "@ucsa/core";
+    code: `import { QueryEngine, createSelectorObserver } from "@montionugera/ucsa-core";
 
 type Profile = { name: string; visits: number };
 

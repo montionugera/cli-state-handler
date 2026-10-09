@@ -10,7 +10,7 @@ export const wal: Guide = {
     sources: [`${CORE}/storage/sqlite-adapter.ts`, `${CORE}/cli/durability.ts`],
     code: `// Checked against: packages/core/src/storage/sqlite-adapter.ts (journalMode, checkpoint),
 // packages/core/src/cli/durability.ts (registerExitFlush)
-import { SqliteAdapter, registerExitFlush } from "@ucsa/core";
+import { SqliteAdapter, registerExitFlush } from "@montionugera/ucsa-core";
 
 // journalMode defaults to WAL for files and MEMORY for ':memory:'.
 const sqlite = new SqliteAdapter("./app.db", { journalMode: "WAL" });

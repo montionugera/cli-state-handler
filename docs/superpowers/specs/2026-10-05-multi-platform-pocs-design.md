@@ -23,7 +23,7 @@ This specification formalizes the concrete, runnable **Proof of Concept (POC) im
                 v                                 v                                 v
 +-------------------------------+ +-------------------------------+ +-------------------------------+
 |     F-006: Node / TS CLI      | |    F-007: Dart / Flutter      | |     F-008: C# Unity Engine    |
-|   (apps/cli -> @ucsa/core)    | |     (packages/ucsa_dart)      | |  (packages/com.ucsa.unity)    |
+|   (apps/cli -> @montionugera/ucsa-core)    | |     (packages/ucsa_dart)      | |  (packages/com.ucsa.unity)    |
 +-------------------------------+ +-------------------------------+ +-------------------------------+
 | - Commander CLI binary        | - Pure Dart 3 sealed classes    | - C# 9+ Unity Package (UPM)     |
 | - SQLite WAL disk DB          | - package:sqlite3 FFI + WASM    | - UniTask async + R3 reactivity |

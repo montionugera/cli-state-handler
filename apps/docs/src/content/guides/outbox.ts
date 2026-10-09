@@ -9,7 +9,7 @@ export const outbox: Guide = {
     available: true,
     sources: [`${CORE}/query/mutation-outbox.ts`, `${CORE}/types.ts`],
     code: `// Checked against: packages/core/src/query/mutation-outbox.ts (MutationOutbox, enqueue, replay)
-import { MutationOutbox } from "@ucsa/core";
+import { MutationOutbox } from "@montionugera/ucsa-core";
 
 const outbox = new MutationOutbox({
   sqliteAdapter: sqlite,

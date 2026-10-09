@@ -12,7 +12,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@ucsa/core": path.resolve(import.meta.dirname, "../../packages/core/src/browser.ts")
+      "@montionugera/ucsa-core": path.resolve(import.meta.dirname, "../../packages/core/src/browser.ts")
     }
   }
 });

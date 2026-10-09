@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { SqliteAdapter } from '@ucsa/core';
+import { SqliteAdapter } from '@montionugera/ucsa-core';
 
 export interface StatusCommandOptions {
   db?: string;

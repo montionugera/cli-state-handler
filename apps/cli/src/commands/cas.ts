@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { CasStore, SqliteAdapter } from '@ucsa/core';
+import { CasStore, SqliteAdapter } from '@montionugera/ucsa-core';
 
 export interface CasCommandOptions {
   dir?: string;

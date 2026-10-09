@@ -1,5 +1,5 @@
 import React, { useId, useState } from "react";
-import type { QueryStatus } from "@ucsa/core";
+import type { QueryStatus } from "@montionugera/ucsa-core";
 import { LIFECYCLE_EDGES, LIFECYCLE_STATES, applyEdge, attemptOf, findEdge, fsmAt } from "../models/lifecycle-graph.js";
 import "./LifecycleGraph.css";
 
