@@ -3,3 +3,8 @@ declare module "virtual:ucsa-core-iife" {
   const source: string;
   export default source;
 }
+
+declare module "*.md?raw" {
+  const text: string;
+  export default text;
+}
