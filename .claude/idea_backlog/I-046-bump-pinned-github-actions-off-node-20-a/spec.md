@@ -57,17 +57,30 @@ Checked with read-only `gh api` calls on 2026-10-09: release notes of every majo
 
 ## Verification plan
 
-The release decision script `scripts/release/next-release.mjs` publishes only when it prints `action=release` or `action=publish-only`. Reading `scripts/release/lib.mjs`: a commit releases only if its subject is `release <major.minor>` or if its subject or any body line starts with `feat`, `fix` or `perf` (or carries `!`). A `ci:` commit yields `action=none`, and every publishing step is skipped. Run on `main` today it prints `action=none` and `version=0.2.0`.
+The release decision script `scripts/release/next-release.mjs` publishes only when it prints `action=release` or `action=publish-only`. Reading `scripts/release/lib.mjs`: a commit releases only if its subject is `release <major.minor>` or if its subject or any body line starts with `feat`, `fix` or `perf` (or carries `!`). A `ci:` commit yields `action=none`. Run on `main` today it prints `action=none` and `version=0.2.0`.
+
+`action=none` skips only two steps: commit-and-tag and the npm publish. The docs archive upload (`gh release upload --clobber`) and the developer-portal signal are gated on a different test, "is `docs-site.tgz` missing from the GitHub Release", and that test reads any `gh` error as "missing". Today release v0.2.0 has the asset, so they are skipped too, but not by the decision.
 
 Three checks, in order, all before the change is shipped into the release:
 
-1. **Pull-request check.** Open a draft pull request from the feature branch to `main` (never merged; closed afterwards). `ci.yml` runs only for pull requests into `main`. It proves the three new actions check out, install pnpm 10, set up Node.js 22, install with the frozen lockfile (including `better-sqlite3`) and pass the Gate 1 script `scripts/precheck.sh`.
+1. **Pull-request check.** Open a draft pull request from the feature branch to `main` (never merged; closed afterwards; keep it a draft, because merging it would put release 1.10's `feat` commits on `main` and publish). `ci.yml` runs only for pull requests into `main`. It proves the three new actions check out, install pnpm 10, set up Node.js 22, install with the frozen lockfile (including `better-sqlite3`) and pass the Gate 1 script `scripts/precheck.sh`.
 2. **Ubuntu 26 trial.** On that same draft pull request, push one temporary commit changing `runs-on` in `ci.yml` to `ubuntu-26.04`, read the result, then revert it with a second commit. The final diff stays at six lines.
-3. **Release rehearsal without publishing.** Start `release.yml` by hand from the feature branch: `gh workflow run release.yml --ref <feature-branch>`. GitHub then uses the branch's copy of the workflow (new pins) while the job still checks out `main` (`ref: main` is hard-coded), where the decision is `action=none`. Precondition, checked immediately before: `node scripts/release/next-release.mjs` on an up-to-date `main` prints `action=none`. If it prints anything else, do not start the rehearsal. The rehearsal also runs I-038's workflow edits, because the branch sits on top of them.
+3. **Release rehearsal, built so it cannot publish.** Never start `release.yml` from the feature branch itself. A hand-started run uses the branch's workflow file but checks out whatever `main` is at that moment (`ref: main`); `main` has no branch protection, the job's token can push to it, and npmjs.com trusts the workflow file name only (its trusted-publisher form has no branch field). An unmodified branch run is therefore one stray `feat` or `fix` merge on `main` away from a permanent publish made by unreviewed pins. Instead create a throwaway branch `rehearsal/i-046` from the feature branch with one extra commit, in `release.yml` only:
+   - `contents: write` becomes `contents: read`, and the `id-token: write` line is deleted, so no push, no asset upload and no identity exchange with npmjs.com is possible. Any other permission line is left alone.
+   - `if: false` replaces the condition on the four steps with outside effects: "Commit version bump and tag", "Publish to npmjs.com (trusted publishing)", "GitHub Release", "Signal the developer portal" (the last uses its own secret, which the permission change does not disarm).
 
-**What cannot be proven without a real release:** the "Commit version bump and tag" step and the "Publish to npmjs.com" step (the token-free identity exchange with npmjs.com) never run when the decision is `action=none`. Their first run on the new pins is the release 1.10 merge itself. Research finds no change that reaches either step, and the workflow is built to be re-run after a failed publish.
+   Push it (a branch push does not start `release.yml`) and run `gh workflow run release.yml --ref rehearsal/i-046`. The throwaway branch is never merged and never opened as a pull request; delete it afterwards.
+   - **Run A (new pins, today's `main` files).** `ref: main` stays. Second barrier, checked immediately before: `git fetch origin --tags && git switch --detach origin/main && node scripts/release/next-release.mjs` prints `action=none`, and `gh release view v0.2.0 --json assets -q '.assets[].name'` prints `docs-site.tgz`. Otherwise do not start. Proves checkout, pnpm, setup-node, install and the "Decide release" registry read.
+   - **Run B (new pins, release 1.10 files).** Run A pairs I-038's workflow edits with `main`'s files, which lack I-038's `.npmrc`, lockfile and script changes, so it says nothing about the two together. Add a second throwaway commit changing `ref: main` to `ref: rehearsal/i-046` and start it again. The decision may be `action=release`; that only edits files inside the runner. Build and unit tests run; nothing leaves the runner.
 
-**Rollback.** Before shipping: `git revert <pin-commit>` on the feature branch. After release 1.10 is on `main`: a hotfix pull request to `main` whose only commit is that revert, subject `ci: revert action pins`; being a `ci:` commit, its merge prints `action=none` and publishes nothing.
+**What cannot be proven without a real release:** the push in "Commit version bump and tag" and the token-free identity exchange in "Publish to npmjs.com" never run in a rehearsal. Their first run on the new pins is the release 1.10 merge itself: its subject `release 1.10 (#N)` always releases, so that merge publishes a new permanent version through the new pins. Research finds no change that reaches either step; that is a reading, not a test.
+
+**Rollback.** Before shipping: `git revert <pin-commit>` on the feature branch. After release 1.10 is on `main`: a hotfix pull request to `main` whose only commit is that revert, subject `ci: revert action pins`. What its merge does depends on how far the release got:
+
+- Release 1.10 fully published: prints `action=none`, publishes nothing.
+- Failed before the push (nothing tagged, nothing published): `release 1.10` is still newer than the last tag, so the hotfix merge prints `action=release` and performs the 1.10 release on the old pins. This is intended, not an accident.
+- Failed after the push (tag exists, one or both packages missing from npmjs.com): prints `action=publish-only` and publishes the tagged version on the old pins, skipping a package already there.
+- "Re-run jobs" is not a rollback: it reuses the failed run's workflow file, so it repeats the new pins. It only helps a transient failure. Never delete the tag or bump a version by hand.
 
 ## Acceptance criteria
 
@@ -80,13 +93,16 @@ Three checks, in order, all before the change is shipped into the release:
 - [ ] pnpm is still major 10: `gh run view <run> --log | grep -oE 'using pnpm v[0-9]+' | sort -u` prints `using pnpm v10` for the pull-request run and for the rehearsal run.
 - [ ] The deprecation warning is gone: `gh api repos/montionugera/cli-state-handler/check-runs/<job-id>/annotations -q '.[].message' | grep -c 'Node.js 20'` prints `0` for both runs.
 - [ ] Ubuntu 26 trial passes: for the temporary-commit run, `gh run view <run> --log | grep -m1 'Image: '` ends with `Image: ubuntu-26.04` and `gh run view <run> --json conclusion -q .conclusion` prints `success`.
-- [ ] Rehearsal publishes nothing: `gh run view <run> --log | grep -oE 'action=[a-z-]+'` prints `action=none`; `gh run view <run> --json jobs -q '.jobs[0].steps[] | select(.name|test("Commit version|Publish to npmjs")) | .conclusion'` prints `skipped` twice; `npm view @montionugera/ucsa-cli version` still prints the version it printed before the rehearsal.
-- [ ] Rehearsal run conclusion is `success`, with the "Decide release" step `success` (this is the step that reads npmjs.com through the settings file setup-node v7 writes).
+- [ ] The rehearsal branch is disarmed before any run: `git show rehearsal/i-046:.github/workflows/release.yml | grep -cE 'id-token|contents: write'` prints `0`, and `git show rehearsal/i-046:.github/workflows/release.yml | grep -c 'if: false'` prints `4`.
+- [ ] Each rehearsal run (A and B) publishes nothing: `gh run view <run> --json jobs -q '.jobs[0].steps[] | select(.name|test("Commit version|Publish to npmjs|GitHub Release|Signal the developer")) | .conclusion'` prints `skipped` four times; afterwards `npm view @montionugera/ucsa-cli version`, `git ls-remote origin refs/heads/main 'refs/tags/v*'` and `gh release view v0.2.0 --json assets -q '.assets[].updatedAt'` print exactly what they printed before.
+- [ ] Run A: `gh run view <run> --log | grep -oE 'action=[a-z-]+'` prints `action=none`.
+- [ ] Runs A and B end `success`, with the "Decide release" step `success` (this is the step that reads npmjs.com through the settings file setup-node v7 writes).
+- [ ] Clean-up: `git ls-remote origin refs/heads/rehearsal/i-046` prints nothing.
 
 ## Risks
 
-- **Permanent publish (highest).** A version published to npmjs.com cannot be withdrawn and its number can never be reused. The rehearsal starts the real release workflow; if `main` held an unreleased `feat`, `fix` or `perf` commit, it would publish. The precondition check in step 3 is therefore mandatory, not optional.
-- **Unrehearsed steps.** The commit-and-push and publish steps first run on the new pins during the release 1.10 merge. A failure before the push publishes nothing; a failure after the tag is pushed is repaired by re-running the workflow, which publishes the tagged version without a second bump.
+- **Permanent publish (highest).** A version published to npmjs.com cannot be withdrawn and its number can never be reused. The rehearsal starts the real release workflow, and a precondition check alone leaves a gap between checking `main` and the job reading it. The rehearsal is therefore run only from the disarmed throwaway branch in step 3, never from the feature branch.
+- **Unrehearsed steps.** The push and the publish first run on the new pins during the release 1.10 merge, which always publishes. If the pins break them, recovery is the revert hotfix in Rollback, whose merge then completes the release on the old pins.
 - **Trust binding.** npmjs.com trusts exactly the file `.github/workflows/release.yml` with a blank environment. Renaming the file, moving the publish step or adding `environment:` breaks publishing. The third acceptance item guards this.
 - **Moving tags.** A major tag such as `@v7` follows new minor releases automatically; this is the existing accepted style and is unchanged.
 - **Overlap with I-038.** Starting before I-038 lands would cause merge conflicts in both files, and I-038's planned install token could change how the settings file from setup-node v7 behaves. The rehearsal is run after I-038 for this reason.
@@ -105,3 +121,17 @@ Three checks, in order, all before the change is shipped into the release:
 - That starting `release.yml` from a non-default branch is permitted for this repository once I-038 has changed its permissions.
 - That `pnpm/action-setup@v6` resolves `version: 10` to pnpm 10 on a GitHub-hosted runner; read from source, not observed in a run.
 - The minimum system-library version the `better-sqlite3` prebuilt binary needs, and whether the source-compile fallback works with Python 3.14.
+- What npm 11 sends when the settings file holds the literal text `${NODE_AUTH_TOKEN}`: setup-node v7 `src/authutil.ts` still writes that `_authToken` line and no longer sets the variable. Today's placeholder token is equally invalid and reads work, so the same is expected; runs A and B test the read, nothing tests the publish.
+- That a run started from a branch whose `release.yml` lacks `id-token: write` behaves as designed; read from GitHub's documentation, not observed here.
+
+## Audit trail
+
+Independent audit, 2026-10-09, read-only (`release.yml`, `next-release.mjs`, `lib.mjs`, setup-node v7 README and `src/authutil.ts`, npm trusted-publisher documentation, `gh api` for branch protection and release assets).
+
+| Severity | Finding | What changed |
+| --- | --- | --- |
+| CRITICAL | The rehearsal from the feature branch had one barrier, a precondition with a time gap; `main` is unprotected and npmjs.com does not check the branch, so a merge in the gap meant a real publish on unreviewed pins. | Step 3 now uses a throwaway branch with write and identity permissions removed and four steps set to `if: false`. |
+| HIGH | "Every publishing step is skipped" was false: asset upload with `--clobber` and the portal signal are gated on the docs-asset test, which reads `gh` errors as "missing". | Gating described correctly; both steps disabled in the rehearsal; asset precondition and criterion added. |
+| HIGH | Rollback claimed the revert hotfix "publishes nothing". After a failed release 1.10 run it prints `action=release` or `action=publish-only` and publishes. Re-running repeats the new pins. | Rollback rewritten per failure point. |
+| HIGH | The rehearsal ran I-038's workflow against `main`'s files, so it did not cover I-038 and the new pins together as claimed. | Run B added on the release 1.10 files. |
+| MEDIUM | Precondition did not fetch tags or pin `main` to the remote tip; draft pull request merge risk unstated. | Both stated. |
