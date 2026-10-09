@@ -1,3 +1,1229 @@
 # Adopt the Joymify design system in the docs portal Implementation Plan
 
-> Fill via `/superpowers:writing-plans` once the spec is final.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** "using its design system for build doc not move into that repo" — the docs portal `apps/docs` (package `@ucsa/docs`) in cli-state-handler is built with the published Joymify packages.
+
+**Architecture:** The portal already imports `@joymify/react` and `@joymify/tokens/theme.css` by their final names, through aliases to a sibling checkout. This plan swaps the route only: registry dependencies plus a one-line root `.npmrc`, with a read-only token handed to the install step of the two workflows. On top of that it adds a light/dark/system theme toggle driven by the `data-theme` attribute the tokens stylesheet already understands, self-hosted fonts, and Joymify `CodeBlock`, `PolyglotCodeTabs`, `Alert` and `MermaidViewer` behind one lazy-loaded wrapper module.
+
+**Tech Stack:** React 19, Vite 8, Vitest 3 + jsdom + Testing Library, pnpm 10 workspace, `@joymify/react` 0.2.0, `@joymify/tokens` 0.2.0, `@fontsource-variable/inter`, `@fontsource-variable/jetbrains-mono`, GitHub Actions, GitHub Packages.
+
+**Spec:** `.claude/refined_backlog/F-045-adopt-the-joymify-design-system-in-the-d/spec.md` (read `research.md` beside it). Executors read both.
+
+**Scope of this plan:** phase 1a (registry wiring), phase 1b (themes), phase 2 (code blocks and diagrams). Phase 3 (markdown for release notes and tutorial prose) is a separate feature. `ReleaseNotes.tsx`, `models/changelog.ts` and the tutorial prose stay as they are.
+
+## Global Constraints
+
+Copied from the spec. Every task's requirements include these.
+
+- Dependencies are exactly `@joymify/react` `^0.2.0` and `@joymify/tokens` `^0.2.0` in `apps/docs/package.json`. `@joymify/icons` 0.3.0 and `@joymify/brand` 0.2.0 arrive transitively. No `workspace:`, no `link:`, no vendored source, no sibling checkout.
+- The root `.npmrc` holds exactly one line: `@joymify:registry=https://npm.pkg.github.com`. No `_authToken`, no `montionugera`, no blanket `registry=`.
+- The token line lives only in user-level npm config, as the literal text `//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}`. The token itself is never written to disk.
+- The Actions secret is named `JOYMIFY_PACKAGES_READ_TOKEN`. It is passed as `env` to the install step only. `packages: read` is not added to `permissions`.
+- Not edited: `scripts/release/next-release.mjs`, the publish commands in `release.yml`, `packages/core/package.json`, `apps/cli/package.json`. `release.yml` is not renamed and gets no `environment:`.
+- No `uses:` line changes in any workflow (action versions belong to idea I-046, owned by another session).
+- No import statement is renamed: nine files keep `from "@joymify/react"`, `main.tsx` keeps `@joymify/tokens/theme.css`.
+- Theme storage key is `ucsa-docs-theme`; valid saved values are `light` and `dark`; System removes the attribute and the key.
+- No font CDN. No full `mermaid` library and no general markdown library in this repository. Gaps in Joymify components are fixed upstream in `joy-design`, never shimmed here.
+- The sidebar stays the existing anchor sidebar (`<a href="#/...">`, `aria-current="page"`, drawer focus handling). The Joymify `Menu` is not adopted.
+- Routes, page content, playground models and the sandbox do not change.
+- The docs test count never drops below the baseline recorded in Task 2. A test may be edited only where it asserts markup a Joymify component replaced; none is deleted.
+
+Repo conventions (from the dispatcher, binding):
+
+- Run every command from the feature worktree root. A fresh worktree needs `pnpm install` then `pnpm --filter @ucsa/core build`.
+- Docs commands: `pnpm --filter @ucsa/docs test` and `pnpm --filter @ucsa/docs build`. The machine is heavily loaded: run one test suite at a time, never two in parallel.
+- No prettier config exists: do not run prettier. Match the surrounding style by hand.
+- The root `.gitignore` has a bare `build/` rule: never create a folder named `build/`, git would silently skip it.
+- Never `git commit --amend`. One new commit per task. Every commit message ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- Gate reviewers are `code-reviewer` and `typescript-reviewer`, both on `model: opus`. Browser checks run in a subagent that returns a text verdict, never screenshots into the main thread.
+- No `.drawio` diagram covers the docs portal or the CI install path (the only one is `docs/superpowers/specs/diagrams/unified-state-architecture.drawio`, the library's state architecture), so no diagram task exists in this plan.
+
+## File Structure
+
+| File | Action | Responsibility |
+| --- | --- | --- |
+| `.npmrc` (root) | create | Scope mapping for `@joymify` only |
+| `.github/workflows/ci.yml`, `.github/workflows/release.yml` | modify | Token line step and `env` on install; `ci.yml` header comment |
+| `apps/docs/joy-alias.ts` | delete | Sibling-checkout aliases, no longer needed |
+| `apps/docs/vite.config.ts`, `apps/docs/vitest.config.ts`, `apps/docs/tsconfig.json`, `vitest.config.ts` (root) | restore to `release/1.10` content | Drop alias, `dedupe` and type paths |
+| `apps/docs/package.json`, `pnpm-lock.yaml` | modify | Registry dependencies, fonts |
+| `apps/docs/tests/joymify-wiring.test.ts` | create | Guards alias removal, ranges, `.npmrc`, exports |
+| `apps/docs/src/theme.ts` | create | Read and apply the theme choice |
+| `apps/docs/src/components/ThemeToggle.tsx` | create | Joymify `Segmented` with System, Light, Dark |
+| `apps/docs/index.html` | modify | Remove forced dark; no-flash inline script |
+| `apps/docs/src/App.tsx`, `apps/docs/src/shell.css` | modify | Toggle in the sidebar brand block |
+| `apps/docs/src/index.css`, `LifecycleGraph.css`, `StaleTimeline.css`, `main.tsx` | modify | Fonts, scrim, `color-scheme` |
+| `apps/docs/tests/theme-toggle.test.tsx`, `apps/docs/tests/theme-assets.test.ts` | create | Theme behaviour and colour/font guards |
+| `apps/docs/src/components/rich.tsx`, `rich-impl.ts`, `rich.css` | create | The single lazy wrapper: `Code`, `CodeTabs`, `Diagram` |
+| `apps/docs/src/components/Prose.tsx`, `apps/docs/src/prose.css` | modify | `CodeBlock` and `Callout` delegate to Joymify |
+| `apps/docs/src/components/MultiPlatformDocs.tsx`, `multiplatform.css` | modify | Platform tabs and code through Joymify |
+| `apps/docs/src/pages/Home.tsx`, `home.css` | modify | Request-path flowchart |
+| `apps/docs/tests/rich.test.tsx`, `apps/docs/tests/home-diagram.test.tsx`, `apps/docs/tests/multiplatform-docs.test.tsx` | create / modify | Phase 2 tests |
+| `README.md` | modify | Install requirement, token setup and expiry, theme and diagram notes |
+
+## Findings that shape the plan
+
+Checked against the source on 2026-10-09 while writing this plan. Each is a deviation from, or a gap in, the spec; the owner has been told.
+
+1. **`routes.ts` does not conflict.** A trial merge of `69f8c42` into `release/1.10` conflicts in exactly two files: `apps/docs/vite.config.ts` and `apps/docs/src/components/MultiPlatformDocs.tsx`. `README.md` and `routes.ts` merge cleanly.
+2. **The root `vitest.config.ts` also imports `joy-alias`.** The spec lists only the two config files under `apps/docs`. Task 4 restores the root file as well, and the wiring test guards it.
+3. **The baseline cannot be measured after the cherry-pick.** In a feature worktree under `.claude/worktrees/`, the alias path `../../../joy-design` does not resolve. The two base commits add no test file, so the baseline is the docs test count of the untouched feature branch, measured in Task 2 before the cherry-pick.
+4. **No inline style carries a colour literal.** All 54 inline styles already use portal variables that map to `--joy-*` tokens. The real leftovers are `--scrim` and two hard-coded `color-scheme: dark` rules. Task 8 fixes those three and adds a guard test; it does not rewrite 54 styles.
+5. **Fontsource variable fonts register as `"Inter Variable"` and `"JetBrains Mono Variable"`,** while the tokens name `Inter` and `JetBrains Mono`. Importing the packages alone would change nothing. Task 8 redefines the two font-family tokens in `index.css`.
+6. **Unsupported diagram types are not shown as source.** `renderMermaidToSvg` falls back to "treat it as a flowchart": `pie`, `classDiagram` and `gantt` all return `success: true` and draw a meaningless graph (run against `joy-design` release/3.8). The spec's test "an unsupported diagram type shows its source" cannot pass for those inputs. Task 10 tests the contract that does hold: a definition the renderer rejects (`sequenceDiagram` with no participants) shows its source and does not throw. The fallback is an upstream defect to file in `joy-design`.
+7. **Dart and C# snippets get no highlighting.** The Joymify highlighter has grammars for Rust, TypeScript/JavaScript, Python and a few others; `dart` and `csharp` return a single plain token. Two thirds of the platform snippets render as unhighlighted `CodeBlock`. Upstream request to file; nothing is shimmed here.
+8. **Lazy loading meets synchronous tests.** `routes.ts` keeps page components eager because playground tests assert synchronously. The lazy wrapper is used only for code, tabs and diagram. Three `getByText` calls on platform tab labels become `await findByText`; everything else stays synchronous because titles and the copy button stay outside the lazy boundary.
+9. **The copy button in the platform guide is kept.** Joymify `CodeBlock` swallows a failed clipboard write silently; ten existing tests cover "Copy failed" and the reset timer. The portal keeps its own button and passes `allowCopy={false}`.
+10. **An unresolved placeholder does not break npm 11.** With the token line in user config and the variable unset, `npm view @montionugera/ucsa-core version` exits 0 on npm 11.17.0. So the later `npm view` and `npm publish` steps of `release.yml`, which run without the variable, are safe. pnpm's behaviour in `scripts/precheck.sh` is still unproven; Task 6 settles it.
+11. **The README needs the token's expiry date, which only the owner knows.** Task 1 asks for it.
+12. **`Alert` renders `role="alert"`.** A static callout would be announced on every page load, so the portal passes `role="note"` (the component spreads extra props after its own role).
+
+---
+
+## Phase 0: preconditions
+
+### Task 1: Precondition check (stops the run)
+
+**Files:** none.
+
+**Interfaces:**
+- Produces: `TOKEN_EXPIRY` (a date string supplied by the owner) used in Task 5.
+
+- [ ] **Step 1: Check the package resolves**
+
+Run: `npm view @joymify/react version --registry=https://npm.pkg.github.com`
+Expected: prints `0.2.0`.
+
+If it fails (on 2026-10-09 it answers `npm error code E404`), **STOP the whole run** and report exactly:
+```
+F-045 is blocked on phase 0. The @joymify packages do not resolve from GitHub Packages.
+Owner actions: (a) merge joy-design F-073 to main and publish @joymify/tokens 0.2.0,
+@joymify/icons 0.3.0, @joymify/brand 0.2.0, @joymify/react 0.2.0; (b) create the Actions
+secret JOYMIFY_PACKAGES_READ_TOKEN in cli-state-handler (classic token, read:packages);
+(c) tell us that token's expiry date. No code was changed.
+```
+
+- [ ] **Step 2: Check the rest of phase 0**
+```bash
+for p in tokens@0.2.0 icons@0.3.0 brand@0.2.0 react@0.2.0; do
+  npm view "@joymify/$p" version --@joymify:registry=https://npm.pkg.github.com
+done
+npm view @joymify/react@0.2.0 dependencies --@joymify:registry=https://npm.pkg.github.com
+gh secret list | grep -c JOYMIFY_PACKAGES_READ_TOKEN
+grep -c 'npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' ~/.npmrc
+test -n "$JOYMIFY_PACKAGES_READ_TOKEN" && echo token-exported
+```
+Expected: the four versions print; the dependencies list shows `@joymify/*` names with version ranges and none starts with `workspace:`; the two counts print `1`; `token-exported` prints.
+
+Any miss: STOP with the message from Step 1, naming the failing line. If only the last two lines fail, the local setup is missing; the fix is `echo '//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' >> ~/.npmrc` and `export JOYMIFY_PACKAGES_READ_TOKEN=$(gh auth token)` after `gh auth refresh -s read:packages`. That edits the owner's personal npm config, so report it and let the owner run it.
+
+If the published versions differ from 0.2.0 / 0.3.0, STOP: the spec's ranges are corrected first.
+
+- [ ] **Step 3: Confirm the expiry date was supplied**
+
+`TOKEN_EXPIRY` must be a date given by the owner for the token stored in the secret. If it is missing, STOP and ask for it. Do not guess it and do not read it from a local token (the local token may be a different one).
+
+---
+
+## Phase 1a: registry wiring
+
+### Task 2: Baseline, then bring the base commits onto the feature branch
+
+**Files:**
+- Modify (by cherry-pick): everything in commits `68ad8b7` and `69f8c42` (23 + 8 files under `apps/docs`, `README.md`, root `vitest.config.ts`)
+- Modify: `.claude/refined_backlog/F-045-adopt-the-joymify-design-system-in-the-d/handoff.md` (baseline line)
+
+**Interfaces:**
+- Consumes: the feature branch and worktree created from `release/1.10` by `ps-release-workflow-claim` for F-045. The base worktree `../cli-state-handler-fix-docs-design` is read-only for this plan; nothing is edited there.
+- Produces: `BASELINE`, the passing docs test count, written to `handoff.md` as `Baseline docs tests: <n>`.
+
+- [ ] **Step 1: Install and measure the baseline on the untouched branch**
+```bash
+pnpm install
+pnpm --filter @ucsa/core build
+pnpm --filter @ucsa/docs test 2>&1 | tail -n 6
+```
+Expected: exit 0. Read the `Tests  <n> passed` line; that `<n>` is `BASELINE` (the old base had 320; `release/1.10` adds two test files).
+
+- [ ] **Step 2: Cherry-pick the two commits**
+```bash
+git cherry-pick 68ad8b7 69f8c42
+```
+Expected: the first pick stops with conflicts in exactly `apps/docs/vite.config.ts` and `apps/docs/src/components/MultiPlatformDocs.tsx`.
+
+- [ ] **Step 3: Resolve `apps/docs/vite.config.ts`** by keeping both imports. The import block becomes:
+```ts
+import { ucsaCoreIife } from "./vite-plugins/ucsa-core-iife.js";
+import { versionJson } from "./vite-plugins/version-json.js";
+import { joyAlias } from "./joy-alias.js";
+```
+
+Leave the rest as merged (`plugins: [react(), ucsaCoreIife(), versionJson()]`, `resolve.dedupe`, `...joyAlias`). Task 4 removes the alias lines again.
+
+- [ ] **Step 4: Resolve `apps/docs/src/components/MultiPlatformDocs.tsx`** by keeping main's hooks and the base branch's Joymify import. The first two lines become:
+```tsx
+import React, { useEffect, useRef, useState } from "react";
+import { Badge, Button } from "@joymify/react";
+```
+
+The body merged cleanly: main's `handleCopy` with `status`, `resetTimer`, `mounted`, inside the base branch's `<Button variant="outline">`. Do not change it.
+
+- [ ] **Step 5: Continue and confirm**
+```bash
+git add apps/docs/vite.config.ts apps/docs/src/components/MultiPlatformDocs.tsx
+git cherry-pick --continue --no-edit
+git status --short | head -n 5
+grep -rn -E '^(<<<<<<<|=======|>>>>>>>)' apps/docs README.md vitest.config.ts | head -n 5
+git log --oneline -n 2
+```
+Expected: the second pick applies with no conflict; `git status` prints nothing; the grep prints nothing; the log shows the two picked commits. If any other file conflicts, stop and report the file names: the trial merge did not predict them.
+
+The branch cannot build or test at this point (the alias target does not exist under `.claude/worktrees/`). That is expected; Task 4 is the first point where the suite runs again.
+
+- [ ] **Step 6: Record the baseline and commit**
+
+Append the line `Baseline docs tests: <n>` to `handoff.md` in the feature folder.
+
+```bash
+git add .claude/refined_backlog/F-045-adopt-the-joymify-design-system-in-the-d/handoff.md
+git commit -m "chore(F-045): record docs test baseline before the Joymify wiring
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+### Task 3: Root `.npmrc` and workflow package access (risky surface, own gate)
+
+**Files:**
+- Create: `.npmrc`
+- Modify: `.github/workflows/ci.yml` (header comment line 4; the install step near line 48)
+- Modify: `.github/workflows/release.yml` (the install step near line 52)
+
+**Interfaces:**
+- Produces: the scope mapping that Task 4's install relies on; the secret reaches `pnpm install --frozen-lockfile` in both workflows.
+
+- [ ] **Step 1: Prove an unresolved placeholder does not break npm (the red/green check for this task)**
+```bash
+T=$(mktemp -d)
+printf '%s\n' '//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' > "$T/npmrc"
+env -u JOYMIFY_PACKAGES_READ_TOKEN NPM_CONFIG_USERCONFIG="$T/npmrc" npx -y npm@^11.5.1 view @montionugera/ucsa-core version; echo "exit=$?"
+```
+Expected: a version and `exit=0`. This is what the "Decide release" and publish steps of `release.yml` will meet after this task.
+
+If `exit` is not 0: in Step 4 also add this step to `release.yml` directly after the install step, and note it in `handoff.md`:
+```yaml
+      - name: Remove the Joymify token line before any npm call
+        run: sed -i '/npm.pkg.github.com\/:_authToken/d' "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+```
+
+- [ ] **Step 2: Create `.npmrc`** with exactly this one line and a trailing newline:
+```
+@joymify:registry=https://npm.pkg.github.com
+```
+
+- [ ] **Step 3: Edit `ci.yml`**
+
+Replace the header line `# it is merged. Read-only: no secrets, no id-token, no environment, no Pages.` with:
+```yaml
+# it is merged. Read-only: one secret (JOYMIFY_PACKAGES_READ_TOKEN, read-only
+# for packages, given to the install step only), no id-token, no environment,
+# no Pages.
+```
+
+Replace the step `      - run: pnpm install --frozen-lockfile` with:
+```yaml
+      # The private @joymify/* packages live on GitHub Packages (organisation
+      # joymify). The line keeps its ${...} placeholder, so the token itself is
+      # never written to disk; only the install step has the variable.
+      - name: Point npm at the Joymify package token
+        run: |
+          echo '//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+
+      - run: pnpm install --frozen-lockfile
+        env:
+          JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}
+```
+
+- [ ] **Step 4: Edit `release.yml`** the same way: replace its `      - run: pnpm install --frozen-lockfile` step with the identical two steps from Step 3 (same comment, same names). In this file the user-level file is the one `actions/setup-node` already wrote for npmjs.com; the line is appended and nothing in it is replaced. Do not touch `permissions`, any `uses:` line, or any other step.
+
+- [ ] **Step 5: Verify**
+```bash
+cat .npmrc; grep -c '_authToken' .npmrc; grep -c 'montionugera' .npmrc
+npm config get @montionugera:registry
+env -u JOYMIFY_PACKAGES_READ_TOKEN NPM_CONFIG_USERCONFIG=/dev/null node scripts/release/next-release.mjs; echo "exit=$?"
+grep -n "JOYMIFY_PACKAGES_READ_TOKEN" .github/workflows/ci.yml .github/workflows/release.yml
+grep -c "packages: read" .github/workflows/ci.yml .github/workflows/release.yml
+grep -n "no secrets" .github/workflows/ci.yml
+git diff -- .github/workflows | grep -E '^[+-] *- uses:|^[+-] *uses:'
+git diff --stat -- scripts/release packages/core/package.json apps/cli/package.json
+ruby -ryaml -e 'ARGV.each { |f| YAML.load_file(f) }; puts "yaml ok"' .github/workflows/ci.yml .github/workflows/release.yml
+bash scripts/epic-check.sh E-009 2>&1 | tail -n 12
+```
+Expected, in order: the one registry line; `0`; `0`; `undefined`; `exit=0` (`NPM_CONFIG_USERCONFIG=/dev/null` isolates the check to the repository `.npmrc`); two matches per workflow file (the placeholder line and the `env` line); `0` for both files; nothing; nothing; nothing; `yaml ok`; the release-workflow assertions of E-009 still pass.
+
+- [ ] **Step 6: Commit**
+```bash
+git add .npmrc .github/workflows/ci.yml .github/workflows/release.yml
+git commit -m "ci(F-045): map the @joymify scope and hand the read token to install
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+- [ ] **Step 7: Phase gate (own gate, risky surface).** Verify (Step 5 output) → independent review of this commit's diff by `code-reviewer` and `typescript-reviewer` on `model: opus`, asked specifically: can the token reach any step other than install; is any `uses:` line, `permissions` block or publish command changed; can the new `.npmrc` redirect the `@montionugera` scope → apply findings → re-run Step 5. Do not advance on an open finding.
+
+### Task 4: Registry dependencies and alias removal
+
+**Files:**
+- Create: `apps/docs/tests/joymify-wiring.test.ts`
+- Delete: `apps/docs/joy-alias.ts`
+- Restore to `release/1.10`: `apps/docs/vite.config.ts`, `apps/docs/vitest.config.ts`, `apps/docs/tsconfig.json`, `vitest.config.ts`
+- Modify: `apps/docs/package.json`, `pnpm-lock.yaml`
+
+**Interfaces:**
+- Consumes: root `.npmrc` from Task 3; the local token setup checked in Task 1.
+- Produces: `@joymify/react` resolved from `apps/docs/node_modules`, exporting `CodeBlock`, `PolyglotCodeTabs`, `MermaidViewer`, `MarkdownViewer`, `Segmented`, `Alert`, `Button`, `Badge`.
+
+- [ ] **Step 1: Write the failing test** `apps/docs/tests/joymify-wiring.test.ts`
+```ts
+import { describe, it, expect } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import * as joy from "@joymify/react";
+const docs = path.resolve(import.meta.dirname, "..");
+const root = path.resolve(docs, "../..");
+const read = (file: string) => readFileSync(file, "utf8");
+// Built from parts so this file never matches the repository-wide grep for the old alias names.
+const ALIAS = "joy-" + "alias";
+const SIBLING = new RegExp(`${ALIAS}|joy-` + "design");
+describe("Joymify packages come from the registry", () => {
+  it("has no sibling-checkout alias left", () => {
+    expect(existsSync(path.join(docs, `${ALIAS}.ts`))).toBe(false);
+    for (const file of ["vite.config.ts", "vitest.config.ts", "tsconfig.json"]) {
+      expect(read(path.join(docs, file)), file).not.toMatch(SIBLING);
+      expect(read(path.join(docs, file)), file).not.toContain("@joymify/");
+    }
+    expect(read(path.join(root, "vitest.config.ts"))).not.toMatch(SIBLING);
+  });
+  it("depends on published version ranges", () => {
+    const deps = JSON.parse(read(path.join(docs, "package.json"))).dependencies;
+    expect(deps["@joymify/react"]).toBe("^0.2.0");
+    expect(deps["@joymify/tokens"]).toBe("^0.2.0");
+  });
+  it("maps only the @joymify scope and commits no token", () => {
+    expect(read(path.join(root, ".npmrc")).trim()).toBe("@joymify:registry=https://npm.pkg.github.com");
+  });
+  it("exports the components the portal uses", () => {
+    const names = ["Button", "Badge", "CodeBlock", "PolyglotCodeTabs", "MermaidViewer", "MarkdownViewer", "Segmented", "Alert"] as const;
+    for (const name of names) expect(joy[name], name).toBeDefined();
+  });
+});
+```
+
+- [ ] **Step 2: Run it to see it fail**
+
+Run: `pnpm --filter @ucsa/docs exec vitest run tests/joymify-wiring.test.ts 2>&1 | tail -n 15`
+Expected: FAIL. The import of `@joymify/react` cannot be resolved (the alias target is absent in this worktree), or the alias assertions fail.
+
+- [ ] **Step 3: Remove the alias and restore the four config files**
+```bash
+git rm apps/docs/joy-alias.ts
+git checkout release/1.10 -- apps/docs/vite.config.ts apps/docs/vitest.config.ts apps/docs/tsconfig.json vitest.config.ts
+git diff release/1.10 --stat -- apps/docs/vite.config.ts apps/docs/vitest.config.ts apps/docs/tsconfig.json vitest.config.ts
+```
+Expected: the last command prints nothing. The base commits changed these four files only to add the alias, `resolve.dedupe` and the type paths, so the `release/1.10` content is the target state (`tsconfig.json` is back to the single `@montionugera/ucsa-core` path).
+
+- [ ] **Step 4: Add the dependencies**
+```bash
+pnpm --filter @ucsa/docs add @joymify/react@^0.2.0 @joymify/tokens@^0.2.0
+grep -n "@joymify/" apps/docs/package.json
+grep -rn -E "@joymify/(icons|brand)" apps/docs/src | head -n 3
+node -p "require('./apps/docs/node_modules/@joymify/react/package.json').version"
+```
+Expected: two dependency lines with `^0.2.0`; the second grep prints nothing (no direct import of icons or brand, so neither becomes a direct dependency); the version prints `0.2.0`. A 401 here means the local token setup from Task 1 is gone: stop and report.
+
+- [ ] **Step 5: Run the test to see it pass**
+
+Run: `pnpm --filter @ucsa/docs exec vitest run tests/joymify-wiring.test.ts 2>&1 | tail -n 8`
+Expected: 4 passed.
+
+- [ ] **Step 6: Full phase 1a local verification, one command at a time**
+```bash
+pnpm --filter @ucsa/core build
+pnpm --filter @ucsa/docs test 2>&1 | tail -n 6
+pnpm typecheck 2>&1 | tail -n 5
+pnpm --filter @ucsa/docs build 2>&1 | tail -n 8
+test ! -e apps/docs/joy-alias.ts && echo alias-gone
+grep -rn -E "joy-design/packages|joy-alias|@montionugera/joy-" apps/docs --include='*.ts' --include='*.tsx' --include='*.json' --exclude-dir=node_modules
+grep -c "@joymify/" apps/docs/tsconfig.json
+grep -rl -E "from ['\"]@joymify/react['\"]" apps/docs/src | wc -l
+grep -c "@joymify/tokens/theme.css" apps/docs/src/main.tsx
+grep -c -E "MarkdownViewer|MermaidViewer|CodeBlock|PolyglotCodeTabs|Segmented|Alert" apps/docs/node_modules/@joymify/react/dist/index.d.ts
+```
+Expected: tests exit 0 with `BASELINE + 4` passed; typecheck exit 0; build exit 0; `alias-gone`; the grep prints nothing; `0`; at least `9`; `1`; at least `6`.
+
+- [ ] **Step 7: Commit**
+```bash
+git add apps/docs/tests/joymify-wiring.test.ts apps/docs/package.json pnpm-lock.yaml apps/docs/vite.config.ts apps/docs/vitest.config.ts apps/docs/tsconfig.json vitest.config.ts
+git commit -m "feat(F-045): install the Joymify packages from the registry, drop the sibling aliases
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+- [ ] **Step 8: Phase gate** for Tasks 2 and 4 together: verify (Step 6) → `code-reviewer` + `typescript-reviewer` on `model: opus` over `git diff release/1.10..HEAD -- apps/docs vitest.config.ts` → `/simplify` → re-run the docs tests and the docs build.
+
+### Task 5: README install requirement
+
+**Files:**
+- Modify: `README.md` (the `apps/docs` section, the paragraph added by `68ad8b7` that begins "The studio UI reuses the Joymify design system")
+
+**Interfaces:**
+- Consumes: `TOKEN_EXPIRY` from Task 1.
+
+- [ ] **Step 1: Replace that paragraph** (it tells readers to check out `joy-design` as a sibling directory) with the text below, putting the real date in place of `TOKEN_EXPIRY`:
+
+````markdown
+The studio UI is built with the Joymify design system, installed as the private packages `@joymify/react` and `@joymify/tokens` from GitHub Packages (organisation `joymify`). The repository `.npmrc` maps only the `@joymify` scope to `https://npm.pkg.github.com`; the libraries in this repository stay on npmjs.com.
+
+**One-time setup.** `pnpm install` answers 401 for the whole workspace until npm can read those packages. This applies to every contributor and every worktree, including work that does not touch the docs, and to `scripts/precheck.sh` and `scripts/epic-check.sh`.
+
+```bash
+# 1. Add the token line to your user-level npm config. Keep the ${...} text as is.
+echo '//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' >> ~/.npmrc
+# 2. Export a token with the read:packages scope that can read the joymify organisation's packages.
+gh auth refresh -s read:packages
+export JOYMIFY_PACKAGES_READ_TOKEN=$(gh auth token)
+```
+
+If you prefer not to export a variable in every shell, store the token itself instead: `npm config set //npm.pkg.github.com/:_authToken <token>`. That writes it to `~/.npmrc` in clear text.
+
+**CI.** Both workflows (`ci.yml`, `release.yml`) read the packages with the Actions secret `JOYMIFY_PACKAGES_READ_TOKEN`, a classic personal access token with the single scope `read:packages`, given to the install step only. **It expires on TOKEN_EXPIRY.** When it expires, installs turn red on the next pull request and on the next merge, which also blocks the library release. The fix is a new token in the same secret, then a re-run of the failed workflow.
+````
+
+- [ ] **Step 2: Verify**
+
+Run: `grep -n -E "JOYMIFY_PACKAGES_READ_TOKEN|read:packages" README.md | head -n 8; grep -c "joy-design" README.md; grep -c "TOKEN_EXPIRY" README.md`
+Expected: the setup and CI lines print; `0`; `0` (the placeholder word was replaced by the date).
+
+- [ ] **Step 3: Commit**
+```bash
+git add README.md
+git commit -m "docs(F-045): README setup for the private Joymify packages
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+### Task 6: Prove the install on a clean runner
+
+**Files:**
+- Modify only if Step 3 demands it: `.github/workflows/ci.yml`
+
+**Interfaces:**
+- Consumes: the feature branch with Tasks 2 to 5.
+
+- [ ] **Step 1: Local gate**
+
+Run: `bash scripts/precheck.sh 2>&1 | tail -n 15`
+Expected: exit 0.
+
+- [ ] **Step 2: Open a draft pull request to main to run `ci.yml`** (`ci.yml` runs only on pull requests to main). This pushes the feature branch and opens a pull request that is never merged from here: the feature ships through the release branch.
+```bash
+git push -u origin HEAD
+gh pr create --draft --base main --title "F-045 CI proof: Joymify packages from the registry (do not merge)" --body "Draft only. Proves that ci.yml installs the private @joymify packages on a runner with no cache and no sibling checkout. The feature ships through release/1.10.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+gh pr checks --watch 2>&1 | tail -n 6
+```
+Expected: the `precheck` check is green.
+
+- [ ] **Step 3: If the install step is green but "Gate 1 (precheck)" fails on a 401 or a placeholder error** (`scripts/precheck.sh` re-runs `pnpm install` without the variable), add the same `env` to that step in `ci.yml` and push a new commit:
+```yaml
+      - name: Gate 1 (precheck)
+        run: bash scripts/precheck.sh
+        env:
+          JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}
+```
+
+This is a workflow edit: it gets the Task 3 Step 7 gate again before it is pushed. If the install step itself is red, the secret is missing, wrong or expired: STOP and report to the owner; do not retry with a different token mechanism.
+
+- [ ] **Step 4: Close the draft and record the result**
+```bash
+gh pr close "$(gh pr view --json number -q .number)" --comment "CI proof complete; shipping through release/1.10."
+```
+
+Add one line to `handoff.md`: `ci.yml run green: <run URL>`, and whether Step 3 was needed. Commit `handoff.md` alone with message `chore(F-045): record the ci.yml proof run` plus the co-author line.
+
+- [ ] **Step 5: Post-merge watch (recorded, not run here).** The criterion "after the merge to main the Release workflow is green through install and Decide release" can only be met at promote time. Add to `handoff.md`: `At promote: watch the Release run (install, Decide release, publish) and run npm view @montionugera/ucsa-core version --registry=https://registry.npmjs.org/ outside the repository.`
+
+---
+
+## Phase 1b: themes
+
+### Task 7: Theme module, toggle and no-flash script
+
+**Files:**
+- Create: `apps/docs/src/theme.ts`, `apps/docs/src/components/ThemeToggle.tsx`, `apps/docs/tests/theme-toggle.test.tsx`
+- Modify: `apps/docs/index.html`, `apps/docs/src/App.tsx` (the `sidebar__brand` block, near line 118), `apps/docs/src/shell.css`
+
+**Interfaces:**
+- Consumes: `Segmented` from `@joymify/react`. Its props, from `packages/react/src/Segmented.tsx`: `options: (string | SegmentedOption)[]` with `SegmentedOption = { label: string; value: string; disabled?: boolean }`, `value?: string`, `defaultValue?: string`, `disabled?: boolean`, `size?: 'sm' | 'md' | 'lg'`, `onChange?: (value: string) => void`, plus `div` attributes. It renders `role="radiogroup"` with `role="radio"` buttons carrying `aria-checked`.
+- Consumes: the tokens contract in `@joymify/tokens/theme.css`: `[data-theme="dark"]` forces dark, `[data-theme="light"]` forces light, and with no attribute `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) }` follows the system.
+- Produces: `THEME_KEY = "ucsa-docs-theme"`, `type ThemeChoice = "system" | "light" | "dark"`, `readTheme(): ThemeChoice`, `applyTheme(choice: ThemeChoice): void`, `ThemeToggle(): JSX.Element`.
+
+- [ ] **Step 1: Write the failing test** `apps/docs/tests/theme-toggle.test.tsx`
+```tsx
+// @vitest-environment jsdom
+import React from "react";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { ThemeToggle } from "../src/components/ThemeToggle.js";
+import { THEME_KEY } from "../src/theme.js";
+const html = readFileSync(path.resolve(import.meta.dirname, "../index.html"), "utf8");
+const inlineScript = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1] ?? "";
+const runInlineScript = () => new Function(inlineScript)();
+const root = document.documentElement;
+const checked = (name: string) => screen.getByRole("radio", { name }).getAttribute("aria-checked");
+describe("theme toggle", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    root.removeAttribute("data-theme");
+  });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+  it("choosing Dark sets data-theme and saves the choice", () => {
+    render(<ThemeToggle />);
+    expect(checked("System")).toBe("true");
+    fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+    expect(root.getAttribute("data-theme")).toBe("dark");
+    expect(localStorage.getItem(THEME_KEY)).toBe("dark");
+    expect(checked("Dark")).toBe("true");
+  });
+  it("choosing System removes the attribute and the saved key", () => {
+    render(<ThemeToggle />);
+    fireEvent.click(screen.getByRole("radio", { name: "Light" }));
+    fireEvent.click(screen.getByRole("radio", { name: "System" }));
+    expect(root.hasAttribute("data-theme")).toBe(false);
+    expect(localStorage.getItem(THEME_KEY)).toBeNull();
+  });
+  it("index.html no longer forces dark and runs its script inside head", () => {
+    expect(html).not.toContain('data-theme="dark"');
+    expect(inlineScript.trim()).not.toBe("");
+    expect(html.indexOf("<script>")).toBeLessThan(html.indexOf("</head>"));
+  });
+  it("applies a saved choice on load, and the toggle shows it", () => {
+    localStorage.setItem(THEME_KEY, "light");
+    runInlineScript();
+    expect(root.getAttribute("data-theme")).toBe("light");
+    render(<ThemeToggle />);
+    expect(checked("Light")).toBe("true");
+  });
+  it("ignores a saved value that is neither light nor dark", () => {
+    localStorage.setItem(THEME_KEY, "sepia");
+    runInlineScript();
+    expect(root.hasAttribute("data-theme")).toBe(false);
+    render(<ThemeToggle />);
+    expect(checked("System")).toBe("true");
+  });
+  it("keeps working when storage throws", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    expect(runInlineScript).not.toThrow();
+    render(<ThemeToggle />);
+    expect(checked("System")).toBe("true");
+    fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+    expect(root.getAttribute("data-theme")).toBe("dark");
+  });
+});
+```
+
+- [ ] **Step 2: Run it to see it fail**
+
+Run: `pnpm --filter @ucsa/docs exec vitest run tests/theme-toggle.test.tsx 2>&1 | tail -n 12`
+Expected: FAIL, cannot resolve `../src/components/ThemeToggle.js`.
+
+- [ ] **Step 3: Create `apps/docs/src/theme.ts`**
+```ts
+export const THEME_KEY = "ucsa-docs-theme";
+export type ThemeChoice = "system" | "light" | "dark";
+/** The saved choice. Anything else, or blocked storage, means "follow the system". */
+export function readTheme(): ThemeChoice {
+  try {
+    const saved = window.localStorage.getItem(THEME_KEY);
+    return saved === "light" || saved === "dark" ? saved : "system";
+  } catch {
+    return "system";
+  }
+}
+/** Light and dark set `data-theme`; system removes it so the tokens follow `prefers-color-scheme`. */
+export function applyTheme(choice: ThemeChoice): void {
+  const root = document.documentElement;
+  if (choice === "system") root.removeAttribute("data-theme");
+  else root.setAttribute("data-theme", choice);
+  try {
+    if (choice === "system") window.localStorage.removeItem(THEME_KEY);
+    else window.localStorage.setItem(THEME_KEY, choice);
+  } catch {
+    // Storage can be blocked (private mode). The choice then lasts for this page only.
+  }
+}
+```
+
+- [ ] **Step 4: Create `apps/docs/src/components/ThemeToggle.tsx`**
+```tsx
+import React, { useState } from "react";
+import { Segmented } from "@joymify/react";
+import { applyTheme, readTheme, type ThemeChoice } from "../theme.js";
+const OPTIONS = [
+  { label: "System", value: "system" },
+  { label: "Light", value: "light" },
+  { label: "Dark", value: "dark" },
+];
+export function ThemeToggle() {
+  const [choice, setChoice] = useState<ThemeChoice>(readTheme);
+  return (
+    <Segmented
+      className="theme-toggle"
+      aria-label="Theme"
+      size="sm"
+      options={OPTIONS}
+      value={choice}
+      onChange={(value) => {
+        const next: ThemeChoice = value === "light" || value === "dark" ? value : "system";
+        applyTheme(next);
+        setChoice(next);
+      }}
+    />
+  );
+}
+```
+
+- [ ] **Step 5: Edit `apps/docs/index.html`.** Change `<html lang="en" data-theme="dark">` to `<html lang="en">`, and add the inline script directly after the `<meta charset>` line, so the top of `<head>` reads:
+```html
+    <meta charset="UTF-8" />
+    <script>
+      try {
+        var saved = localStorage.getItem("ucsa-docs-theme");
+        if (saved === "light" || saved === "dark") document.documentElement.setAttribute("data-theme", saved);
+      } catch (e) {}
+    </script>
+```
+
+The script sits before any stylesheet (Vite injects its stylesheet link at the end of `<head>`), so the attribute is set before first paint.
+
+- [ ] **Step 6: Put the toggle in the sidebar.** In `apps/docs/src/App.tsx` add `import { ThemeToggle } from "./components/ThemeToggle.js";` and change the brand block to:
+```tsx
+        <div className="sidebar__brand">
+          <span className="sidebar__name">UCSA Studio</span>
+          <Badge variant="success">v1.4</Badge>
+          <p>Unified Client State Architecture</p>
+          <ThemeToggle />
+        </div>
+```
+
+The sidebar is the phone drawer, so the toggle is reachable there. The drawer still focuses the first `.navlink` on open (`App.tsx` line 38), so the focus tests are unaffected. In `apps/docs/src/shell.css`, after the `.sidebar__brand p` rule, add:
+```css
+.sidebar__brand .theme-toggle { margin-top: var(--space-3); }
+```
+
+- [ ] **Step 7: Run the new test, then the whole docs suite**
+
+Run: `pnpm --filter @ucsa/docs exec vitest run tests/theme-toggle.test.tsx 2>&1 | tail -n 8`
+Expected: 6 passed.
+Run: `pnpm --filter @ucsa/docs test 2>&1 | tail -n 6`
+Expected: exit 0, `BASELINE + 10` passed.
+Run: `grep -c 'data-theme="dark"' apps/docs/index.html`
+Expected: `0`.
+
+- [ ] **Step 8: Commit**
+```bash
+git add apps/docs/src/theme.ts apps/docs/src/components/ThemeToggle.tsx apps/docs/tests/theme-toggle.test.tsx apps/docs/index.html apps/docs/src/App.tsx apps/docs/src/shell.css
+git commit -m "feat(F-045): light, dark and system theme toggle with no flash on load
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+### Task 8: Self-hosted fonts and the last hard-coded colours
+
+**Files:**
+- Create: `apps/docs/tests/theme-assets.test.ts`
+- Modify: `apps/docs/package.json`, `pnpm-lock.yaml`, `apps/docs/src/main.tsx`, `apps/docs/src/index.css` (the `:root` block, lines 2 to 34), `apps/docs/src/components/LifecycleGraph.css:4`, `apps/docs/src/components/StaleTimeline.css:10`
+
+**Interfaces:**
+- Consumes: tokens `--joy-font-family-sans: Inter, -apple-system, BlinkMacSystemFont, sans-serif`, `--joy-font-family-mono: JetBrains Mono, Menlo, monospace`, `--joy-color-navy-900` (the design system's own modal backdrop is `color-mix(in srgb, var(--joy-color-navy-900) 60%, transparent)`).
+- Produces: nothing later tasks call.
+
+- [ ] **Step 1: Write the failing test** `apps/docs/tests/theme-assets.test.ts`
+```ts
+import { describe, it, expect } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+const src = path.resolve(import.meta.dirname, "../src");
+const files = (readdirSync(src, { recursive: true }) as string[]).map((f) => path.join(src, f));
+const read = (file: string) => readFileSync(file, "utf8");
+const LITERAL = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/;
+describe("theme assets", () => {
+  it("has no colour literal in any stylesheet", () => {
+    const hits = files
+      .filter((f) => f.endsWith(".css"))
+      .flatMap((f) => read(f).split("\n").filter((l) => LITERAL.test(l)).map((l) => `${path.basename(f)}: ${l.trim()}`));
+    expect(hits).toEqual([]);
+  });
+  it("has no colour literal in any inline style", () => {
+    const hits = files
+      .filter((f) => f.endsWith(".tsx"))
+      .flatMap((f) => read(f).split("\n").filter((l) => l.includes("style={{") && LITERAL.test(l)).map((l) => `${path.basename(f)}: ${l.trim()}`));
+    expect(hits).toEqual([]);
+  });
+  it("forces a colour scheme only through data-theme", () => {
+    const hits = files
+      .filter((f) => f.endsWith(".css") && path.basename(f) !== "index.css")
+      .filter((f) => /color-scheme\s*:/.test(read(f)))
+      .map((f) => path.basename(f));
+    expect(hits).toEqual([]);
+    const index = read(path.join(src, "index.css"));
+    expect(index).toMatch(/\[data-theme="light"\]\s*\{\s*color-scheme:\s*light;/);
+    expect(index).toMatch(/\[data-theme="dark"\]\s*\{\s*color-scheme:\s*dark;/);
+  });
+  it("loads the self-hosted fonts and names them first", () => {
+    const main = read(path.join(src, "main.tsx"));
+    expect(main).toContain('import "@fontsource-variable/inter";');
+    expect(main).toContain('import "@fontsource-variable/jetbrains-mono";');
+    const index = read(path.join(src, "index.css"));
+    expect(index).toMatch(/--joy-font-family-sans:\s*"Inter Variable"/);
+    expect(index).toMatch(/--joy-font-family-mono:\s*"JetBrains Mono Variable"/);
+  });
+});
+```
+
+- [ ] **Step 2: Run it to see it fail**
+
+Run: `pnpm --filter @ucsa/docs exec vitest run tests/theme-assets.test.ts 2>&1 | tail -n 20`
+Expected: 3 failed (the `--scrim` literal in `index.css`; `LifecycleGraph.css` and `StaleTimeline.css` for `color-scheme`; the font imports), 1 passed (inline styles are already clean).
+
+- [ ] **Step 3: Add the font packages and confirm the family names**
+```bash
+pnpm --filter @ucsa/docs add @fontsource-variable/inter @fontsource-variable/jetbrains-mono
+grep -o "font-family: '[^']*'" apps/docs/node_modules/@fontsource-variable/inter/index.css | sort -u
+grep -o "font-family: '[^']*'" apps/docs/node_modules/@fontsource-variable/jetbrains-mono/index.css | sort -u
+```
+Expected: `font-family: 'Inter Variable'` and `font-family: 'JetBrains Mono Variable'`. If a name differs, use the printed name in Step 5 and in the test, and say so in the commit message.
+
+- [ ] **Step 4: Import the fonts in `apps/docs/src/main.tsx`**, directly above the tokens import:
+```tsx
+import "@fontsource-variable/inter";
+import "@fontsource-variable/jetbrains-mono";
+import "@joymify/tokens/theme.css";
+import "./index.css";
+```
+
+- [ ] **Step 5: Edit `apps/docs/src/index.css`.** In the `:root` block replace the line `  --scrim: rgba(0, 0, 0, 0.6);` with:
+```css
+  /* Same recipe as the design system's own modal backdrop. */
+  --scrim: color-mix(in srgb, var(--joy-color-navy-900) 60%, transparent);
+  /* The tokens name "Inter" and "JetBrains Mono" but ship no font files. The self-hosted
+     variable fonts register under "... Variable", so those names go first. */
+  --joy-font-family-sans: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  --joy-font-family-mono: "JetBrains Mono Variable", "JetBrains Mono", Menlo, monospace;
+  color-scheme: light dark;
+```
+
+and directly after the closing brace of that `:root` block add:
+```css
+[data-theme="light"] { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }
+```
+
+`index.css` is imported after `theme.css`, so the two font tokens win by order.
+
+- [ ] **Step 6: Remove the two forced dark schemes.** In `apps/docs/src/components/LifecycleGraph.css` line 4 and `apps/docs/src/components/StaleTimeline.css` line 10, delete the declaration `color-scheme: dark;` and keep the rest of each rule (`overflow-x: auto; scrollbar-color: ...`).
+
+- [ ] **Step 7: Run the test, the suite and the build**
+
+Run: `pnpm --filter @ucsa/docs exec vitest run tests/theme-assets.test.ts 2>&1 | tail -n 8`
+Expected: 4 passed.
+Run: `pnpm --filter @ucsa/docs test 2>&1 | tail -n 6`
+Expected: exit 0, `BASELINE + 14` passed.
+Run: `pnpm --filter @ucsa/docs build 2>&1 | tail -n 6; ls apps/docs/dist/assets | grep -c -E "\.woff2$"; grep -rn -E "fonts\.googleapis|fonts\.gstatic" apps/docs/dist | head -n 3`
+Expected: build exit 0; a count of at least `2`; the last grep prints nothing.
+
+- [ ] **Step 8: Commit**
+```bash
+git add apps/docs/tests/theme-assets.test.ts apps/docs/package.json pnpm-lock.yaml apps/docs/src/main.tsx apps/docs/src/index.css apps/docs/src/components/LifecycleGraph.css apps/docs/src/components/StaleTimeline.css
+git commit -m "feat(F-045): self-hosted fonts and theme-aware scrim and scrollbars
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+- [ ] **Step 9: Phase gate** for Tasks 7 and 8 together: verify (Step 7) → `code-reviewer` + `typescript-reviewer` on `model: opus` over the two commits → `/simplify` → re-run the docs tests and the docs build.
+
+### Task 9: Browser verification of the themes (subagent, text verdict)
+
+**Files:** none, unless a defect is found; a fix is a new commit with its own test where one can be written.
+
+- [ ] **Step 1: Start the preview**
+
+Run in the background: `pnpm --filter @ucsa/docs build && pnpm --filter @ucsa/docs preview` (port 6006; if busy, Vite picks the next port, use the one it prints). The site is served under `/cli-state-handler/`.
+
+- [ ] **Step 2: Dispatch one browser subagent** (`model: sonnet`, it needs the `claude-in-chrome` tools) with the brief in "Appendix: browser brief" below, plus these phase 1b checks:
+
+- With the system set to dark (emulate `prefers-color-scheme: dark`) and `localStorage["ucsa-docs-theme"] = "light"`, hard-reload with network throttling on and report whether any dark frame appears before the light page.
+- `document.fonts.check('16px "Inter Variable"')` and `document.fonts.check('16px "JetBrains Mono Variable"')` are both `true` after load, and the Network panel shows no request to another origin.
+- At 360px, open the drawer, change the theme with the toggle, close the drawer with Escape: the theme changed and focus returned to the menu button.
+
+- [ ] **Step 3: Act on the verdict.** `PASS` on every line: stop the preview and go on. Any `FAIL`: fix it (token or layout CSS only, no new colour literals), commit, re-run the docs tests, and dispatch the subagent again for the failing routes.
+
+---
+
+## Phase 2: code blocks and diagrams
+
+### Task 10: The lazy wrapper, and `Prose` on Joymify components
+
+**Files:**
+- Create: `apps/docs/src/components/rich.tsx`, `apps/docs/src/components/rich-impl.ts`, `apps/docs/src/components/rich.css`, `apps/docs/tests/rich.test.tsx`
+- Modify: `apps/docs/src/components/Prose.tsx`, `apps/docs/src/prose.css` (lines 11 to 16)
+
+**Interfaces:**
+- Consumes, quoted from `joy-design` release/3.8 `packages/react/src/`:
+  - `CodeBlockProps extends React.HTMLAttributes<HTMLDivElement>`: `code?: string` (default `''`), `language?: string` (default `'text'`), `title?: string`, `showLineNumbers?: boolean` (default `false`), `allowCopy?: boolean` (default `true`). Root class `joy-code-block`; highlighted tokens are `<span class="joy-syntax-<type>">`.
+  - `PolyglotCodeTabsProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onChange'>`: `items?: PolyglotCodeItem[]`, `activeKey?: string`, `defaultActiveKey?: string`, `onChange?: (key: string) => void`, `showLineNumbers?: boolean`, `allowCopy?: boolean`. `PolyglotCodeItem = { key?: string; language: string; label?: string; code: string; filename?: string }`. It renders `role="tablist"` with `role="tab"` buttons whose text is `label`.
+  - `MermaidViewerProps extends React.HTMLAttributes<HTMLDivElement>`: `code?: string`, `title?: string`, `initialView?: 'diagram' | 'source'`, `allowCopy?: boolean`, `allowToggle?: boolean`. A drawn diagram is `<svg class="joy-mermaid__svg">` inside `.joy-mermaid__viewport`; a rejected definition renders a `CodeBlock` with class `joy-mermaid__source`.
+  - `AlertProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'>`: `title?: string`, `description?: string`, `variant?: 'info' | 'success' | 'warning' | 'danger'`, `closable?: boolean`, `onClose?: () => void`, `children?: React.ReactNode`. Root class `joy-alert joy-alert--<variant>`, default `role="alert"`, extra props spread after it.
+- Produces: `Code(props: CodeBlockProps)`, `CodeTabs(props: PolyglotCodeTabsProps)`, `Diagram(props: MermaidViewerProps)` from `./components/rich.js`. `Prose.tsx` keeps its exports `Prose`, `Callout({ tone?: "info" | "warn"; title?: string; children })`, `CodeBlock({ children: string; language?: string })`, so no tutorial file changes.
+
+- [ ] **Step 1: Write the failing test** `apps/docs/tests/rich.test.tsx`
+```tsx
+// @vitest-environment jsdom
+import React from "react";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, cleanup, waitFor } from "@testing-library/react";
+import { Code, Diagram } from "../src/components/rich.js";
+import { Callout, CodeBlock } from "../src/components/Prose.js";
+const FLOW = "flowchart LR\n  A[Cache] --> B[Network]";
+describe("Joymify code and diagram components", () => {
+  afterEach(() => cleanup());
+  it("shows the plain code first, then Joymify highlight spans", async () => {
+    const { container } = render(<Code code={"const a = 1; // note"} language="typescript" />);
+    expect(container.textContent).toContain("const a = 1; // note");
+    await waitFor(() => expect(container.querySelector('[class^="joy-syntax-"]')).not.toBeNull());
+    expect(container.querySelector(".joy-code-block")).not.toBeNull();
+  });
+  it("draws a flowchart as an svg", async () => {
+    const { container } = render(<Diagram code={FLOW} />);
+    await waitFor(() => expect(container.querySelector("svg.joy-mermaid__svg")).not.toBeNull());
+    expect(container.querySelector("svg.joy-mermaid__svg")?.textContent).toContain("Network");
+  });
+  it("shows the source of a definition the renderer rejects, and does not throw", async () => {
+    const { container } = render(<Diagram code="sequenceDiagram" />);
+    await waitFor(() => expect(container.querySelector(".joy-mermaid__source")).not.toBeNull());
+    expect(container.querySelector("svg.joy-mermaid__svg")).toBeNull();
+    expect(container.querySelector(".joy-mermaid__source")?.textContent).toContain("sequenceDiagram");
+  });
+  it("Prose CodeBlock renders through the Joymify CodeBlock", async () => {
+    const { container } = render(<CodeBlock language="typescript">{"const b = 2;"}</CodeBlock>);
+    await waitFor(() => expect(container.querySelector(".joy-code-block.prose-code")).not.toBeNull());
+  });
+  it("Prose Callout is a Joymify Alert that is not announced as an alert", () => {
+    const { container } = render(<Callout tone="warn" title="Careful">Body text</Callout>);
+    const alert = container.querySelector(".joy-alert.joy-alert--warning");
+    expect(alert?.getAttribute("role")).toBe("note");
+    expect(alert?.textContent).toContain("Careful");
+    expect(alert?.textContent).toContain("Body text");
+    expect(render(<Callout>Info</Callout>).container.querySelector(".joy-alert--info")).not.toBeNull();
+  });
+});
+```
+
+- [ ] **Step 2: Run it to see it fail**
+
+Run: `pnpm --filter @ucsa/docs exec vitest run tests/rich.test.tsx 2>&1 | tail -n 12`
+Expected: FAIL, cannot resolve `../src/components/rich.js`.
+
+- [ ] **Step 3: Create `apps/docs/src/components/rich-impl.ts`**
+```ts
+// Loaded only through the dynamic import in rich.tsx. Do not import this file statically.
+export { CodeBlock, PolyglotCodeTabs, MermaidViewer } from "@joymify/react";
+```
+
+- [ ] **Step 4: Create `apps/docs/src/components/rich.css`**
+```css
+/* Shown while the Joymify code and diagram chunk loads: the same text, unhighlighted. */
+.rich-fallback { margin: 0; padding: var(--space-4); overflow-x: auto; background: var(--bg-sidebar); border: 1px solid var(--border-card); border-radius: var(--radius-md); font-family: var(--font-mono); font-size: var(--text-sm); }
+```
+
+- [ ] **Step 5: Create `apps/docs/src/components/rich.tsx`**
+```tsx
+import React, { Suspense, lazy } from "react";
+import type { CodeBlockProps, MermaidViewerProps, PolyglotCodeTabsProps } from "@joymify/react";
+import "./rich.css";
+// One dynamic import for all three, so the highlighter and the diagram renderer
+// stay out of the entry chunk. Everything else imports from this module.
+const load = () => import("./rich-impl.js");
+const LazyCodeBlock = lazy(() => load().then((m) => ({ default: m.CodeBlock })));
+const LazyCodeTabs = lazy(() => load().then((m) => ({ default: m.PolyglotCodeTabs })));
+const LazyMermaid = lazy(() => load().then((m) => ({ default: m.MermaidViewer })));
+function Plain({ code }: { code: string }) {
+  return (
+    <pre className="rich-fallback">
+      <code>{code}</code>
+    </pre>
+  );
+}
+export function Code(props: CodeBlockProps) {
+  return (
+    <Suspense fallback={<Plain code={props.code ?? ""} />}>
+      <LazyCodeBlock {...props} />
+    </Suspense>
+  );
+}
+export function CodeTabs(props: PolyglotCodeTabsProps) {
+  const items = props.items ?? [];
+  const active = items.find((item) => (item.key || item.language) === props.activeKey) ?? items[0];
+  return (
+    <Suspense fallback={<Plain code={active?.code ?? ""} />}>
+      <LazyCodeTabs {...props} />
+    </Suspense>
+  );
+}
+export function Diagram(props: MermaidViewerProps) {
+  return (
+    <Suspense fallback={<Plain code={props.code ?? ""} />}>
+      <LazyMermaid {...props} />
+    </Suspense>
+  );
+}
+```
+
+- [ ] **Step 6: Replace `Callout` and `CodeBlock` in `apps/docs/src/components/Prose.tsx`.** The whole file becomes:
+```tsx
+import React from "react";
+import { Alert } from "@joymify/react";
+import { Code } from "./rich.js";
+import "../prose.css";
+/** Prose page primitive: styles h1-h3, p, ul/ol, inline code and links for tutorial content. */
+export function Prose({ children }: { children: React.ReactNode }) {
+  return <article className="prose">{children}</article>;
+}
+/** A static note. `role="note"` replaces the Alert's default `role="alert"`, which would be announced on load. */
+export function Callout({
+  tone = "info",
+  title,
+  children,
+}: {
+  tone?: "info" | "warn";
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Alert className="prose-callout" role="note" variant={tone === "warn" ? "warning" : "info"} title={title}>
+      {children}
+    </Alert>
+  );
+}
+export function CodeBlock({ children, language }: { children: string; language?: string }) {
+  return <Code className="prose-code" code={children} language={language} />;
+}
+```
+
+- [ ] **Step 7: Trim `apps/docs/src/prose.css`.** Delete the four rules `.prose-callout`, `.prose-callout--info`, `.prose-callout--warn`, `.prose-callout__title` and the rule `.prose-code` (lines 11 to 16), and put this single rule in their place:
+```css
+.prose-callout, .prose-code { margin: var(--space-4) 0; }
+```
+
+- [ ] **Step 8: Run the test, then the suite**
+
+Run: `pnpm --filter @ucsa/docs exec vitest run tests/rich.test.tsx 2>&1 | tail -n 8`
+Expected: 5 passed.
+Run: `pnpm --filter @ucsa/docs test 2>&1 | tail -n 6`
+Expected: exit 0, `BASELINE + 19` passed.
+
+- [ ] **Step 9: Commit**
+```bash
+git add apps/docs/src/components/rich.tsx apps/docs/src/components/rich-impl.ts apps/docs/src/components/rich.css apps/docs/tests/rich.test.tsx apps/docs/src/components/Prose.tsx apps/docs/src/prose.css
+git commit -m "feat(F-045): Joymify CodeBlock and Alert in tutorial prose, behind one lazy wrapper
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+### Task 11: Platform guide on `PolyglotCodeTabs` and `CodeBlock`
+
+**Files:**
+- Modify: `apps/docs/src/components/MultiPlatformDocs.tsx`, `apps/docs/src/components/multiplatform.css:15`, `apps/docs/tests/multiplatform-docs.test.tsx`
+
+**Interfaces:**
+- Consumes: `Code`, `CodeTabs` from `./rich.js` (Task 10); `guides`, `platforms: PlatformId[]`, `PlatformId = "ts" | "dart" | "csharp"`, `Snippet = { title; lang; available; code; sources; notes }` from `../content/guides/index.js`.
+- Produces: nothing later tasks call.
+
+- [ ] **Step 1: Edit the existing test and add the new ones.** In `apps/docs/tests/multiplatform-docs.test.tsx`:
+
+Add `waitFor` to the Testing Library import. The platform labels now come from the lazily loaded tab list, so in the two tests "switches language tabs to Dart and C# Unity dynamically" and "switches concept tabs to the WAL and UCB1 guides", make the callback `async` and change the three lookups `screen.getByText("🎯 Dart 3+ (Flutter)")` (once) and `screen.getByText("🎮 C# Unity (.NET)")` (twice) to `await screen.findByText(...)` with the same string. Change nothing else in those tests. Then add inside the top-level `describe`:
+```tsx
+  it("offers the three platforms as Joymify tabs and highlights the TypeScript snippet", async () => {
+    const { container } = render(<MultiPlatformDocs />);
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual([
+      "🟦 TypeScript (React / Node)",
+      "🎯 Dart 3+ (Flutter)",
+      "🎮 C# Unity (.NET)",
+    ]);
+    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
+    expect(container.querySelector('.joy-code-block [class^="joy-syntax-"]')).not.toBeNull();
+    expect(container.querySelector(".mp-code")).toBeNull();
+    fireEvent.click(tabs[2]);
+    expect(screen.getByText("QueryEngine & SWR Lifecycle (C# Unity)")).toBeDefined();
+    expect(screen.getAllByRole("tab")[2].getAttribute("aria-selected")).toBe("true");
+  });
+  it("renders three Joymify code blocks in the side-by-side view", async () => {
+    const { container } = render(<MultiPlatformDocs />);
+    fireEvent.click(screen.getByText("Side by side"));
+    await waitFor(() => expect(container.querySelectorAll(".mp-side .joy-code-block").length).toBe(3));
+    expect(screen.queryByRole("tablist")).toBeNull();
+  });
+```
+
+- [ ] **Step 2: Run it to see it fail**
+
+Run: `pnpm --filter @ucsa/docs exec vitest run tests/multiplatform-docs.test.tsx 2>&1 | tail -n 15`
+Expected: the two new tests FAIL (no element with role `tab`; no `.joy-code-block`). The existing ones still pass.
+
+- [ ] **Step 3: Edit `apps/docs/src/components/MultiPlatformDocs.tsx`**
+
+Add the import below the `@joymify/react` import:
+```tsx
+import { Code, CodeTabs } from "./rich.js";
+```
+
+Change the `SnippetView` signature and its code area. The state, `handleCopy`, the header, the notes list and the sources line stay exactly as they are:
+```tsx
+function SnippetView({ snippet, children }: { snippet: Snippet; children?: React.ReactNode }) {
+```
+
+```tsx
+      {children ?? (snippet.available ? (
+        <div className="mp-scroll" role="region" aria-label={`${snippet.title} code, scrollable`} tabIndex={0}>
+          <Code code={snippet.code} language={snippet.lang} allowCopy={false} />
+        </div>
+      ) : (
+        <p className="mp-unavailable"><strong>Not available on this platform.</strong></p>
+      ))}
+```
+
+In `MultiPlatformDocs`, below `const guide = guides[concept];` add:
+```tsx
+  // Tabs need a snippet on every platform; a guide with a gap keeps the plain buttons.
+  const allAvailable = platforms.every((p) => guide[p].available);
+  const isPlatform = (key: string): key is PlatformId => (platforms as readonly string[]).includes(key);
+```
+
+Change the condition of the platform button row from `view === "tabs" ? (` to `view === "tabs" && !allAvailable ? (` (its `<span />` branch stays). Replace the final block `{view === "tabs" ? ( <SnippetView snippet={guide[platform]} /> ) : ( <div className="mp-side">…</div> )}` with:
+```tsx
+        {view === "side" ? (
+          <div className="mp-side">
+            {platforms.map((p) => (
+              <SnippetView key={p} snippet={guide[p]} />
+            ))}
+          </div>
+        ) : allAvailable ? (
+          <SnippetView snippet={guide[platform]}>
+            <CodeTabs
+              aria-label="Platform code"
+              items={platforms.map((p) => ({ key: p, language: guide[p].lang, label: PLATFORM_LABEL[p], code: guide[p].code }))}
+              activeKey={platform}
+              onChange={(key) => {
+                if (isPlatform(key)) setPlatform(key);
+              }}
+              allowCopy={false}
+            />
+          </SnippetView>
+        ) : (
+          <SnippetView snippet={guide[platform]} />
+        )}
+```
+
+The portal's own copy button stays (it reports a failed copy; the Joymify one does not), which is why `allowCopy` is `false` in both places. The snippet title stays in the header, outside the lazy boundary.
+
+- [ ] **Step 4: Delete the dead rule** `.mp-code { ... }` on line 15 of `apps/docs/src/components/multiplatform.css`. Keep `.mp-scroll` (the parity matrix uses it).
+
+- [ ] **Step 5: Run the test, then the suite**
+
+Run: `pnpm --filter @ucsa/docs exec vitest run tests/multiplatform-docs.test.tsx 2>&1 | tail -n 8`
+Expected: all pass, two more than before.
+Run: `pnpm --filter @ucsa/docs test 2>&1 | tail -n 6`
+Expected: exit 0, `BASELINE + 21` passed.
+
+- [ ] **Step 6: Commit**
+```bash
+git add apps/docs/src/components/MultiPlatformDocs.tsx apps/docs/src/components/multiplatform.css apps/docs/tests/multiplatform-docs.test.tsx
+git commit -m "feat(F-045): platform guide on Joymify PolyglotCodeTabs and CodeBlock
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+### Task 12: Request-path diagram on the Overview page, and the chunk check
+
+**Files:**
+- Create: `apps/docs/tests/home-diagram.test.tsx`
+- Modify: `apps/docs/src/pages/Home.tsx`, `apps/docs/src/pages/home.css`
+
+**Interfaces:**
+- Consumes: `Diagram` from `../components/rich.js` (Task 10).
+
+- [ ] **Step 1: Write the failing test** `apps/docs/tests/home-diagram.test.tsx`
+```tsx
+// @vitest-environment jsdom
+import React from "react";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, cleanup, waitFor } from "@testing-library/react";
+import { Home } from "../src/pages/Home.js";
+describe("Overview request-path diagram", () => {
+  afterEach(() => cleanup());
+  it("draws the cache, write-ahead log and outbox path as an svg", async () => {
+    const { container } = render(<Home />);
+    await waitFor(() => expect(container.querySelector(".home__diagram svg.joy-mermaid__svg")).not.toBeNull());
+    const text = container.querySelector(".home__diagram svg.joy-mermaid__svg")?.textContent ?? "";
+    for (const label of ["Memory cache", "Write-ahead log on disk", "Offline outbox"]) expect(text).toContain(label);
+  });
+});
+```
+
+- [ ] **Step 2: Run it to see it fail**
+
+Run: `pnpm --filter @ucsa/docs exec vitest run tests/home-diagram.test.tsx 2>&1 | tail -n 10`
+Expected: FAIL, the `waitFor` times out (no `.home__diagram`).
+
+- [ ] **Step 3: Add the diagram to `apps/docs/src/pages/Home.tsx`.** Add the import and the constant above `export function Home()`:
+```tsx
+import { Diagram } from "../components/rich.js";
+// Plain arrows and bracket nodes only: that is the subset the Joymify renderer draws.
+const REQUEST_PATH = `flowchart LR
+  APP[App reads a query] --> CACHE[Memory cache]
+  CACHE --> NET[Network fetch when stale]
+  NET --> WAL[Write-ahead log on disk]
+  WAL --> CACHE
+  MUT[App writes a mutation] --> OUTBOX[Offline outbox]
+  OUTBOX --> NET`;
+```
+
+and directly after the closing `</div>` of `<div className="home__panels">`, still inside the card:
+```tsx
+      <div className="home__diagram">
+        <Diagram code={REQUEST_PATH} title="Request path: cache, write-ahead log and outbox" allowCopy={false} />
+      </div>
+```
+
+- [ ] **Step 4: Add to `apps/docs/src/pages/home.css`**
+```css
+.home__diagram { margin-top: var(--space-6); max-width: 100%; overflow-x: auto; }
+```
+
+- [ ] **Step 5: Run the test, the suite, the build and the chunk check**
+
+Run: `pnpm --filter @ucsa/docs exec vitest run tests/home-diagram.test.tsx 2>&1 | tail -n 6`
+Expected: 1 passed.
+Run: `pnpm --filter @ucsa/docs test 2>&1 | tail -n 6`
+Expected: exit 0, `BASELINE + 22` passed.
+
+```bash
+pnpm --filter @ucsa/docs build 2>&1 | tail -n 12
+ENTRY=$(grep -o 'assets/index-[^"]*\.js' apps/docs/dist/index.html | head -n 1)
+echo "entry=$ENTRY"; grep -l "joy-mermaid" apps/docs/dist/assets/*.js; grep -c "joy-mermaid" "apps/docs/dist/$ENTRY"
+```
+Expected: build exit 0; `grep -l` lists at least one file; that file is not `$ENTRY`; the count for the entry file is `0`. Note the gzip size of the stylesheet from the build output in `handoff.md` (the spec asks for it in the pull request).
+
+If the entry chunk contains `joy-mermaid`, the bundler did not drop the unused re-exports of the package's single entry point. STOP and report: the fix is upstream (subpath exports in `@joymify/react`), not a deep import or a copied renderer here.
+
+- [ ] **Step 6: Commit**
+```bash
+git add apps/docs/tests/home-diagram.test.tsx apps/docs/src/pages/Home.tsx apps/docs/src/pages/home.css
+git commit -m "feat(F-045): request-path flowchart on the Overview page through MermaidViewer
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+- [ ] **Step 7: Phase gate** for Tasks 10 to 12 together: verify (Step 5) → `code-reviewer` + `typescript-reviewer` on `model: opus` over the three commits → `/simplify` → re-run the docs tests and the docs build.
+
+### Task 13: Phase 2 browser verification, README, final sweep
+
+**Files:**
+- Modify: `README.md` (the `apps/docs` section and the test count line near line 2841), `handoff.md` in the feature folder
+
+- [ ] **Step 1: Browser subagent.** Start the preview as in Task 9 Step 1 and dispatch one browser subagent (`model: sonnet`) with "Appendix: browser brief" plus these phase 2 checks:
+
+- On `#/` the request-path diagram is an `svg` with readable node labels in light and in dark, and at 360px it scrolls inside its own box without widening the page.
+- On `#/multiplatform` the three platform tabs switch the code and the title; arrow keys move between tabs; "Side by side" shows three code blocks; the copy button reports "✓ Copied to Clipboard".
+- On each tutorial route the code blocks are highlighted and the callouts are readable in both themes.
+
+Act on the verdict as in Task 9 Step 3.
+
+- [ ] **Step 2: README.** In the `apps/docs` section, after the setup text from Task 5, add:
+```markdown
+**Themes.** The sidebar has a System / Light / Dark control. The choice is saved in `localStorage` under `ucsa-docs-theme`; System follows the operating system. Fonts (Inter, JetBrains Mono) are bundled into `apps/docs/dist/assets`, so the built site makes no request to another origin.
+
+**Code and diagrams.** Code samples use the Joymify `CodeBlock` and `PolyglotCodeTabs`, and diagrams use `MermaidViewer`, all loaded on demand through `apps/docs/src/components/rich.tsx`. The diagram renderer draws flowcharts and sequence diagrams only, and the highlighter has no Dart or C# grammar yet; both gaps are fixed upstream in `joy-design`, not here.
+```
+
+Then run the whole workspace suite once and update the count line near line 2841 with the real numbers:
+
+Run: `pnpm test 2>&1 | tail -n 6`
+Expected: exit 0. Put the printed test and file counts into the sentence "Run complete Vitest suite (… tests across … files, …)".
+
+- [ ] **Step 3: Acceptance sweep.** Run each line and compare with the spec's phase 1b and phase 2 criteria:
+```bash
+grep -c 'data-theme="dark"' apps/docs/index.html
+pnpm --filter @ucsa/docs build 2>&1 | tail -n 4
+ls apps/docs/dist/assets | grep -c -E "\.woff2$"
+grep -rn -E "fonts\.googleapis|fonts\.gstatic" apps/docs/dist | head -n 3
+bash scripts/precheck.sh 2>&1 | tail -n 12
+git status --short | head -n 5
+```
+Expected: `0`; build exit 0; at least `2`; nothing; precheck exit 0; a clean tree apart from `README.md` and `handoff.md`.
+
+- [ ] **Step 4: File the off-goal findings, do not fix them.** Record three upstream ideas for `joy-design` in `handoff.md` under "Upstream to file": (1) `renderMermaidToSvg` draws unsupported diagram types as a flowchart instead of returning `success: false`; (2) the highlighter has no Dart or C# grammar; (3) the tokens stylesheet sets no `color-scheme`, so each consumer adds it.
+
+- [ ] **Step 5: Commit**
+```bash
+git add README.md .claude/refined_backlog/F-045-adopt-the-joymify-design-system-in-the-d/handoff.md
+git commit -m "docs(F-045): README for themes, code blocks and diagrams; record upstream gaps
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+- [ ] **Step 6: Final gate.** `code-reviewer` on `model: opus` over the README diff and over `git diff release/1.10..HEAD --stat` for anything outside this plan's file table → fix → `git status --short` is empty. The feature is then ready for `ps-release-workflow-ship`.
+
+---
+
+## Appendix: browser brief
+
+Give this text to the browser subagent in Tasks 9 and 13, with the task's extra checks appended.
+
+```
+Goal: verify the docs portal renders correctly in both themes at two widths. Return text only.
+Site: http://localhost:<port>/cli-state-handler/ (the preview server is already running).
+Routes (hash routes, from apps/docs/src/routes.ts): #/ , #/tutorial-first-query , #/tutorial-freshness ,
+#/tutorial-durable-cache , #/tutorial-outbox , #/tutorial-ucb1 , #/swr , #/timing , #/outbox , #/cas ,
+#/ucb1 , #/wal , #/multiplatform , #/parity , #/release-notes , #/sandbox  (16 routes).
+For every route, at 360px and at 1280px wide, in light and in dark (set
+document.documentElement.dataset.theme to "light" or "dark"), check:
+  1. document.documentElement.scrollWidth <= window.innerWidth  (no horizontal page scroll)
+  2. the console shows no errors
+  3. text is legible on every surface: no dark text on a dark surface, no light on light
+At 360px also check once per theme: the menu button opens the drawer, Escape closes it.
+Do not paste screenshots into the reply. Return at most 15 lines:
+  line 1: PASS or FAIL overall
+  then one line per failing route: route, width, theme, check number, what you saw
+  last line: the extra checks, each PASS or FAIL
+```
+
+## Self-review
+
+- **Spec coverage.** Phase 0 → Task 1. Rebase and baseline → Task 2. `.npmrc`, both workflows, `ci.yml` header, release regression check, E-009 → Task 3. Dependencies, alias removal, exports check, typecheck, build → Task 4. README install and expiry → Task 5. Draft pull request, `precheck.sh`, the unproven `precheck` re-install → Task 6. Toggle, no-flash script, storage failure → Task 7. Fonts, scrim, inline-style guard → Task 8. Route check at 360px and 1280px in both themes → Tasks 9 and 13. `CodeBlock`, `Alert`, lazy wrapper, flowchart and rejected-diagram tests → Task 10. `PolyglotCodeTabs` → Task 11. Overview diagram and the non-entry chunk check → Task 12. Post-merge Release watch → recorded for promote time in Task 6 Step 5 (it cannot run before the release is promoted).
+- **Not covered, on purpose.** Phase 3 (markdown). The spec's "unsupported diagram type shows its source" as worded (finding 6). Moving 54 inline styles (finding 4).
+- **Placeholders.** `TOKEN_EXPIRY` is an owner-supplied value with a stop condition in Task 1 and a check in Task 5 Step 2 that the word is gone. `BASELINE` is measured in Task 2. No other open value.
+- **Type consistency.** `Code`, `CodeTabs`, `Diagram` (Task 10) are the names used in Tasks 11 and 12. `ThemeChoice`, `THEME_KEY`, `readTheme`, `applyTheme` (Task 7) are used only there. `Prose.tsx` keeps `Callout` and `CodeBlock` with unchanged props.
+- **Test count ledger.** Task 4 +4, Task 7 +6, Task 8 +4, Task 10 +5, Task 11 +2, Task 12 +1: `BASELINE + 22` at the end.
+
+## Audit trail
+
+- 2026-10-09: plan written. `self-grill-audit` has not been run on this plan yet; it is the next step before execution.
