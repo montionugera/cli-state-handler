@@ -5,7 +5,7 @@ import {
   TARGET_SCHEMA_VERSION,
   CANONICAL_MIGRATIONS,
   type AppliedMigrationRecord,
-} from '@ucsa/core';
+} from '@montionugera/ucsa-core';
 
 export interface MigrateCommandOptions {
   db?: string;

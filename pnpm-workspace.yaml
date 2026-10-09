@@ -13,8 +13,3 @@ supportedArchitectures:
 onlyBuiltDependencies:
   - better-sqlite3
   - esbuild
-
-# better-sqlite3 11.x does not compile on Node 26. The package.json ranges still
-# say ^11; bumping them to ^12 and dropping this override is a follow-up.
-overrides:
-  better-sqlite3: ^12.11.1

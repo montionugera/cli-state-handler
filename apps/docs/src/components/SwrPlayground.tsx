@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useSyncExternalStore } from "react";
-import { QueryEngine, hashQueryKey, replaceEqualDeep } from "@ucsa/core";
-import type { QueryState } from "@ucsa/core";
+import { QueryEngine, hashQueryKey, replaceEqualDeep } from "@montionugera/ucsa-core";
+import type { QueryState } from "@montionugera/ucsa-core";
 import { LifecycleGraph } from "./LifecycleGraph.js";
 import { StaleTimeline } from "./StaleTimeline.js";
 

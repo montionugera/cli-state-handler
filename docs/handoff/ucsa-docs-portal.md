@@ -4,7 +4,7 @@ Supersedes the 14-line `/tmp/handoff-ucsa-docs-reactive.md`, which now points he
 
 ## Objective
 
-An interactive, hash-routed documentation portal for UCSA (Unified Client State Architecture): visualisers for the SWR lifecycle, timing controls, the offline outbox, CAS, the UCB1 event bus and SQLite WAL, plus multi-platform (TypeScript, Dart, C#) guides, a parity matrix, a five-page tutorial and an editable TypeScript sandbox (15 routes in `apps/docs/src/routes.ts`). It runs fully in the browser against the browser-safe entry of `@ucsa/core`, and is deployed as static files (GitHub Pages workflow).
+An interactive, hash-routed documentation portal for UCSA (Unified Client State Architecture): visualisers for the SWR lifecycle, timing controls, the offline outbox, CAS, the UCB1 event bus and SQLite WAL, plus multi-platform (TypeScript, Dart, C#) guides, a parity matrix, a five-page tutorial and an editable TypeScript sandbox (15 routes in `apps/docs/src/routes.ts`). It runs fully in the browser against the browser-safe entry of `@montionugera/ucsa-core`, and is deployed as static files (GitHub Pages workflow).
 
 ## Slice status
 
@@ -33,7 +33,7 @@ State as of `release/1.8` with every slice merged (2026-10-09). Release 1.8 is *
 ## How to run and verify
 
 ```bash
-pnpm install && pnpm --filter @ucsa/core build   # fresh worktree needs both
+pnpm install && pnpm --filter @montionugera/ucsa-core build   # fresh worktree needs both
 pnpm --filter @ucsa/docs dev      # http://localhost:6006/cli-state-handler/ (6007 if busy)
 pnpm --filter @ucsa/docs test
 pnpm --filter @ucsa/docs build    # -> apps/docs/dist
@@ -45,11 +45,11 @@ scripts/epic-check.sh E-008       # epic assertions 1-10; any other epic id exit
 
 Epic assertion 11 (built portal in Chrome at 360px and 1280px, no horizontal scroll, no console errors on every route) is manual and is not done by any script. It was run once by a browser agent on 2026-10-09 against the `vite preview` build of `release/1.8` at `97ddede`: all 15 routes from `apps/docs/src/routes.ts` passed at both widths (`scrollWidth` equal to `clientWidth`, exactly one `h1` per route, no console errors captured). Limits of that run: each width was a same-origin iframe of exactly 360px or 1280px in a tab that was probably in the background, not a real phone or a resized window; console errors were collected by listeners installed inside the iframe after the first load, so errors during the initial `#/home` load are not covered; touch, keyboard focus, playground interactions, other browsers and the base path on a real host were not exercised.
 
-`epic-check.sh` greps the built bundle for real Node imports only (`better-sqlite3|node:(fs|net|crypto|path)`). The epic's original wording, which also matched `Buffer.from`, is too broad: browser `@ucsa/core` code legitimately uses `Buffer`.
+`epic-check.sh` greps the built bundle for real Node imports only (`better-sqlite3|node:(fs|net|crypto|path)`). The epic's original wording, which also matched `Buffer.from`, is too broad: browser `@montionugera/ucsa-core` code legitimately uses `Buffer`.
 
 ## Deploy
 
-`.github/workflows/docs.yml` (push to `main` or manual): pnpm install, build `@ucsa/core`, test and build `apps/docs`, upload `apps/docs/dist`, deploy to Pages. Base path is `/cli-state-handler/` (`apps/docs/vite.config.ts`). The repository has **no git remote and no CI**, so the workflow has never run and is validated only as YAML. To use it: add a remote, push, and set Settings > Pages > Source to "GitHub Actions".
+`.github/workflows/docs.yml` (push to `main` or manual): pnpm install, build `@montionugera/ucsa-core`, test and build `apps/docs`, upload `apps/docs/dist`, deploy to Pages. Base path is `/cli-state-handler/` (`apps/docs/vite.config.ts`). The repository has **no git remote and no CI**, so the workflow has never run and is validated only as YAML. To use it: add a remote, push, and set Settings > Pages > Source to "GitHub Actions".
 
 ## Known limits
 
@@ -63,7 +63,7 @@ Epic assertion 11 (built portal in Chrome at 360px and 1280px, no horizontal scr
 - `better-sqlite3` is declared `^11` in two `package.json` files (root devDependencies and `packages/core`) while `pnpm-workspace.yaml` overrides it to `^12.11.1` (11.x does not build on Node 26). Bump both ranges and drop the override.
 - Outbox stale-worker completion/failure is unfenced: a worker whose lease expired can still complete or fail an item, and can double-rollback.
 - Outbox callbacks are not persisted; after a restart, queued mutations have no `onSuccess`/`onError`/conflict policy.
-- Existing `Buffer` use in the browser bundle of `@ucsa/core`.
+- Existing `Buffer` use in the browser bundle of `@montionugera/ucsa-core`.
 - The TypeScript sandbox could move to a terminable Web Worker so a runaway script can be stopped.
 - The SWR sandbox preset (1000 ms stale time) reads the fresh step right after the first fetch resolves and waits for each fetch by subscribing to the query, so only its single 1100 ms sleep uses the clock (a throttled tab only makes it longer, which is still stale). It has not been re-run in a foreground tab; a very slow machine could still cross 1000 ms between two awaited statements.
 - The sandbox frame can still navigate itself once before the run is ended, so it is not a network-isolation guarantee (the page says so).

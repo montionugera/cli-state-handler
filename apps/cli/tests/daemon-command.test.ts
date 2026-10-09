@@ -3,7 +3,7 @@ import * as fsSync from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { SqliteAdapter, BusHub } from '@ucsa/core';
+import { SqliteAdapter, BusHub } from '@montionugera/ucsa-core';
 import { runDaemon } from '../src/commands/daemon.js';
 import { runStatus } from '../src/commands/status.js';
 

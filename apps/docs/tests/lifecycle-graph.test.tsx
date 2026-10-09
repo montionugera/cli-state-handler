@@ -2,8 +2,8 @@
 import React from "react";
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
-import { LifecycleFSM } from "@ucsa/core";
-import type { QueryStatus } from "@ucsa/core";
+import { LifecycleFSM } from "@montionugera/ucsa-core";
+import type { QueryStatus } from "@montionugera/ucsa-core";
 import { LifecycleGraph } from "../src/components/LifecycleGraph.js";
 import { LIFECYCLE_EDGES, LIFECYCLE_STATES, applyEdge } from "../src/models/lifecycle-graph.js";
 

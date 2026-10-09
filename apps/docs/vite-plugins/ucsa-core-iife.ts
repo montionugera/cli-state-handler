@@ -6,7 +6,7 @@ const RESOLVED_ID = "\0" + VIRTUAL_ID;
 const ENTRY = path.resolve(import.meta.dirname, "../../../packages/core/src/browser.ts");
 
 /**
- * Exposes `virtual:ucsa-core-iife`: the browser-safe @ucsa/core entry bundled to a
+ * Exposes `virtual:ucsa-core-iife`: the browser-safe @montionugera/ucsa-core entry bundled to a
  * single IIFE (global `UcsaCore`) and exported as a string, so the sandbox can inline
  * it into an iframe `srcdoc` (the frame has an opaque origin and cannot fetch modules).
  */

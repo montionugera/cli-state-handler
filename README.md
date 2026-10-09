@@ -1366,7 +1366,7 @@ void main() {
 
 ## Interactive CLI POC (`apps/cli`)
 
-UCSA includes a fully functional, production-ready command line interface (`ucsa`) in `apps/cli`. Built directly on top of `@ucsa/core`, it serves as a reference implementation proving ground for terminal developer agents and CLI workflows requiring deterministic local persistence, offline resilience, and fast background revalidation.
+UCSA includes a fully functional, production-ready command line interface (`ucsa`) in `apps/cli`. Built directly on top of `@montionugera/ucsa-core`, it serves as a reference implementation proving ground for terminal developer agents and CLI workflows requiring deterministic local persistence, offline resilience, and fast background revalidation.
 
 ### Capabilities of the `ucsa` Binary
 
@@ -1545,7 +1545,7 @@ $ node apps/cli/bin/ucsa.js tutorial --dry-run
 
 ## Interactive Storybook Tutorial & Live Documentation Studio (`apps/docs`)
 
-`apps/docs` (package `@ucsa/docs`) is a standalone, hash-routed documentation portal built with React 19 and Vite. Each page is an interactive visualiser of one UCSA subsystem. The portal runs entirely in the browser against the browser-safe entry of `@ucsa/core` (`packages/core/src/browser.ts`); it never touches SQLite or the filesystem.
+`apps/docs` (package `@ucsa/docs`) is a standalone, hash-routed documentation portal built with React 19 and Vite. Each page is an interactive visualiser of one UCSA subsystem. The portal runs entirely in the browser against the browser-safe entry of `@montionugera/ucsa-core` (`packages/core/src/browser.ts`); it never touches SQLite or the filesystem.
 
 ### Pages
 
@@ -1567,7 +1567,7 @@ The pages are the entries of the `routes` array in `apps/docs/src/routes.ts` (th
 | WAL Storage | `#/wal` | Visualisers | Labelled simulation of SQLite WAL: readers, checkpoint, crash recovery, rollback-journal mode. |
 | TS / Dart / Unity C# | `#/multiplatform` | Guides | Per-subsystem code snippets for TypeScript, Dart and C#, as tabs or side by side; each names its source file. |
 | Platform Parity Matrix | `#/parity` | Guides | Table of how much of each subsystem exists per platform (full / partial / none), with reasons and source files. |
-| TypeScript Sandbox | `#/sandbox` | Sandbox | Editable TypeScript with presets; Run executes it against `@ucsa/core` in a sandboxed iframe (`allow-scripts` only) and shows console output and errors. Types are stripped, not checked. |
+| TypeScript Sandbox | `#/sandbox` | Sandbox | Editable TypeScript with presets; Run executes it against `@montionugera/ucsa-core` in a sandboxed iframe (`allow-scripts` only) and shows console output and errors. Types are stripped, not checked. |
 
 An unknown hash renders a not-found page. The sandbox is not a network-isolation guarantee; the page says so.
 
@@ -1595,7 +1595,7 @@ To add a page, add one line to `routes` in `apps/docs/src/routes.ts` plus your o
 
 ### Deploying (GitHub Pages)
 
-`.github/workflows/docs.yml` runs on every push to `main` (and manually): it installs with pnpm, builds `@ucsa/core`, runs the `apps/docs` tests, builds `apps/docs`, uploads `apps/docs/dist` as the Pages artifact and deploys it. The build uses the base path `/cli-state-handler/`, so the site is served at `https://<owner>.github.io/cli-state-handler/`. The repository currently has no git remote and no CI, so the workflow exists as a file only and has never run; to use it, add a remote and set Settings > Pages > Source to "GitHub Actions". See `docs/handoff/ucsa-docs-portal.md` for state and follow-ups, and `scripts/epic-check.sh E-008` for the epic's automated verification.
+`.github/workflows/docs.yml` runs on every push to `main` (and manually): it installs with pnpm, builds `@montionugera/ucsa-core`, runs the `apps/docs` tests, builds `apps/docs`, uploads `apps/docs/dist` as the Pages artifact and deploys it. The build uses the base path `/cli-state-handler/`, so the site is served at `https://<owner>.github.io/cli-state-handler/`. The repository currently has no git remote and no CI, so the workflow exists as a file only and has never run; to use it, add a remote and set Settings > Pages > Source to "GitHub Actions". See `docs/handoff/ucsa-docs-portal.md` for state and follow-ups, and `scripts/epic-check.sh E-008` for the epic's automated verification.
 
 ---
 
@@ -2655,6 +2655,49 @@ await foreach (var slice in handle.ReadAllAsync())
 string finalStory = await handle.Done;
 UnityEngine.Debug.Log($"Completed story: {finalStory}");
 ```
+
+---
+
+## Publishing
+
+`@montionugera/ucsa-core` and `@montionugera/ucsa-cli` are published to npmjs.com by `.github/workflows/release.yml` using npm trusted publishing (OIDC). No npm token is stored.
+
+**First publish (one-time, manual)**
+
+A trusted publisher can only be attached to a package that already exists on npmjs.com, so the very first publish of each package is done by the maintainer from a laptop:
+
+```bash
+npm login
+pnpm install --frozen-lockfile && pnpm --filter "@montionugera/ucsa-cli..." build
+(cd packages/core && pnpm pack --pack-destination /tmp/ucsa-pack)
+(cd apps/cli && pnpm pack --pack-destination /tmp/ucsa-pack)
+npm publish /tmp/ucsa-pack/montionugera-ucsa-core-0.1.0.tgz --access public   # core first
+npm publish /tmp/ucsa-pack/montionugera-ucsa-cli-0.1.0.tgz --access public
+```
+
+Then, for each of the two packages on npmjs.com (Settings, Trusted Publisher, GitHub Actions), configure:
+
+| Field | Value |
+| --- | --- |
+| Owner | `montionugera` |
+| Repository | `cli-state-handler` |
+| Workflow filename | `release.yml` |
+| Environment | (blank) |
+
+and tick "Allow npm publish". From then on every release is token-free.
+
+**Cutting a release**
+
+1. Bump `version` in both `packages/core/package.json` and `apps/cli/package.json` (keep them equal, and keep the cli dependency on core as `workspace:*`).
+2. Commit, then tag: `git tag vX.Y.Z`.
+3. Push the tag: `git push origin vX.Y.Z`.
+
+The workflow first fails fast if the tag (without the `v`) differs from either package's `version` (skipped on manual `workflow_dispatch` runs). It then builds only the two published packages (`pnpm --filter "@montionugera/ucsa-cli..." build`, so a docs-site break cannot block a release), runs the unit tests, installs `npm@^11.5.1`, and for core and then cli packs with `pnpm pack` and publishes with `npm publish`. A `name@version` already on the registry is skipped with a log line, so re-running the workflow after a half-finished publish is safe.
+
+**Requirements and notes**
+
+- Node >= 22.14 and npm >= 11.5.1 (the workflow uses Node 22 and installs `npm@^11.5.1`).
+- The repository is private, so npm generates no provenance attestation for these releases.
 
 ---
 

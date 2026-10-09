@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import type { ConflictPolicy } from "@ucsa/core";
+import type { ConflictPolicy } from "@montionugera/ucsa-core";
 import { OutboxModel } from "../models/outbox-model.js";
 import type { OutboxMutation, SettleOutcome } from "../models/outbox-model.js";
 import "./outbox-playground.css";

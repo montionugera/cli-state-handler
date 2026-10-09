@@ -9,7 +9,7 @@ export const cas: Guide = {
     available: true,
     sources: [`${CORE}/storage/cas-store.ts`, `${CORE}/storage/cas-lru.ts`],
     code: `// Checked against: packages/core/src/storage/cas-store.ts (CasStore, put, get, prune)
-import { CasStore } from "@ucsa/core";
+import { CasStore } from "@montionugera/ucsa-core";
 
 const cas = new CasStore({
   baseDir: "./cas",

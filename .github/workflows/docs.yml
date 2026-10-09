@@ -31,7 +31,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @ucsa/core build
+      - run: pnpm --filter @montionugera/ucsa-core build
       - name: Test apps/docs
         run: pnpm --filter @ucsa/docs test
       - name: Build apps/docs

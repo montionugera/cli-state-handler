@@ -11,7 +11,7 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "paths": {
-      "@ucsa/core": ["../../packages/core/src/index.ts"]
+      "@montionugera/ucsa-core": ["../../packages/core/src/index.ts"]
     }
   },
   "include": ["src/**/*", "tests/**/*", "vite.config.ts", "vite-plugins/**/*"]
