@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { SqliteAdapter, BusHub } from '@ucsa/core';
+import { SqliteAdapter, BusHub } from '@montionugera/ucsa-core';
 
 export interface DaemonCommandOptions {
   db?: string;

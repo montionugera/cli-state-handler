@@ -1,5 +1,5 @@
 import * as fs from 'node:fs';
-import { SqliteAdapter, CliDurabilityManager } from '@ucsa/core';
+import { SqliteAdapter, CliDurabilityManager } from '@montionugera/ucsa-core';
 
 export interface DurabilityCommandOptions {
   db?: string;

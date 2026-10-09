@@ -1366,7 +1366,7 @@ void main() {
 
 ## Interactive CLI POC (`apps/cli`)
 
-UCSA includes a fully functional, production-ready command line interface (`ucsa`) in `apps/cli`. Built directly on top of `@ucsa/core`, it serves as a reference implementation proving ground for terminal developer agents and CLI workflows requiring deterministic local persistence, offline resilience, and fast background revalidation.
+UCSA includes a fully functional, production-ready command line interface (`ucsa`) in `apps/cli`. Built directly on top of `@montionugera/ucsa-core`, it serves as a reference implementation proving ground for terminal developer agents and CLI workflows requiring deterministic local persistence, offline resilience, and fast background revalidation.
 
 ### Capabilities of the `ucsa` Binary
 

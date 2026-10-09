@@ -47,13 +47,13 @@ importers:
 
   apps/cli:
     dependencies:
-      '@ucsa/core':
+      '@montionugera/ucsa-core':
         specifier: workspace:*
         version: link:../../packages/core
 
   apps/docs:
     dependencies:
-      '@ucsa/core':
+      '@montionugera/ucsa-core':
         specifier: workspace:*
         version: link:../../packages/core
       react:

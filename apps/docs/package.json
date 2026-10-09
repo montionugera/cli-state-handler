@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ucsa/core": "workspace:*",
+    "@montionugera/ucsa-core": "workspace:*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "sucrase": "^3.35.1"

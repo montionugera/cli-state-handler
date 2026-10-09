@@ -9,7 +9,7 @@
 - **Epic E-002: Multi-Platform Reference POCs (CLI, Dart, C# Unity)**
   - **F-006: Interactive Node CLI POC (`apps/cli`)**
     - Task 1: Scaffolding `apps/cli`, package configuration, and CLI entry point (`bin/ucsa.ts` / `bin/ucsa.js`).
-    - Task 2: Subcommand implementations (`query`, `cas`, `outbox`, `durability`, `status`) backed by `@ucsa/core`.
+    - Task 2: Subcommand implementations (`query`, `cas`, `outbox`, `durability`, `status`) backed by `@montionugera/ucsa-core`.
     - Task 3: Automated CLI integration tests, precheck Gate 1, README update, and ship.
   - **F-007: Dart / Flutter Reference POC (`packages/ucsa_dart`)**
     - Task 1: Dart package structure (`pubspec.yaml`, `lib/ucsa_dart.dart`), `LifecycleFSM`, and SQLite schema adapter.
@@ -25,7 +25,7 @@
 ## Phase 1: F-006 Interactive Node CLI POC
 
 ### Task 1: Scaffolding `apps/cli` & Command Router
-- Create `apps/cli/package.json` referencing `@ucsa/core` from workspace.
+- Create `apps/cli/package.json` referencing `@montionugera/ucsa-core` from workspace.
 - Create `apps/cli/bin/ucsa.ts` with executable shebang (`#!/usr/bin/env node`).
 - Setup CLI argument parsing for subcommands (`query`, `cas`, `outbox`, `status`, `flush-test`).
 - Write unit tests in `apps/cli/tests/router.test.ts`.

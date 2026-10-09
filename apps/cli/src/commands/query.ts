@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks';
 import * as crypto from 'node:crypto';
-import { SqliteAdapter, QueryEngine, hashQueryKey, type QueryKey } from '@ucsa/core';
+import { SqliteAdapter, QueryEngine, hashQueryKey, type QueryKey } from '@montionugera/ucsa-core';
 
 export interface QueryCommandOptions {
   db?: string;

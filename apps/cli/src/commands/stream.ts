@@ -1,4 +1,4 @@
-import { SqliteAdapter, QueryEngine, type QueryKey } from '@ucsa/core';
+import { SqliteAdapter, QueryEngine, type QueryKey } from '@montionugera/ucsa-core';
 
 export interface StreamCommandOptions {
   db?: string;

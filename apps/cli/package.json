@@ -1,5 +1,5 @@
 {
-  "name": "@ucsa/cli",
+  "name": "@montionugera/ucsa-cli",
   "version": "0.1.0",
   "type": "module",
   "bin": {
@@ -10,6 +10,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ucsa/core": "workspace:*"
+    "@montionugera/ucsa-core": "workspace:*"
   }
 }

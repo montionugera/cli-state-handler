@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { QueryEngine, debounceQuery } from "@ucsa/core";
+import { QueryEngine, debounceQuery } from "@montionugera/ucsa-core";
 
 export function TimingPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "h1" | "h2" } = {}) {
   // --- Section 1: Observer Throttling & Debouncing ---
