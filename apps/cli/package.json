@@ -1,6 +1,20 @@
 {
   "name": "@montionugera/ucsa-cli",
   "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/montionugera/cli-state-handler.git",
+    "directory": "apps/cli"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "files": [
+    "bin/ucsa.js",
+    "dist/bin",
+    "dist/src"
+  ],
   "type": "module",
   "bin": {
     "ucsa": "./bin/ucsa.js"

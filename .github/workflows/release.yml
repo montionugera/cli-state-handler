@@ -1,0 +1,50 @@
+name: Release
+
+# Publishes @montionugera/ucsa-core and @montionugera/ucsa-cli to npmjs.com via
+# trusted publishing (OIDC). No npm token is stored anywhere: npmjs trusts this
+# workflow (owner montionugera, repo cli-state-handler, workflow release.yml,
+# environment blank). Needs npm >= 11.5.1.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm -r build
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Publish to npmjs.com (trusted publishing)
+        run: |
+          npm install -g npm@latest
+          mkdir -p "$RUNNER_TEMP/npmjs"
+          # pnpm pack rewrites workspace:* to the real version; npm uploads
+          # (the OIDC exchange lives in the npm CLI). Core before cli.
+          for dir in packages/core apps/cli; do
+            (cd "$dir" && pnpm pack --pack-destination "$RUNNER_TEMP/npmjs")
+          done
+          for tgz in "$RUNNER_TEMP"/npmjs/montionugera-ucsa-core-*.tgz "$RUNNER_TEMP"/npmjs/montionugera-ucsa-cli-*.tgz; do
+            npm publish "$tgz" --access public
+          done
