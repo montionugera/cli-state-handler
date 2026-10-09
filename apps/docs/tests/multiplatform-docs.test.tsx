@@ -91,6 +91,87 @@ describe("MultiPlatformDocs Component", () => {
     expect(screen.queryByText("✓ Copied to Clipboard")).toBeNull();
   });
 
+  describe("Copied reset timer lifecycle", () => {
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    afterEach(() => {
+      vi.useRealTimers();
+      if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard);
+      else delete (navigator as unknown as { clipboard?: unknown }).clipboard;
+    });
+
+    const mockClipboard = (writeText = vi.fn().mockResolvedValue(undefined)) => {
+      Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    };
+
+    it("does not start a reset timer when the clipboard write settles after unmount", async () => {
+      vi.useFakeTimers();
+      let resolveWrite!: () => void;
+      mockClipboard(vi.fn(() => new Promise<void>((resolve) => { resolveWrite = resolve; })));
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { unmount } = render(<MultiPlatformDocs />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("📋 Copy Code"));
+      });
+      unmount();
+      await act(async () => {
+        resolveWrite();
+      });
+
+      expect(vi.getTimerCount()).toBe(0);
+      expect(errorSpy).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
+    });
+
+    it("clears the pending reset timer on unmount so nothing fires after teardown", async () => {
+      vi.useFakeTimers();
+      mockClipboard();
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { unmount } = render(<MultiPlatformDocs />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("📋 Copy Code"));
+      });
+      expect(screen.getByText("✓ Copied to Clipboard")).toBeDefined();
+      expect(vi.getTimerCount()).toBe(1);
+
+      unmount();
+      expect(vi.getTimerCount()).toBe(0);
+      act(() => {
+        vi.advanceTimersByTime(2500);
+      });
+      expect(errorSpy).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
+    });
+
+    it("clears the earlier pending timer when a second copy starts", async () => {
+      vi.useFakeTimers();
+      mockClipboard();
+      render(<MultiPlatformDocs />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("📋 Copy Code"));
+      });
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByText("✓ Copied to Clipboard"));
+      });
+      expect(vi.getTimerCount()).toBe(1);
+
+      // The first timer would have fired at 2000ms; the second copy must have replaced it.
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.getByText("✓ Copied to Clipboard")).toBeDefined();
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.getByText("📋 Copy Code")).toBeDefined();
+    });
+  });
+
   it("renders through Storybook App tab navigation", () => {
     render(<App />);
 
