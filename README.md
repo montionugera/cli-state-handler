@@ -2704,6 +2704,8 @@ Merging to `main` is the release. `.github/workflows/release.yml` runs on every 
 
 Check what the next merge would do, without changing anything: `node scripts/release/next-release.mjs`.
 
+**Pull request check:** `.github/workflows/ci.yml` runs `scripts/precheck.sh` (build, typecheck, unit and docs tests) on every pull request to `main`. It is read-only and cannot publish. A stock runner has no Dart or Flutter, so those test suites are skipped there; run `bash scripts/precheck.sh` locally to cover them.
+
 **If a publish fails:** start the "Release" workflow by hand on `main`. A version that is tagged but missing from the registry is published without a new bump.
 
 **Do not** rename `release.yml`, move its publish step into another workflow, or add `environment:` to its job. npmjs.com trusts that exact file with a blank environment.
