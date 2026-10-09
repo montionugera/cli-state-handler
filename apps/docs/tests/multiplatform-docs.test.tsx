@@ -92,14 +92,36 @@ describe("MultiPlatformDocs Component", () => {
   });
 
   describe("Copied reset timer lifecycle", () => {
+    const originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
     afterEach(() => {
       vi.useRealTimers();
+      if (originalClipboard) Object.defineProperty(navigator, "clipboard", originalClipboard);
+      else delete (navigator as unknown as { clipboard?: unknown }).clipboard;
     });
 
-    const mockClipboard = () => {
-      const writeText = vi.fn().mockResolvedValue(undefined);
+    const mockClipboard = (writeText = vi.fn().mockResolvedValue(undefined)) => {
       Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     };
+
+    it("does not start a reset timer when the clipboard write settles after unmount", async () => {
+      vi.useFakeTimers();
+      let resolveWrite!: () => void;
+      mockClipboard(vi.fn(() => new Promise<void>((resolve) => { resolveWrite = resolve; })));
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { unmount } = render(<MultiPlatformDocs />);
+
+      await act(async () => {
+        fireEvent.click(screen.getByText("📋 Copy Code"));
+      });
+      unmount();
+      await act(async () => {
+        resolveWrite();
+      });
+
+      expect(vi.getTimerCount()).toBe(0);
+      expect(errorSpy).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
+    });
 
     it("clears the pending reset timer on unmount so nothing fires after teardown", async () => {
       vi.useFakeTimers();

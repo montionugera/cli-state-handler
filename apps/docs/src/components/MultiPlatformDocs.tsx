@@ -15,8 +15,16 @@ type View = "tabs" | "side";
 function SnippetView({ snippet }: { snippet: Snippet }) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(resetTimer.current), []);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      clearTimeout(resetTimer.current);
+    };
+  }, []);
   const scheduleReset = () => {
+    if (!mounted.current) return;
     clearTimeout(resetTimer.current);
     resetTimer.current = setTimeout(() => setStatus("idle"), 2000);
   };
@@ -27,8 +35,8 @@ function SnippetView({ snippet }: { snippet: Snippet }) {
       return;
     }
     navigator.clipboard.writeText(snippet.code).then(
-      () => setStatus("copied"),
-      () => setStatus("failed"),
+      () => { if (mounted.current) setStatus("copied"); },
+      () => { if (mounted.current) setStatus("failed"); },
     ).finally(scheduleReset);
   };
   return (
