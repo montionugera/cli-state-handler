@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { guides, guideIds, platforms, type GuideId, type PlatformId, type Snippet } from "../content/guides/index.js";
 import "./multiplatform.css";
 
@@ -14,16 +14,22 @@ type View = "tabs" | "side";
 
 function SnippetView({ snippet }: { snippet: Snippet }) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(resetTimer.current), []);
+  const scheduleReset = () => {
+    clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => setStatus("idle"), 2000);
+  };
   const handleCopy = () => {
     if (!navigator.clipboard) {
       setStatus("failed");
-      setTimeout(() => setStatus("idle"), 2000);
+      scheduleReset();
       return;
     }
     navigator.clipboard.writeText(snippet.code).then(
       () => setStatus("copied"),
       () => setStatus("failed"),
-    ).finally(() => setTimeout(() => setStatus("idle"), 2000));
+    ).finally(scheduleReset);
   };
   return (
     <section className="mp-snippet" aria-label={snippet.title}>
