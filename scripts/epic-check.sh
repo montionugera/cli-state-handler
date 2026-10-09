@@ -27,7 +27,7 @@ if [ "$EPIC" = "E-009" ]; then
   run 4 "no workflow targets GitHub Pages" bash -c "! grep -rlE 'deploy-pages|upload-pages-artifact|configure-pages' .github/workflows"
   run 5 "docs build has a release notes page and version.json" bash -c "
     pnpm --filter @montionugera/ucsa-core build >/dev/null && pnpm --filter @ucsa/docs build >/dev/null &&
-    test -f apps/docs/dist/version.json && grep -q 'release-notes' apps/docs/src/routes.ts"
+    test -f apps/docs/dist/version.json && grep -rqF 'Release notes' apps/docs/dist"
   exit $rc
 fi
 if [ "$EPIC" != "E-008" ]; then
