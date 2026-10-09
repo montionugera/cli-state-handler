@@ -5,6 +5,8 @@ const RELEASING = { feat: 'minor', fix: 'patch', perf: 'patch' };
 const RANK = { none: 0, patch: 1, minor: 2, major: 3 };
 
 export function bump(version, level) {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`cannot bump non-numeric version: ${version}`);
+  if (!['major', 'minor', 'patch'].includes(level)) throw new Error(`unknown bump level: ${level}`);
   const [major, minor, patch] = version.split('.').map(Number);
   if (level === 'major') return major === 0 ? `0.${minor + 1}.0` : `${major + 1}.0.0`;
   if (level === 'minor') return `${major}.${minor + 1}.0`;

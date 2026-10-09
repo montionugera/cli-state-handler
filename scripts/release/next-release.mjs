@@ -11,7 +11,12 @@ const CHANGELOG = 'CHANGELOG.md';
 
 const args = process.argv.slice(2);
 const apply = args.includes('--apply');
-const notesPath = args.includes('--notes') ? args[args.indexOf('--notes') + 1] : null;
+const notesIndex = args.indexOf('--notes');
+const notesPath = notesIndex === -1 ? null : args[notesIndex + 1];
+if (notesIndex !== -1 && (!notesPath || notesPath.startsWith('--'))) {
+  console.error('--notes requires a file path');
+  process.exit(2);
+}
 
 const capture = (cmd, cmdArgs) => {
   try {
@@ -45,7 +50,9 @@ const isPublished = (name) => {
 };
 const currentIsPublished = parsed.every((p) => isPublished(p.name));
 const lastTag = capture('git', ['describe', '--tags', '--abbrev=0', '--match', 'v*']);
-const log = capture('git', ['log', lastTag ? `${lastTag}..HEAD` : 'HEAD', '--format=%s%x1f%b%x1e']) ?? '';
+// A missing tag is legitimate (lastTag null); a failing git log is not.
+const log = capture('git', ['log', lastTag ? `${lastTag}..HEAD` : 'HEAD', '--format=%s%x1f%b%x1e']);
+if (log === null) throw new Error('git log failed; cannot decide the release');
 const commits = log
   .split('\x1e')
   .map((record) => record.trim())
@@ -61,7 +68,9 @@ const decision = decide({ currentVersion, commits, catalog, currentIsTagged, cur
 let changelog = existsSync(CHANGELOG) ? readFileSync(CHANGELOG, 'utf8') : '# Changelog\n';
 if (apply && decision.action === 'release') {
   for (const m of manifests) {
-    writeFileSync(m.path, m.text.replace(`"version": "${currentVersion}"`, `"version": "${decision.version}"`));
+    const next = JSON.parse(m.text);
+    next.version = decision.version;
+    writeFileSync(m.path, `${JSON.stringify(next, null, 2)}\n`);
   }
   const date = new Date().toISOString().slice(0, 10);
   changelog = prependEntry(changelog, changelogEntry(decision.version, date, decision.notes));

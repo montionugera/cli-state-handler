@@ -18,6 +18,13 @@ describe('bump', () => {
   it('treats a breaking change below 1.0 as a feature-level bump', () => {
     expect(bump('0.1.1', 'major')).toBe('0.2.0');
   });
+  it('throws on a non-numeric or prerelease current version', () => {
+    expect(() => bump('1.2.3-beta.1', 'patch')).toThrow(/non-numeric/);
+    expect(() => bump('abc', 'minor')).toThrow(/non-numeric/);
+  });
+  it('throws on an invalid level', () => {
+    expect(() => bump('1.2.3', 'huge')).toThrow(/unknown bump level/);
+  });
 });
 
 describe('notesForCommit', () => {
@@ -53,6 +60,17 @@ describe('notesForCommit', () => {
   it('marks a bang or a BREAKING CHANGE footer as major', () => {
     expect(notesForCommit({ subject: 'feat(core)!: drop v1 codec', body: '' }, catalog).level).toBe('major');
     expect(notesForCommit({ subject: 'fix: tighten parser', body: 'BREAKING CHANGE: rejects old input' }, catalog).level).toBe('major');
+  });
+});
+
+describe('notesForCommit current edge behavior', () => {
+  it('feat! yields a major level, which bump maps to a minor-style bump below 1.0', () => {
+    const r = notesForCommit({ subject: 'feat!: drop old flag', body: '' }, []);
+    expect(r.level).toBe('major');
+    expect(bump('0.1.1', r.level)).toBe('0.2.0');
+  });
+  it('a docs commit with a BREAKING CHANGE footer is not releasing', () => {
+    expect(notesForCommit({ subject: 'docs: reword', body: 'BREAKING CHANGE: x' }, [])).toEqual({ level: 'none', notes: [] });
   });
 });
 
