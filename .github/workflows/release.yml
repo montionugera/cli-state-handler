@@ -36,6 +36,9 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          # No push-capable credential is left in .git/config for install,
+          # build and test; only the commit/tag/push step gets the token.
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
         with:
@@ -82,17 +85,19 @@ jobs:
         if: steps.decide.outputs.action == 'release'
         env:
           VERSION: ${{ steps.decide.outputs.version }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add CHANGELOG.md packages/core/package.json apps/cli/package.json
           git commit -m "chore(release): v$VERSION [skip ci]"
           # The planned-release flow pushes a cleanup commit seconds after the merge.
-          git pull --rebase origin main
+          git -c "http.extraheader=$auth" pull --rebase origin main
           git tag "v$VERSION"
           # Atomic: a bump commit on main without its tag would make the next
           # run bump again and skip this version.
-          git push --atomic origin HEAD:main "v$VERSION"
+          git -c "http.extraheader=$auth" push --atomic origin HEAD:main "v$VERSION"
 
       - name: Publish to npmjs.com (trusted publishing)
         if: steps.decide.outputs.action != 'none'
@@ -112,15 +117,30 @@ jobs:
             npm publish "$RUNNER_TEMP"/npmjs/*.tgz --access public
           done
 
+      # The release must attach to the tag made by the commit step (or an
+      # earlier run), never to a tag gh would create at the tip implicitly.
+      - name: Check the release tag exists
+        id: tag
+        if: steps.docs.outputs.needed == 'true'
+        env:
+          VERSION: ${{ steps.decide.outputs.version }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::tag v$VERSION does not exist; skipping docs archive and GitHub Release"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       # After publish on purpose: a docs failure leaves the libraries released.
       - name: Build docs archive
-        if: steps.docs.outputs.needed == 'true'
+        if: steps.docs.outputs.needed == 'true' && steps.tag.outputs.exists == 'true'
         run: |
           pnpm --filter @ucsa/docs build
           tar -czf "$RUNNER_TEMP/docs-site.tgz" -C apps/docs/dist .
 
       - name: GitHub Release
-        if: steps.docs.outputs.needed == 'true'
+        if: steps.docs.outputs.needed == 'true' && steps.tag.outputs.exists == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.decide.outputs.version }}
@@ -128,7 +148,7 @@ jobs:
           if gh release view "v$VERSION" >/dev/null 2>&1; then
             gh release upload "v$VERSION" "$RUNNER_TEMP/docs-site.tgz" --clobber
           else
-            gh release create "v$VERSION" --title "v$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" "$RUNNER_TEMP/docs-site.tgz"
+            gh release create "v$VERSION" --verify-tag --title "v$VERSION" --notes-file "$RUNNER_TEMP/release-notes.md" "$RUNNER_TEMP/docs-site.tgz"
           fi
 
       - name: Signal the developer portal
