@@ -1,6 +1,8 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import type { CacheEntry, QueryKey } from '../types.js';
+import { hashQueryKey } from '../query/key-hasher.js';
+import type { CasStore } from './cas-store.js';
 import {
   insertTags,
   getQueryHashesByTag,
@@ -17,6 +19,48 @@ import {
   type CasObjectRecord,
 } from './cas-lru.js';
 import { MigrationRunner, TARGET_SCHEMA_VERSION } from './migration-runner.js';
+
+export type StreamStatus = 'open' | 'complete' | 'aborted' | 'error';
+export type StreamEncoding = 'utf8' | 'bytes';
+export type ResumeKind = 'range' | 'last-event-id' | 'continuation' | 'restart';
+
+export interface StreamRecord {
+  queryHash: string;
+  queryKey: QueryKey;
+  status: StreamStatus;
+  encoding: StreamEncoding;
+  nextSeq: number;
+  byteLength: number;
+  resumeKind: ResumeKind | null;
+  resumeToken: string | null;
+  etag: string | null;
+  writerId: string | null;
+  writerLeaseUntil: number | null;
+  payloadVersion: number;
+  error: string | null;
+  createdAt: number;
+  updatedAt: number;
+  expiresAt: number;
+}
+
+export interface StreamChunk {
+  queryHash: string;
+  seq: number;
+  byteOffset: number;
+  data: Buffer;
+}
+
+export interface CreateStreamOptions {
+  encoding?: StreamEncoding;
+  resumeKind?: ResumeKind;
+  resumeToken?: string;
+  etag?: string;
+  writerId?: string;
+  writerLeaseUntil?: number;
+  payloadVersion?: number;
+  ttlMs?: number;
+  tags?: string[];
+}
 
 export type ChangeLogKind = 'invalidate' | 'mutation' | 'stream' | 'reset';
 
@@ -76,6 +120,44 @@ export class SqliteAdapter {
   private _readChangesStmt?: Database.Statement<[number, number]>;
   private _getMaxSeqStmt?: Database.Statement;
   private _getMinSeqStmt?: Database.Statement;
+
+  private _insertStreamStmt?: Database.Statement<
+    [
+      string,
+      string,
+      string,
+      string,
+      number,
+      number,
+      string | null,
+      string | null,
+      string | null,
+      string | null,
+      number | null,
+      number,
+      string | null,
+      number,
+      number,
+      number,
+    ]
+  >;
+  private _insertStreamTagStmt?: Database.Statement<[string, string]>;
+  private _getStreamStmt?: Database.Statement<[string]>;
+  private _getStreamRawStmt?: Database.Statement<[string]>;
+  private _insertStreamChunkStmt?: Database.Statement<
+    [string, number, number, Buffer]
+  >;
+  private _updateStreamAppendStmt?: Database.Statement<[number, number, string]>;
+  private _getStreamChunksStmt?: Database.Statement<[string, number]>;
+  private _getStreamTagsStmt?: Database.Statement<[string]>;
+  private _abortStreamStmt?: Database.Statement<[string | null, number, string]>;
+  private _deleteStreamStmt?: Database.Statement<[string]>;
+  private _deleteStreamChunksStmt?: Database.Statement<[string]>;
+  private _resetStreamStmt?: Database.Statement<[number, string]>;
+  private _updateStreamResumeTokenStmt?: Database.Statement<[string, number, string]>;
+  private _updateStreamResumeTokenWithKindStmt?: Database.Statement<
+    [string, string, number, string]
+  >;
 
   constructor(dbPath: string = ':memory:', options?: SqliteAdapterOptions) {
     this._db = new Database(dbPath);
@@ -161,6 +243,207 @@ export class SqliteAdapter {
       `);
     }
     return this._getMinSeqStmt;
+  }
+
+  private get insertStreamStmt(): Database.Statement<
+    [
+      string,
+      string,
+      string,
+      string,
+      number,
+      number,
+      string | null,
+      string | null,
+      string | null,
+      string | null,
+      number | null,
+      number,
+      string | null,
+      number,
+      number,
+      number,
+    ]
+  > {
+    if (!this._insertStreamStmt) {
+      this._insertStreamStmt = this._db.prepare<
+        [
+          string,
+          string,
+          string,
+          string,
+          number,
+          number,
+          string | null,
+          string | null,
+          string | null,
+          string | null,
+          number | null,
+          number,
+          string | null,
+          number,
+          number,
+          number,
+        ]
+      >(`
+        INSERT INTO ucsa_streams (
+          query_hash, query_key, status, encoding, next_seq, byte_length,
+          resume_kind, resume_token, etag, writer_id, writer_lease_until,
+          payload_version, error, created_at, updated_at, expires_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      `);
+    }
+    return this._insertStreamStmt;
+  }
+
+  private get insertStreamTagStmt(): Database.Statement<[string, string]> {
+    if (!this._insertStreamTagStmt) {
+      this._insertStreamTagStmt = this._db.prepare<[string, string]>(`
+        INSERT OR IGNORE INTO ucsa_stream_tags (tag, query_hash) VALUES (?, ?);
+      `);
+    }
+    return this._insertStreamTagStmt;
+  }
+
+  private get getStreamStmt(): Database.Statement<[string]> {
+    if (!this._getStreamStmt) {
+      this._getStreamStmt = this._db.prepare<[string]>(`
+        SELECT
+          query_hash, query_key, status, encoding, next_seq, byte_length,
+          resume_kind, resume_token, etag, writer_id, writer_lease_until,
+          payload_version, error, created_at, updated_at, expires_at
+        FROM ucsa_streams
+        WHERE query_hash = ?;
+      `);
+    }
+    return this._getStreamStmt;
+  }
+
+  private get getStreamRawStmt(): Database.Statement<[string]> {
+    if (!this._getStreamRawStmt) {
+      this._getStreamRawStmt = this._db.prepare<[string]>(`
+        SELECT status, next_seq, byte_length
+        FROM ucsa_streams
+        WHERE query_hash = ?;
+      `);
+    }
+    return this._getStreamRawStmt;
+  }
+
+  private get insertStreamChunkStmt(): Database.Statement<
+    [string, number, number, Buffer]
+  > {
+    if (!this._insertStreamChunkStmt) {
+      this._insertStreamChunkStmt = this._db.prepare<
+        [string, number, number, Buffer]
+      >(`
+        INSERT INTO ucsa_stream_chunks (query_hash, seq, byte_offset, data)
+        VALUES (?, ?, ?, ?);
+      `);
+    }
+    return this._insertStreamChunkStmt;
+  }
+
+  private get updateStreamAppendStmt(): Database.Statement<[number, number, string]> {
+    if (!this._updateStreamAppendStmt) {
+      this._updateStreamAppendStmt = this._db.prepare<[number, number, string]>(`
+        UPDATE ucsa_streams
+        SET next_seq = next_seq + 1, byte_length = byte_length + ?, updated_at = ?
+        WHERE query_hash = ?;
+      `);
+    }
+    return this._updateStreamAppendStmt;
+  }
+
+  private get getStreamChunksStmt(): Database.Statement<[string, number]> {
+    if (!this._getStreamChunksStmt) {
+      this._getStreamChunksStmt = this._db.prepare<[string, number]>(`
+        SELECT query_hash, seq, byte_offset, data
+        FROM ucsa_stream_chunks
+        WHERE query_hash = ? AND seq >= ?
+        ORDER BY seq ASC;
+      `);
+    }
+    return this._getStreamChunksStmt;
+  }
+
+  private get getStreamTagsStmt(): Database.Statement<[string]> {
+    if (!this._getStreamTagsStmt) {
+      this._getStreamTagsStmt = this._db.prepare<[string]>(`
+        SELECT tag FROM ucsa_stream_tags WHERE query_hash = ?;
+      `);
+    }
+    return this._getStreamTagsStmt;
+  }
+
+  private get abortStreamStmt(): Database.Statement<[string | null, number, string]> {
+    if (!this._abortStreamStmt) {
+      this._abortStreamStmt = this._db.prepare<[string | null, number, string]>(`
+        UPDATE ucsa_streams
+        SET status = 'aborted', error = ?, updated_at = ?
+        WHERE query_hash = ?;
+      `);
+    }
+    return this._abortStreamStmt;
+  }
+
+  private get deleteStreamStmt(): Database.Statement<[string]> {
+    if (!this._deleteStreamStmt) {
+      this._deleteStreamStmt = this._db.prepare<[string]>(`
+        DELETE FROM ucsa_streams WHERE query_hash = ?;
+      `);
+    }
+    return this._deleteStreamStmt;
+  }
+
+  private get deleteStreamChunksStmt(): Database.Statement<[string]> {
+    if (!this._deleteStreamChunksStmt) {
+      this._deleteStreamChunksStmt = this._db.prepare<[string]>(`
+        DELETE FROM ucsa_stream_chunks WHERE query_hash = ?;
+      `);
+    }
+    return this._deleteStreamChunksStmt;
+  }
+
+  private get resetStreamStmt(): Database.Statement<[number, string]> {
+    if (!this._resetStreamStmt) {
+      this._resetStreamStmt = this._db.prepare<[number, string]>(`
+        UPDATE ucsa_streams
+        SET next_seq = 0, byte_length = 0, status = 'open', error = NULL, updated_at = ?
+        WHERE query_hash = ?;
+      `);
+    }
+    return this._resetStreamStmt;
+  }
+
+  private get updateStreamResumeTokenStmt(): Database.Statement<
+    [string, number, string]
+  > {
+    if (!this._updateStreamResumeTokenStmt) {
+      this._updateStreamResumeTokenStmt = this._db.prepare<
+        [string, number, string]
+      >(`
+        UPDATE ucsa_streams
+        SET resume_token = ?, updated_at = ?
+        WHERE query_hash = ?;
+      `);
+    }
+    return this._updateStreamResumeTokenStmt;
+  }
+
+  private get updateStreamResumeTokenWithKindStmt(): Database.Statement<
+    [string, string, number, string]
+  > {
+    if (!this._updateStreamResumeTokenWithKindStmt) {
+      this._updateStreamResumeTokenWithKindStmt = this._db.prepare<
+        [string, string, number, string]
+      >(`
+        UPDATE ucsa_streams
+        SET resume_token = ?, resume_kind = ?, updated_at = ?
+        WHERE query_hash = ?;
+      `);
+    }
+    return this._updateStreamResumeTokenWithKindStmt;
   }
 
   /**
@@ -549,6 +832,296 @@ export class SqliteAdapter {
    */
   getLruCasObjects(limit?: number): CasObjectRecord[] {
     return getLruCasObjects(this._db, limit);
+  }
+
+  /**
+   * Creates a new stream record and persists tags to ucsa_stream_tags.
+   */
+  createStream(queryKey: QueryKey, options?: CreateStreamOptions): StreamRecord {
+    const queryHash = hashQueryKey(queryKey);
+    const now = Date.now();
+    const status: StreamStatus = 'open';
+    const encoding: StreamEncoding = options?.encoding ?? 'utf8';
+    const nextSeq = 0;
+    const byteLength = 0;
+    const resumeKind: ResumeKind | null = options?.resumeKind ?? null;
+    const resumeToken: string | null = options?.resumeToken ?? null;
+    const etag: string | null = options?.etag ?? null;
+    const writerId: string | null = options?.writerId ?? null;
+    const writerLeaseUntil: number | null = options?.writerLeaseUntil ?? null;
+    const payloadVersion = options?.payloadVersion ?? 1;
+    const error: string | null = null;
+    const createdAt = now;
+    const updatedAt = now;
+    const ttlMs = options?.ttlMs ?? 300_000;
+    const expiresAt = now + ttlMs;
+
+    const serializedKey = JSON.stringify(queryKey);
+
+    const runTx = this._db.transaction(() => {
+      this.insertStreamStmt.run(
+        queryHash,
+        serializedKey,
+        status,
+        encoding,
+        nextSeq,
+        byteLength,
+        resumeKind,
+        resumeToken,
+        etag,
+        writerId,
+        writerLeaseUntil,
+        payloadVersion,
+        error,
+        createdAt,
+        updatedAt,
+        expiresAt
+      );
+
+      if (options?.tags && options.tags.length > 0) {
+        for (const tag of options.tags) {
+          this.insertStreamTagStmt.run(tag, queryHash);
+        }
+      }
+    });
+
+    runTx();
+
+    return {
+      queryHash,
+      queryKey,
+      status,
+      encoding,
+      nextSeq,
+      byteLength,
+      resumeKind,
+      resumeToken,
+      etag,
+      writerId,
+      writerLeaseUntil,
+      payloadVersion,
+      error,
+      createdAt,
+      updatedAt,
+      expiresAt,
+    };
+  }
+
+  /**
+   * Appends a chunk to the stream, validating sequence number and offset contiguity.
+   * Updates stream next_seq and byte_length.
+   */
+  appendStreamChunk(
+    queryHash: string,
+    data: Buffer | Uint8Array | string,
+    expectedSeq?: number
+  ): { seq: number; byteOffset: number; byteLength: number } {
+    const buffer = Buffer.isBuffer(data)
+      ? data
+      : typeof data === 'string'
+      ? Buffer.from(data, 'utf8')
+      : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+
+    const runTx = this._db.transaction(() => {
+      const rawRow = this.getStreamRawStmt.get(queryHash) as
+        | { status: string; next_seq: number; byte_length: number }
+        | undefined;
+
+      if (!rawRow) {
+        throw new Error(`Stream not found: ${queryHash}`);
+      }
+
+      if (rawRow.status !== 'open') {
+        throw new Error(`Stream is not open (status: ${rawRow.status})`);
+      }
+
+      if (expectedSeq !== undefined && expectedSeq !== rawRow.next_seq) {
+        throw new Error(
+          `Sequence mismatch: expected ${expectedSeq}, but next sequence is ${rawRow.next_seq}`
+        );
+      }
+
+      const seq = rawRow.next_seq;
+      const byteOffset = rawRow.byte_length;
+      const byteLength = buffer.length;
+      const now = Date.now();
+
+      this.insertStreamChunkStmt.run(queryHash, seq, byteOffset, buffer);
+      this.updateStreamAppendStmt.run(byteLength, now, queryHash);
+
+      return { seq, byteOffset, byteLength };
+    });
+
+    return runTx();
+  }
+
+  /**
+   * Retrieves a stream record by its query hash.
+   */
+  getStream(queryHash: string): StreamRecord | undefined {
+    interface RawStreamRow {
+      query_hash: string;
+      query_key: string;
+      status: string;
+      encoding: string;
+      next_seq: number;
+      byte_length: number;
+      resume_kind: string | null;
+      resume_token: string | null;
+      etag: string | null;
+      writer_id: string | null;
+      writer_lease_until: number | null;
+      payload_version: number;
+      error: string | null;
+      created_at: number;
+      updated_at: number;
+      expires_at: number;
+    }
+
+    const row = this.getStreamStmt.get(queryHash) as RawStreamRow | undefined;
+    if (!row) return undefined;
+
+    return {
+      queryHash: row.query_hash,
+      queryKey: JSON.parse(row.query_key) as QueryKey,
+      status: row.status as StreamStatus,
+      encoding: row.encoding as StreamEncoding,
+      nextSeq: row.next_seq,
+      byteLength: row.byte_length,
+      resumeKind: (row.resume_kind as ResumeKind) ?? null,
+      resumeToken: row.resume_token ?? null,
+      etag: row.etag ?? null,
+      writerId: row.writer_id ?? null,
+      writerLeaseUntil: row.writer_lease_until ?? null,
+      payloadVersion: row.payload_version ?? 1,
+      error: row.error ?? null,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      expiresAt: row.expires_at,
+    };
+  }
+
+  /**
+   * Retrieves sequential stream chunks starting from fromSeq.
+   */
+  getStreamChunks(queryHash: string, fromSeq = 0): StreamChunk[] {
+    interface RawChunkRow {
+      query_hash: string;
+      seq: number;
+      byte_offset: number;
+      data: Buffer | Uint8Array;
+    }
+
+    const rows = this.getStreamChunksStmt.all(queryHash, fromSeq) as RawChunkRow[];
+    return rows.map((r) => ({
+      queryHash: r.query_hash,
+      seq: r.seq,
+      byteOffset: r.byte_offset,
+      data: Buffer.isBuffer(r.data) ? r.data : Buffer.from(r.data),
+    }));
+  }
+
+  /**
+   * Compacts all chunks of a stream atomically into query cache (or CAS store if exceeding casThresholdBytes).
+   * Moves stream tags to ucsa_cache_tags and purges stream row and chunks via cascade.
+   */
+  async compactStream(
+    queryHash: string,
+    casStore?: CasStore,
+    casThresholdBytes = 1_048_576
+  ): Promise<CacheEntry<unknown>> {
+    const stream = this.getStream(queryHash);
+    if (!stream) {
+      throw new Error(`Stream not found: ${queryHash}`);
+    }
+
+    const chunks = this.getStreamChunks(queryHash, 0);
+    const totalBuffer = Buffer.concat(chunks.map((c) => c.data));
+
+    let payload: unknown;
+
+    if (casStore && totalBuffer.length > casThresholdBytes) {
+      const casResult = await casStore.put(totalBuffer);
+      payload = {
+        __cas_ref: true,
+        hash: casResult.hash,
+        size: casResult.size,
+      };
+    } else {
+      if (stream.encoding === 'utf8') {
+        const text = totalBuffer.toString('utf8');
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          payload = text;
+        }
+      } else {
+        payload = totalBuffer;
+      }
+    }
+
+    const tagRows = this.getStreamTagsStmt.all(queryHash) as Array<{ tag: string }>;
+    const tags = tagRows.map((r) => r.tag);
+
+    const cacheEntry: CacheEntry<unknown> = {
+      query_hash: stream.queryHash,
+      query_key: stream.queryKey,
+      data_payload: payload,
+      etag: stream.etag ?? undefined,
+      created_at: stream.createdAt,
+      stale_at: stream.createdAt + 60_000,
+      expires_at: stream.expiresAt,
+      payload_version: stream.payloadVersion,
+    };
+
+    const runTx = this._db.transaction(() => {
+      this.setQuery(cacheEntry, tags.length > 0 ? tags : undefined);
+      this.deleteStreamStmt.run(queryHash);
+    });
+
+    runTx();
+
+    return cacheEntry;
+  }
+
+  /**
+   * Aborts an active stream and records optional error.
+   */
+  abortStream(queryHash: string, error?: string): void {
+    this.abortStreamStmt.run(error ?? null, Date.now(), queryHash);
+  }
+
+  /**
+   * Resets a stream by deleting all chunks and resetting sequence counter, byte length, and status.
+   * Atomically resets next_seq = 0, byte_length = 0, status = 'open', error = NULL.
+   */
+  resetStream(queryHash: string): void {
+    const runTx = this._db.transaction(() => {
+      this.deleteStreamChunksStmt.run(queryHash);
+      this.resetStreamStmt.run(Date.now(), queryHash);
+    });
+    runTx();
+  }
+
+  /**
+   * Updates the resume token (and optional resume kind) for an active or completed stream.
+   */
+  updateStreamResumeToken(
+    queryHash: string,
+    resumeToken: string,
+    resumeKind?: ResumeKind
+  ): void {
+    const now = Date.now();
+    if (resumeKind !== undefined) {
+      this.updateStreamResumeTokenWithKindStmt.run(
+        resumeToken,
+        resumeKind,
+        now,
+        queryHash
+      );
+    } else {
+      this.updateStreamResumeTokenStmt.run(resumeToken, now, queryHash);
+    }
   }
 
   /**

@@ -94,6 +94,7 @@ class CacheEntry<T> {
   final int createdAt;
   final int staleAt;
   final int expiresAt;
+  final int payloadVersion;
 
   const CacheEntry({
     required this.queryHash,
@@ -103,6 +104,7 @@ class CacheEntry<T> {
     required this.createdAt,
     required this.staleAt,
     required this.expiresAt,
+    this.payloadVersion = 1,
   });
 
   /// Checks if this cache entry is considered stale given the current or provided timestamp.
@@ -121,6 +123,7 @@ class CacheEntry<T> {
     int? createdAt,
     int? staleAt,
     int? expiresAt,
+    int? payloadVersion,
   }) {
     return CacheEntry<T>(
       queryHash: queryHash ?? this.queryHash,
@@ -130,6 +133,7 @@ class CacheEntry<T> {
       createdAt: createdAt ?? this.createdAt,
       staleAt: staleAt ?? this.staleAt,
       expiresAt: expiresAt ?? this.expiresAt,
+      payloadVersion: payloadVersion ?? this.payloadVersion,
     );
   }
 
@@ -141,6 +145,7 @@ class CacheEntry<T> {
         'created_at': createdAt,
         'stale_at': staleAt,
         'expires_at': expiresAt,
+        'payload_version': payloadVersion,
       };
 
   factory CacheEntry.fromJson(
@@ -158,6 +163,8 @@ class CacheEntry<T> {
       createdAt: (json['created_at'] ?? json['createdAt']) as int,
       staleAt: (json['stale_at'] ?? json['staleAt']) as int,
       expiresAt: (json['expires_at'] ?? json['expiresAt']) as int,
+      payloadVersion:
+          (json['payload_version'] ?? json['payloadVersion'] ?? 1) as int,
     );
   }
 
@@ -171,7 +178,8 @@ class CacheEntry<T> {
           etag == other.etag &&
           createdAt == other.createdAt &&
           staleAt == other.staleAt &&
-          expiresAt == other.expiresAt;
+          expiresAt == other.expiresAt &&
+          payloadVersion == other.payloadVersion;
 
   @override
   int get hashCode => Object.hash(
@@ -181,6 +189,7 @@ class CacheEntry<T> {
         createdAt,
         staleAt,
         expiresAt,
+        payloadVersion,
       );
 
   @override
@@ -477,6 +486,21 @@ class CancellationToken {
   }
 }
 
+/// Context provided to producer function in a streaming query.
+class StreamFnContext {
+  final String queryHash;
+  final CancellationToken? cancellationToken;
+  final Map<String, String>? resumeHeaders;
+  final dynamic continuationPayload;
+
+  const StreamFnContext({
+    required this.queryHash,
+    this.cancellationToken,
+    this.resumeHeaders,
+    this.continuationPayload,
+  });
+}
+
 /// Category of persistent event logged to ucsa_change_log.
 enum ChangeLogKind {
   invalidate,
@@ -538,4 +562,147 @@ class ReadChangesResult {
   @override
   String toString() =>
       'ReadChangesResult(rows: ${rows.length}, truncated: $truncated, headSeq: $headSeq)';
+}
+
+/// Streaming chunk store status.
+enum StreamStatus {
+  open,
+  complete,
+  aborted,
+  error;
+
+  String toWireString() => name;
+
+  static StreamStatus fromString(String value) => switch (value) {
+        'open' => open,
+        'complete' => complete,
+        'aborted' => aborted,
+        'error' => error,
+        _ => throw ArgumentError('Unknown StreamStatus: $value'),
+      };
+}
+
+/// Encoding for streaming chunk payloads.
+enum StreamEncoding {
+  utf8,
+  bytes;
+
+  String toWireString() => name;
+
+  static StreamEncoding fromString(String value) => switch (value) {
+        'utf8' => utf8,
+        'bytes' => bytes,
+        _ => throw ArgumentError('Unknown StreamEncoding: $value'),
+      };
+}
+
+/// Resume strategy for reconnecting streams.
+enum ResumeKind {
+  range,
+  lastEventId,
+  continuation,
+  restart;
+
+  String toWireString() => switch (this) {
+        range => 'range',
+        lastEventId => 'last-event-id',
+        continuation => 'continuation',
+        restart => 'restart',
+      };
+
+  static ResumeKind fromString(String value) => switch (value) {
+        'range' => range,
+        'last-event-id' || 'lastEventId' => lastEventId,
+        'continuation' => continuation,
+        'restart' => restart,
+        _ => throw ArgumentError('Unknown ResumeKind: $value'),
+      };
+}
+
+/// Authoritative stream record in ucsa_streams table.
+class StreamRecord {
+  final String queryHash;
+  final QueryKey queryKey;
+  final StreamStatus status;
+  final StreamEncoding encoding;
+  final int nextSeq;
+  final int byteLength;
+  final ResumeKind? resumeKind;
+  final String? resumeToken;
+  final String? etag;
+  final String? writerId;
+  final int? writerLeaseUntil;
+  final int payloadVersion;
+  final String? error;
+  final int createdAt;
+  final int updatedAt;
+  final int expiresAt;
+
+  const StreamRecord({
+    required this.queryHash,
+    required this.queryKey,
+    required this.status,
+    required this.encoding,
+    required this.nextSeq,
+    required this.byteLength,
+    this.resumeKind,
+    this.resumeToken,
+    this.etag,
+    this.writerId,
+    this.writerLeaseUntil,
+    this.payloadVersion = 1,
+    this.error,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.expiresAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'query_hash': queryHash,
+        'query_key': queryKey,
+        'status': status.toWireString(),
+        'encoding': encoding.toWireString(),
+        'next_seq': nextSeq,
+        'byte_length': byteLength,
+        if (resumeKind != null) 'resume_kind': resumeKind!.toWireString(),
+        if (resumeToken != null) 'resume_token': resumeToken,
+        if (etag != null) 'etag': etag,
+        if (writerId != null) 'writer_id': writerId,
+        if (writerLeaseUntil != null) 'writer_lease_until': writerLeaseUntil,
+        'payload_version': payloadVersion,
+        if (error != null) 'error': error,
+        'created_at': createdAt,
+        'updated_at': updatedAt,
+        'expires_at': expiresAt,
+      };
+
+  @override
+  String toString() =>
+      'StreamRecord($queryHash, status: ${status.name}, nextSeq: $nextSeq, byteLength: $byteLength)';
+}
+
+/// Chunk of streaming payload in ucsa_stream_chunks table.
+class StreamChunk {
+  final String queryHash;
+  final int seq;
+  final int byteOffset;
+  final List<int> data;
+
+  const StreamChunk({
+    required this.queryHash,
+    required this.seq,
+    required this.byteOffset,
+    required this.data,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'query_hash': queryHash,
+        'seq': seq,
+        'byte_offset': byteOffset,
+        'data_length': data.length,
+      };
+
+  @override
+  String toString() =>
+      'StreamChunk($queryHash, seq: $seq, offset: $byteOffset, len: ${data.length})';
 }

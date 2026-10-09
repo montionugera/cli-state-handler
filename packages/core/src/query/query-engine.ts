@@ -1,11 +1,20 @@
 import type { CacheEntry, QueryKey, QueryState } from '../types.js';
 import type { SqliteAdapter, ChangeLogRow } from '../storage/sqlite-adapter.js';
 import type { BusClient } from '../ipc/bus-client.js';
+import type { CasStore } from '../storage/cas-store.js';
+import {
+  type ResumeStrategy,
+  createRangeResumeStrategy,
+} from '../streaming/resume-strategy.js';
+import { StreamResumeFsm } from '../streaming/stream-resume-fsm.js';
+import { Utf8StreamDecoder } from '../streaming/utf8-stream-decoder.js';
+import { StreamHandle, type StreamSlice } from '../streaming/stream-handle.js';
 import { replaceEqualDeep, isPlainObject } from './structural-sharing.js';
 import {
   type PayloadRegistry,
   IncompatiblePayloadError,
 } from './payload-upcaster.js';
+import { hashQueryKey } from './key-hasher.js';
 
 export interface QueryEngineOptions {
   /**
@@ -54,6 +63,26 @@ export interface QueryEngineOptions {
   ) => void;
 }
 
+export interface StreamQueryOptions {
+  staleTime?: number;
+  gcTime?: number;
+  tags?: string[];
+  encoding?: 'utf8' | 'bytes';
+  strategy?: ResumeStrategy;
+  casStore?: CasStore;
+  casThresholdBytes?: number;
+  signal?: AbortSignal;
+  baseDelayMs?: number;
+  maxRetries?: number;
+}
+
+export interface StreamFnContext {
+  queryHash: string;
+  signal: AbortSignal;
+  resumeHeaders?: Record<string, string>;
+  continuationPayload?: unknown;
+}
+
 export interface QueryOptions {
   /**
    * Custom stale time in milliseconds for this query.
@@ -92,23 +121,7 @@ export interface UseQueryResult<T> {
 
 export type QueryFunction<T> = (ctx: { signal: AbortSignal }) => Promise<T>;
 
-/**
- * Generates a deterministic hash for a QueryKey tuple.
- * Plain objects inside the tuple have their keys sorted to ensure consistent serialization.
- */
-export function hashQueryKey(queryKey: QueryKey): string {
-  return JSON.stringify(queryKey, (_key, val) => {
-    if (isPlainObject(val)) {
-      return Object.keys(val)
-        .sort()
-        .reduce<Record<string, unknown>>((acc, k) => {
-          acc[k] = val[k];
-          return acc;
-        }, {});
-    }
-    return val;
-  });
-}
+export { hashQueryKey };
 
 /**
  * Deep equality comparison for query keys and partial matching.
@@ -357,6 +370,326 @@ export class QueryEngine {
         this.cancelQuery(queryKey);
       },
     };
+  }
+
+  /**
+   * Streams a query with incremental UTF-8/bytes slicing, automatic compaction into SQLite/CAS,
+   * failure recovery via StreamResumeFsm, and SWR caching.
+   */
+  streamQuery<T = string>(
+    queryKey: QueryKey,
+    streamFn: (
+      ctx: StreamFnContext
+    ) =>
+      | AsyncIterable<Buffer | string | Uint8Array>
+      | Promise<AsyncIterable<Buffer | string | Uint8Array>>,
+    options?: StreamQueryOptions
+  ): StreamHandle<T> {
+    const queryHash = hashQueryKey(queryKey);
+    const record = this.getOrCreateRecord<T>(
+      queryKey,
+      queryHash,
+      options as QueryOptions
+    );
+
+    // SWR check: if query is cached in SQLite or in memory and fresh
+    const staleThreshold =
+      options?.staleTime !== undefined && record.entry
+        ? record.entry.created_at + options.staleTime
+        : record.entry?.stale_at ?? 0;
+
+    const isFresh = Boolean(record.entry) && Date.now() < staleThreshold;
+
+    if (isFresh && record.state.data !== undefined) {
+      const cachedData = record.state.data as T;
+      const cachedHandle = new StreamHandle<T>({ queryHash });
+      cachedHandle.push({
+        delta: cachedData,
+        cumulative: cachedData,
+        seq: 0,
+        byteOffset: 0,
+        done: true,
+      });
+      return cachedHandle;
+    }
+
+    // Create stream in SQLite adapter
+    if (this.sqliteAdapter) {
+      try {
+        const existing = this.sqliteAdapter.getStream(queryHash);
+        if (existing) {
+          try {
+            this.sqliteAdapter.db
+              .prepare('DELETE FROM ucsa_streams WHERE query_hash = ?')
+              .run(queryHash);
+          } catch {
+            // ignore
+          }
+        }
+        this.sqliteAdapter.createStream(queryKey, {
+          encoding: options?.encoding ?? 'utf8',
+          tags: options?.tags,
+          ttlMs: options?.gcTime,
+          resumeKind:
+            options?.strategy?.kind === 'last-event-id'
+              ? 'last-event-id'
+              : 'range',
+        });
+      } catch {
+        // Stream may already exist or DB table error
+      }
+    }
+
+    const isUtf8 = options?.encoding !== 'bytes';
+    let utf8Decoder = isUtf8 ? new Utf8StreamDecoder() : undefined;
+
+    const strategy = options?.strategy ?? createRangeResumeStrategy();
+    const resumeFsm = new StreamResumeFsm({
+      queryHash,
+      queryKey,
+      strategy,
+      sqliteAdapter: this.sqliteAdapter,
+      baseDelayMs: options?.baseDelayMs,
+      maxRetries: options?.maxRetries,
+    });
+    resumeFsm.start();
+
+    const internalController = new AbortController();
+    const internalSignal = internalController.signal;
+    const handle = new StreamHandle<T>({
+      queryHash,
+      abortController: internalController,
+    });
+    record.activeController = internalController;
+
+    const doCancel = (reason: string) => {
+      if (!internalSignal.aborted) {
+        internalController.abort(reason);
+      }
+      if (!handle.isCancelled) {
+        handle.cancel(reason);
+      }
+      this.sqliteAdapter?.abortStream(queryHash, reason);
+      resumeFsm.abort(reason);
+      record.state = {
+        ...record.state,
+        isFetching: false,
+      };
+      this.notifySubscribers(record as InternalQueryRecord<unknown>);
+    };
+
+    if (options?.signal?.aborted) {
+      doCancel(String(options.signal.reason ?? 'Aborted'));
+      return handle;
+    }
+
+    if (options?.signal) {
+      options.signal.addEventListener('abort', () => {
+        doCancel(String(options.signal!.reason ?? 'Aborted'));
+      });
+    }
+
+    handle.abortSignal.addEventListener('abort', () => {
+      doCancel(String(handle.abortSignal.reason ?? 'Cancelled'));
+    });
+
+    record.state = {
+      ...record.state,
+      status: record.state.data !== undefined ? record.state.status : 'loading',
+      isFetching: true,
+    };
+    this.notifySubscribers(record as InternalQueryRecord<unknown>);
+
+    let cumulativeText = '';
+    let cumulativeBuffers: Buffer[] = [];
+
+    // Background pipeline execution
+    (async () => {
+      let currentResumeHeaders: Record<string, string> | undefined;
+      let currentContinuationPayload: unknown | undefined;
+
+      while (!handle.isDone && !handle.isCancelled && !internalSignal.aborted) {
+        try {
+          const ctx: StreamFnContext = {
+            queryHash,
+            signal: internalSignal,
+            resumeHeaders: currentResumeHeaders,
+            continuationPayload: currentContinuationPayload,
+          };
+
+          const iterable = await streamFn(ctx);
+
+          for await (const rawChunk of iterable) {
+            if (handle.isCancelled || internalSignal.aborted) {
+              break;
+            }
+
+            const chunkBuf = Buffer.isBuffer(rawChunk)
+              ? rawChunk
+              : typeof rawChunk === 'string'
+              ? rawChunk
+              : Buffer.from(rawChunk.buffer, rawChunk.byteOffset, rawChunk.byteLength);
+            const chunkResult = resumeFsm.handleIncomingChunk(chunkBuf);
+            if (!chunkResult.accepted) {
+              continue;
+            }
+
+            if (isUtf8 && utf8Decoder) {
+              const delta = utf8Decoder.decode(chunkResult.slice);
+              cumulativeText += delta;
+              if (delta.length > 0) {
+                handle.push({
+                  delta: delta as unknown as T,
+                  cumulative: cumulativeText as unknown as T,
+                  seq: chunkResult.seq,
+                  byteOffset: chunkResult.byteOffset,
+                  done: false,
+                });
+              }
+            } else {
+              cumulativeBuffers.push(chunkResult.slice);
+              const cumulativeBuf = Buffer.concat(cumulativeBuffers);
+              handle.push({
+                delta: chunkResult.slice as unknown as T,
+                cumulative: cumulativeBuf as unknown as T,
+                seq: chunkResult.seq,
+                byteOffset: chunkResult.byteOffset,
+                done: false,
+              });
+            }
+          }
+
+          if (handle.isCancelled || internalSignal.aborted) {
+            break;
+          }
+
+          resumeFsm.complete();
+
+          let finalPayload: T;
+          if (isUtf8 && utf8Decoder) {
+            const flushed = utf8Decoder.flush();
+            if (flushed.length > 0) {
+              cumulativeText += flushed;
+              handle.push({
+                delta: flushed as unknown as T,
+                cumulative: cumulativeText as unknown as T,
+                seq: resumeFsm.committedSeq,
+                byteOffset: resumeFsm.committedByteLength,
+                done: false,
+              });
+            }
+            finalPayload = cumulativeText as unknown as T;
+          } else {
+            finalPayload = Buffer.concat(cumulativeBuffers) as unknown as T;
+          }
+
+          let compactedEntry: CacheEntry<unknown> | undefined;
+          if (this.sqliteAdapter) {
+            try {
+              compactedEntry = await this.sqliteAdapter.compactStream(
+                queryHash,
+                options?.casStore,
+                options?.casThresholdBytes
+              );
+            } catch {
+              // Ignore compaction error
+            }
+          }
+
+          const now = Date.now();
+          const staleTime = options?.staleTime ?? this.defaultStaleTime;
+          const gcTime = options?.gcTime ?? this.defaultGcTime;
+
+          if (compactedEntry && options?.staleTime !== undefined) {
+            compactedEntry.stale_at =
+              compactedEntry.created_at + options.staleTime;
+            try {
+              this.sqliteAdapter?.setQuery(compactedEntry, options.tags);
+            } catch {
+              // Ignore
+            }
+          }
+
+          const entryToStore: CacheEntry<unknown> = compactedEntry ?? {
+            query_hash: queryHash,
+            query_key: queryKey,
+            data_payload: finalPayload,
+            created_at: now,
+            stale_at: now + staleTime,
+            expires_at: now + gcTime,
+            payload_version: this.targetPayloadVersion ?? 1,
+          };
+
+          record.entry = entryToStore as CacheEntry<T>;
+          record.state = {
+            status: 'success',
+            data: entryToStore.data_payload as T,
+            dataUpdatedAt: now,
+            error: undefined,
+            errorUpdatedAt: record.state.errorUpdatedAt,
+            isFetching: false,
+          };
+          this.notifySubscribers(record as InternalQueryRecord<unknown>);
+
+          handle.push({
+            delta: (isUtf8 ? '' : Buffer.alloc(0)) as unknown as T,
+            cumulative: finalPayload,
+            seq: resumeFsm.committedSeq,
+            byteOffset: resumeFsm.committedByteLength,
+            done: true,
+          });
+          handle.end(finalPayload);
+          break;
+        } catch (err: unknown) {
+          if (handle.isCancelled || internalSignal.aborted) {
+            break;
+          }
+
+          const errorResult = resumeFsm.handleError(err);
+          if (errorResult.canResume) {
+            currentResumeHeaders = errorResult.headers;
+            currentContinuationPayload = errorResult.continuationPayload;
+            if (errorResult.restart) {
+              cumulativeText = '';
+              cumulativeBuffers = [];
+              if (isUtf8) {
+                utf8Decoder = new Utf8StreamDecoder();
+              }
+              handle.push({
+                delta: (isUtf8 ? '' : Buffer.alloc(0)) as unknown as T,
+                cumulative: (isUtf8 ? '' : Buffer.alloc(0)) as unknown as T,
+                seq: 0,
+                byteOffset: 0,
+                done: false,
+                reset: true,
+              });
+            }
+            if (errorResult.retryDelayMs > 0) {
+              await new Promise((resolve) =>
+                setTimeout(resolve, errorResult.retryDelayMs)
+              );
+            }
+            continue;
+          } else {
+            const finalError =
+              err instanceof Error ? err : new Error(String(err));
+            resumeFsm.abort(finalError.message);
+            handle.error(finalError);
+            record.state = {
+              ...record.state,
+              status: 'error',
+              error: finalError,
+              errorUpdatedAt: Date.now(),
+              isFetching: false,
+            };
+            this.notifySubscribers(record as InternalQueryRecord<unknown>);
+            break;
+          }
+        }
+      }
+    })().catch(() => {});
+
+    return handle;
   }
 
   /**

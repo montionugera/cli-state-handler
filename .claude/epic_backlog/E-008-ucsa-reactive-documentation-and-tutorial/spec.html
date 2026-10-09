@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>UCSA reactive documentation and tutorial studio</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07090d;
+      --surface: #10141b;
+      --surface-2: #161b24;
+      --surface-3: #1b212c;
+      --border: #2a3340;
+      --border-soft: #1c232e;
+      --ink: #d6dde7;
+      --ink-bright: #f6f8fb;
+      --ink-dim: #8392a3;
+      --accent: #4ee39b;
+      --accent-dim: #2f8f63;
+      --amber: #ffc746;
+      --amber-dim: #a37a1a;
+      --blue: #74b0ff;
+      --blue-dim: #3a5d8a;
+      --red: #ff6b6b;
+      --red-dim: #a14242;
+      --purple: #b288ff;
+      --purple-dim: #7a4dc5;
+      --teal: #4ed2c8;
+      --teal-dim: #347e7a;
+      --serif-display: "Fraunces", Georgia, serif;
+      --serif-body: "Spectral", Georgia, serif;
+      --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: var(--serif-body);
+      font-size: 19.5px;
+      line-height: 1.66;
+      color: var(--ink);
+      background: var(--bg);
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 64px 30px 160px;
+      counter-reset: sec;
+      animation: riseIn .55s cubic-bezier(.2,.7,.2,1) both;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body::before {
+      content: "";
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(900px 500px at 80% -10%, rgba(78,227,155,.10), transparent 62%),
+        radial-gradient(720px 520px at -4% 110%, rgba(255,199,70,.055), transparent 60%),
+        linear-gradient(rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 100% 30px,
+        linear-gradient(90deg, rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 30px 100%;
+    }
+
+    @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    /* ---------- headings ---------- */
+    h1, h2, h3, h4 { font-family: var(--serif-display); color: var(--ink-bright); line-height: 1.16; letter-spacing: -.012em; font-weight: 600; }
+    h1 {
+      font-size: 3.2rem; font-weight: 700; margin: 0 0 .25em; letter-spacing: -.028em;
+      background: linear-gradient(180deg, #ffffff, #afb9c5);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    h2 {
+      counter-increment: sec;
+      font-size: 2rem; margin: 2.8em 0 .7em; padding-top: .65em;
+      border-top: 1px solid var(--border-soft);
+      display: flex; align-items: baseline; gap: .55em; flex-wrap: wrap;
+      font-weight: 700;
+    }
+    h2::before {
+      content: "§" counter(sec, decimal-leading-zero);
+      font-family: var(--mono); font-size: .74rem; font-weight: 600;
+      color: var(--accent); letter-spacing: .04em;
+      border: 1px solid var(--accent-dim); border-radius: 6px;
+      padding: .3em .55em; transform: translateY(-.22em);
+      background: rgba(78,227,155,.06);
+    }
+    h3 { font-size: 1.42rem; margin: 2.1em 0 .55em; color: var(--ink-bright); font-weight: 600; }
+    h3 code { font-size: .88em; }
+    h4 { font-size: 1.1rem; margin: 1.5em 0 .4em; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-family: var(--mono); font-weight: 600; }
+
+    p { margin: .95em 0; }
+    strong { color: var(--ink-bright); font-weight: 600; }
+    em { color: #d4dce6; }
+
+    mark {
+      background: linear-gradient(180deg, rgba(255,199,70,.0) 60%, rgba(255,199,70,.32) 60%);
+      color: var(--ink-bright); padding: 0 .2em; border-radius: 3px;
+    }
+
+    /* ---------- links ---------- */
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(78,227,155,.32); transition: border-color .15s, color .15s; }
+    a:hover { color: #8af0c2; border-bottom-color: var(--accent); }
+
+    /* ---------- inline code & code blocks ---------- */
+    code { font-family: var(--mono); font-size: .85em; background: var(--surface-2); color: #e0ecf6; padding: .14em .45em; border-radius: 5px; border: 1px solid var(--border-soft); }
+    pre {
+      position: relative; font-size: .82rem; line-height: 1.62;
+      background: linear-gradient(180deg, #0e1219, #0a0d13);
+      border: 1px solid var(--border); border-radius: 11px;
+      padding: 20px 20px 18px; margin: 1.4em 0; overflow-x: auto;
+      box-shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 18px 44px -28px rgba(0,0,0,.9);
+    }
+    pre::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--accent), transparent); border-radius: 11px 0 0 11px; opacity: .6; }
+    pre code { background: none; border: none; padding: 0; color: #d3e4f3; font-size: 1em; }
+
+    kbd { font-family: var(--mono); font-size: .82em; background: var(--surface-2); border: 1px solid var(--border); border-bottom-width: 2px; padding: 2px 8px; border-radius: 6px; color: var(--ink-bright); box-shadow: 0 1px 0 var(--border-soft); }
+
+    /* ---------- tables ---------- */
+    table { border-collapse: collapse; width: 100%; margin: 1.4em 0; font-size: .87rem; font-family: var(--mono); }
+    th, td { border: 1px solid var(--border); padding: 11px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--surface); color: var(--ink-bright); font-weight: 600; border-bottom: 2px solid var(--accent-dim); text-transform: uppercase; font-size: .76rem; letter-spacing: .08em; }
+    tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+    tr:hover td { background: rgba(78,227,155,.04); }
+    td code { font-size: .94em; }
+    td strong { color: var(--amber); }
+
+    /* ---------- lists ---------- */
+    ul, ol { padding-left: 1.5em; margin: .9em 0; }
+    li { margin: .4em 0; }
+    li::marker { color: var(--accent-dim); font-weight: 600; }
+    ul ul, ol ol, ul ol, ol ul { margin: .3em 0; }
+
+    /* ---------- blockquote (used by pandoc) ---------- */
+    blockquote { border-left: 3px solid var(--accent-dim); margin: 1.2em 0; padding: .2em 0 .2em 18px; color: var(--ink-dim); font-style: italic; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 2.6em 0; }
+
+    /* ---------- masthead (h1 + first p) ---------- */
+    h1 + p { font-family: var(--mono); font-size: .82rem; color: var(--ink-dim); line-height: 2; letter-spacing: .02em; border-bottom: 1px solid var(--border-soft); padding-bottom: 1.2em; }
+    h1 + p strong { color: var(--amber); font-weight: 500; }
+
+    /* ---------- TOC ---------- */
+    #TOC {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 22px; margin: 1.8em 0 2.4em; font-family: var(--mono); font-size: .78rem;
+    }
+    #TOC::before { content: "CONTENTS"; display: block; color: var(--accent); letter-spacing: .22em; font-size: .7rem; margin-bottom: .7em; font-weight: 600; }
+    #TOC ul { list-style: none; padding-left: 0; margin: 0; }
+    #TOC > ul > li { margin: .22em 0; }
+    #TOC ul ul { padding-left: 1.1em; border-left: 1px solid var(--border-soft); margin: .25em 0 .5em; }
+    #TOC a { color: var(--ink); border: none; }
+    #TOC a:hover { color: var(--accent); }
+
+    @media (min-width: 1320px) {
+      #TOC {
+        position: fixed; top: 0; left: 0; bottom: 0; width: 300px; margin: 0;
+        border-radius: 0; border: none; border-right: 1px solid var(--border);
+        padding: 64px 28px; overflow-y: auto;
+        background: linear-gradient(180deg, rgba(13,17,23,.92), rgba(8,10,14,.92));
+        backdrop-filter: blur(6px);
+      }
+      body { max-width: 1320px; padding-left: 360px; }
+    }
+
+    /* ============================================================
+       CALLOUTS — info / warn / success / danger / idea / metric
+       Use via:
+         ::: callout-warn
+         **Heading**
+         body text
+         :::
+       or raw <div class="callout warn"> ... </div>
+       ============================================================ */
+    /* Robust layout: icon is absolutely positioned and the content is padded.
+       (An earlier `display:grid` + `.callout > * { grid-column: 2 }` approach broke
+       when pandoc emitted loose prose as bare text nodes — those became anonymous
+       grid items that fell into the icon column and wrapped one word per line.
+       Absolute icon + padding flows ANY content structure correctly: loose text,
+       multiple inline elements, nested lists.) */
+    .callout {
+      position: relative;
+      margin: 1.7em 0;
+      padding: 18px 22px 16px 58px;
+      border-radius: 13px;
+      border: 1px solid var(--callout-border, var(--border));
+      border-left-width: 4px;
+      background: var(--callout-bg, var(--surface));
+    }
+    .callout::before {
+      content: var(--callout-icon, "·");
+      position: absolute;
+      left: 14px; top: 16px;
+      width: 30px; text-align: center;
+      font-size: 28px; line-height: 1.1;
+      color: var(--callout-accent, var(--accent));
+    }
+    .callout > * { min-width: 0; margin-top: 0; }
+    .callout > * + * { margin-top: .55em; }
+    .callout > p:first-child strong:first-child {
+      display: block;
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--callout-accent, var(--ink-bright));
+      letter-spacing: -.01em;
+      margin-bottom: .35em;
+    }
+    .callout p { line-height: 1.55; }
+    .callout code { background: rgba(0,0,0,.28); border-color: rgba(255,255,255,.06); }
+
+    .callout.info,    .callout-info    { --callout-border: var(--blue-dim);   --callout-bg: rgba(116,176,255,.08);   --callout-accent: var(--blue);   --callout-icon: "ℹ"; }
+    .callout.warn,    .callout-warn    { --callout-border: var(--amber-dim);  --callout-bg: rgba(255,199,70,.09);    --callout-accent: var(--amber);  --callout-icon: "⚠"; }
+    .callout.success, .callout-success { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.08);    --callout-accent: var(--accent); --callout-icon: "✓"; }
+    .callout.danger,  .callout-danger  { --callout-border: var(--red-dim);    --callout-bg: rgba(255,107,107,.09);   --callout-accent: var(--red);    --callout-icon: "✕"; }
+    .callout.idea,    .callout-idea    { --callout-border: var(--purple-dim); --callout-bg: rgba(178,136,255,.08);   --callout-accent: var(--purple); --callout-icon: "✦"; }
+    .callout.metric,  .callout-metric  { --callout-border: var(--teal-dim);   --callout-bg: rgba(78,210,200,.08);    --callout-accent: var(--teal);   --callout-icon: "Σ"; }
+    .callout.action,  .callout-action  { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.04);    --callout-accent: var(--accent); --callout-icon: "▸"; }
+
+    /* ============================================================
+       METRIC TILES — grid of big-number cards
+       Use via raw HTML:
+         <div class="metric-grid">
+           <div class="metric-tile alarm">
+             <div class="label">Pass all gates</div>
+             <div class="value">21%</div>
+             <div class="delta">39 / 187 results</div>
+           </div>
+         </div>
+       Variants: .alarm (red), .win (green), .info (blue), .warn (amber)
+       ============================================================ */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin: 1.5em 0;
+    }
+    .metric-tile {
+      background: linear-gradient(180deg, var(--surface), var(--bg));
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--tile-accent, var(--accent));
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .metric-tile .label {
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .14em;
+      color: var(--ink-dim);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .metric-tile .value {
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 2.55rem;
+      color: var(--tile-accent, var(--ink-bright));
+      line-height: 1;
+      letter-spacing: -.025em;
+    }
+    .metric-tile .delta {
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--ink-dim);
+    }
+    .metric-tile.alarm { --tile-accent: var(--red); }
+    .metric-tile.win   { --tile-accent: var(--accent); }
+    .metric-tile.info  { --tile-accent: var(--blue); }
+    .metric-tile.warn  { --tile-accent: var(--amber); }
+    .metric-tile.teal  { --tile-accent: var(--teal); }
+    .metric-tile.dim .value { color: var(--ink-bright); }
+
+    /* ============================================================
+       TOPIC CHIP — colored pill that can appear next to H2 text
+       ============================================================ */
+    .topic-chip {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .16em;
+      color: var(--bg);
+      background: var(--accent);
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-weight: 700;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+    .topic-chip.warn   { background: var(--amber); }
+    .topic-chip.danger { background: var(--red);   color: #fff; }
+    .topic-chip.info   { background: var(--blue);  color: var(--bg); }
+    .topic-chip.idea   { background: var(--purple); color: #fff; }
+    .topic-chip.teal   { background: var(--teal);  color: var(--bg); }
+
+    /* ============================================================
+       PULL QUOTE
+       ============================================================ */
+    .pullquote {
+      font-family: var(--serif-display);
+      font-size: 1.55rem;
+      font-weight: 500;
+      line-height: 1.38;
+      color: var(--ink-bright);
+      border-left: 4px solid var(--accent);
+      padding: 4px 0 4px 22px;
+      margin: 1.8em 0;
+      letter-spacing: -.012em;
+    }
+
+    /* ============================================================
+       SCHEMATIC — ASCII box-drawing diagrams, monospace canvas
+       Use via:
+         <div class="schematic">
+         ┌─────────┐    ┌─────────┐
+         │ Phase 0 │ ─→ │ Phase 1 │
+         └─────────┘    └─────────┘
+         </div>
+       ============================================================ */
+    .schematic {
+      font-family: var(--mono);
+      font-size: .86rem;
+      line-height: 1.4;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 28px;
+      margin: 1.6em 0;
+      color: #cfdcec;
+      white-space: pre;
+      overflow-x: auto;
+      position: relative;
+    }
+    .schematic::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--teal), transparent); border-radius: 12px 0 0 12px; opacity: .6; }
+
+    /* ============================================================
+       RAW SVG / inline diagrams
+       ============================================================ */
+    .diagram, svg.diagram, .figure {
+      display: block; margin: 1.6em auto; max-width: 100%;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 22px 14px;
+    }
+    .figure-caption {
+      text-align: center; font-family: var(--mono); font-size: .76rem;
+      color: var(--ink-dim); margin-top: -.6em; margin-bottom: 1.6em;
+      letter-spacing: .04em;
+    }
+
+    /* ============================================================
+       MERMAID block — bigger frame, softer glow
+       ============================================================ */
+    .mermaid {
+      margin: 1.6em 0; text-align: center;
+      background: linear-gradient(180deg, #0e1320, #0a0d13);
+      border: 1px solid var(--border); border-radius: 13px;
+      padding: 24px 14px;
+      box-shadow: 0 18px 50px -36px rgba(78,227,155,.55) inset;
+    }
+    .mermaid svg { max-width: 100%; height: auto; }
+
+    /* Hide pandoc's title-block if present */
+    #title-block-header { display: none; }
+
+    /* ============================================================
+       UTILITY ROW — two-up / three-up adjacent blocks
+       ============================================================ */
+    .row {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1fr;
+      margin: 1.5em 0;
+    }
+    .row.two { grid-template-columns: 1fr 1fr; }
+    .row.three { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 760px) {
+      .row.two, .row.three { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    const render = () => {
+      const blocks = new Set();
+      document.querySelectorAll('pre.mermaid, pre.sourceCode.mermaid').forEach((p) => blocks.add(p));
+      document.querySelectorAll('code.mermaid, code.language-mermaid').forEach((c) => {
+        const pre = c.closest('pre'); if (pre) blocks.add(pre);
+      });
+      blocks.forEach((pre) => {
+        const div = document.createElement('div');
+        div.className = 'mermaid';
+        div.textContent = pre.textContent.trim();
+        pre.replaceWith(div);
+      });
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        securityLevel: 'loose',
+        fontFamily: 'IBM Plex Mono, monospace',
+        themeVariables: {
+          background: '#0a0d13',
+          primaryColor: '#1a212c',
+          primaryTextColor: '#f0f3f7',
+          primaryBorderColor: '#4ee39b',
+          lineColor: '#6c7a8b',
+          secondaryColor: '#191e28',
+          tertiaryColor: '#11161e',
+          tertiaryBorderColor: '#2a3340',
+          clusterBkg: 'rgba(78,227,155,.05)',
+          clusterBorder: '#2f8f63',
+          titleColor: '#4ee39b',
+          actorBkg: '#1a212c',
+          actorBorder: '#4ee39b',
+          actorTextColor: '#f0f3f7',
+          signalColor: '#9aa7b6',
+          signalTextColor: '#d3dbe5',
+          noteBkgColor: 'rgba(255,199,70,.14)',
+          noteBorderColor: '#ffc746',
+          noteTextColor: '#f6f8fb',
+          fontSize: '14px'
+        }
+      });
+      mermaid.run();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
+    else render();
+  </script>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">UCSA reactive documentation and tutorial studio</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#ucsa-reactive-documentation-and-tutorial-studio-e-008"
+id="toc-ucsa-reactive-documentation-and-tutorial-studio-e-008">UCSA
+reactive documentation and tutorial studio (E-008)</a>
+<ul>
+<li><a href="#outcome" id="toc-outcome">Outcome</a></li>
+<li><a href="#current-state-verified-2026-10-09"
+id="toc-current-state-verified-2026-10-09">Current state (verified
+2026-10-09)</a></li>
+<li><a href="#design-decisions" id="toc-design-decisions">Design
+decisions</a></li>
+<li><a href="#waves" id="toc-waves">Waves</a></li>
+<li><a href="#slices" id="toc-slices">Slices</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="ucsa-reactive-documentation-and-tutorial-studio-e-008">UCSA
+reactive documentation and tutorial studio (E-008)</h1>
+<p>Source: <code>/tmp/handoff-ucsa-docs-reactive.md</code> (claimed
+2026-10-09), a gap survey of <code>apps/docs</code>, and an independent
+audit of the first draft of this spec, all on the same day.</p>
+<h2 id="outcome">Outcome</h2>
+<p>A developer opens the UCSA docs portal (<code>apps/docs</code>,
+package <code>@ucsa/docs</code>) and can learn every core subsystem by
+operating it, not by reading static snippets:</p>
+<ol type="1">
+<li><strong>Every subsystem has a live visualiser</strong> — SWR
+lifecycle, timing, Outbox, CAS, SQLite WAL and the UCB1 event bus. Each
+one runs real <code>@ucsa/core</code> logic where that logic is
+browser-safe, and otherwise a small browser model that is plainly
+labelled “simulation” and pinned to the real module by a parity
+test.</li>
+<li><strong>The portal is navigable and linkable</strong> — sidebar
+navigation, a URL per page (hash routing), responsive dark layout from
+360px to desktop.</li>
+<li><strong>There is long-form tutorial content</strong> — a guided path
+from “first query” to “offline mutations across processes”, not just
+captions.</li>
+<li><strong>Multi-platform guides are complete</strong> — TypeScript,
+Dart/Flutter and C# Unity side by side for all six subsystems, with a
+parity matrix.</li>
+<li><strong>There is an editable TypeScript sandbox</strong> running
+against the browser-safe <code>@ucsa/core</code> entry. Dart and C# stay
+read-only (no in-browser runtime); the page says so.</li>
+<li><strong>It is built, tested and documented</strong> —
+<code>pnpm --filter @ucsa/docs test</code> and <code>build</code> pass,
+a GitHub Pages workflow file exists, and <code>README.md</code> plus the
+handoff document describe the portal as it actually is.</li>
+</ol>
+<h2 id="current-state-verified-2026-10-09">Current state (verified
+2026-10-09)</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr>
+<th>Area</th>
+<th>State</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SWR, Timing playgrounds</td>
+<td>Real <code>QueryEngine</code>; no state graph, no stale/gc
+timeline</td>
+</tr>
+<tr>
+<td>Outbox, CAS playgrounds</td>
+<td>Mocked; <code>MutationOutbox</code> and <code>cas-store</code> are
+bound to SQLite and <code>node:</code> modules</td>
+</tr>
+<tr>
+<td>SQLite WAL, UCB1 event bus</td>
+<td>No component at all</td>
+</tr>
+<tr>
+<td>Multi-platform guide</td>
+<td>Static code tabs for 5 topics; no WAL/UCB1, no parity matrix</td>
+</tr>
+<tr>
+<td>App shell</td>
+<td><code>useState</code> story switcher, 5 stories, no router, no prose
+pages, ~164 lines of CSS</td>
+</tr>
+<tr>
+<td>Tests / build</td>
+<td>Fail repo-wide: Node is x64 but only the arm64 rollup/rolldown
+native bindings are installed</td>
+</tr>
+<tr>
+<td>Gates</td>
+<td><code>precheck.sh</code> and <code>integration.sh</code> mark UI
+checks “n/a”; integration never runs <code>apps/docs</code></td>
+</tr>
+<tr>
+<td>Deploy</td>
+<td>No <code>.github/</code> directory and no git remote; only the Vite
+<code>base</code> path is set</td>
+</tr>
+<tr>
+<td>Epic gate</td>
+<td>No <code>scripts/epic-check.sh</code> (the toolkit’s default path; a
+missing script is skipped with a warning)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="design-decisions">Design decisions</h2>
+<ul>
+<li><strong><code>@ucsa/core</code> is not modified.</strong> None of
+the Node-side modules are browser-safe: <code>ipc/frame-codec.ts</code>
+uses the <code>Buffer</code> global, <code>storage/cas-lru.ts</code> and
+<code>cas-store.ts</code> need <code>better-sqlite3</code>,
+<code>node:fs</code> and <code>node:crypto</code>, and
+<code>mutation-outbox.ts</code> needs SQLite. Rather than port core or
+add a <code>Buffer</code> polyfill, each visualiser gets a
+<strong>browser model inside <code>apps/docs/src/models/</code></strong>
+(<code>Uint8Array</code>/<code>DataView</code>, WebCrypto SHA-256,
+in-memory tables).</li>
+<li><strong>Parity tests keep the models honest.</strong> Vitest runs in
+Node, so each model has a test that feeds the same fixtures to the real
+core module and asserts identical bytes, hashes or state transitions.
+Where no real module can run headless (the WAL pager), the model is
+pinned to the documented contract instead, and the page says
+“simulation”.</li>
+<li><strong><code>LifecycleFSM</code> is already
+browser-exported</strong> but has no subscribe API or transition table
+and <code>QueryEngine</code> does not use it. The SWR state graph
+therefore drives its own FSM instance; its edges are hand-authored and
+tested against the FSM’s methods.</li>
+<li><strong>File ownership for serial shipping.</strong> Slice 2
+introduces a <code>src/routes.ts</code> registry and per-page CSS files.
+Every later slice adds one registry line plus its own files, and does
+not otherwise edit <code>App.tsx</code> or <code>index.css</code>.</li>
+<li><strong>Dependencies.</strong> No new runtime dependencies, with one
+declared exception: the sandbox lazy-loads <code>sucrase</code> to strip
+TypeScript, and runs user code in a sandboxed <code>iframe</code>
+(<code>sandbox="allow-scripts"</code>, no same-origin), never
+<code>eval</code> in the page.</li>
+<li><strong>Each slice ships with its own tests</strong> in
+<code>apps/docs/tests/</code> and passes Gate 1
+(<code>scripts/precheck.sh</code>, the pre-ship build and test
+check).</li>
+<li><strong>Out of scope:</strong> in-browser Dart/C# execution, a
+search index, versioned docs, any change to <code>@ucsa/core</code>
+runtime code, a browser test runner (Playwright), and an actual GitHub
+Pages deploy (there is no git remote; only the workflow file is
+delivered).</li>
+</ul>
+<h2 id="waves">Waves</h2>
+<pre class="mermaid"><code>flowchart LR
+  subgraph W0[Wave 0 · foundation]
+    S1[S1 toolchain + gate slot]
+  end
+  subgraph W1[Wave 1 · shell]
+    S2[S2 app shell, routes registry]
+  end
+  subgraph W2[Wave 2 · visualisers]
+    S3[S3 UCB1 event bus]
+    S4[S4 SQLite WAL]
+    S5[S5 CAS model]
+    S6[S6 Outbox model]
+    S7[S7 SWR state graph + timeline]
+  end
+  subgraph W3[Wave 3 · content]
+    S8[S8 guides, parity matrix, tutorial]
+    S9[S9 TypeScript sandbox]
+  end
+  subgraph W4[Wave 4 · delivery]
+    S10[S10 workflow, README, handoff, epic check]
+  end
+  W0 --&gt; W1 --&gt; W2 --&gt; W3 --&gt; W4</code></pre>
+<p>Slice 1 is a hard blocker for everything else: Gate 1 is red for the
+whole repo until the toolchain is fixed.</p>
+<h2 id="slices">Slices</h2>
+<ol type="1">
+<li><strong>Docs toolchain and gate slot</strong> — make the native
+bundler bindings match the running Node architecture
+(<code>supportedArchitectures</code> for both <code>x64</code> and
+<code>arm64</code> in the pnpm config, then reinstall) so root
+<code>pnpm test</code>, docs test and docs build pass; fill
+<code>precheck.sh</code> slot 3 with a real check for
+<code>apps/docs</code> (typecheck plus docs tests) instead of
+“n/a”.</li>
+<li><strong>App shell with hash routing and responsive layout</strong> —
+<code>src/routes.ts</code> registry, ~40-line hash router, sidebar nav,
+deep links, not-found page, mobile drawer, design tokens, per-page CSS,
+a prose-page primitive; the five existing stories become registry
+entries; <code>tests/app-shell.test.tsx</code> covers every route id
+plus an unknown hash.</li>
+<li><strong>UCB1 event bus visualiser</strong> — browser frame codec
+model with a parity test against <code>ipc/frame-codec.ts</code>;
+byte-level header inspector (12-byte big-endian, magic
+<code>UCB1</code>); hub fan-out across simulated processes;
+malformed-frame handling.</li>
+<li><strong>SQLite WAL storage visualiser</strong> — simulated pager:
+main file, WAL frames, reader snapshots, checkpoint, crash recovery,
+journal-mode toggle; labelled simulation; model tests pinned to the
+behaviour documented for <code>sqlite-adapter.ts</code>.</li>
+<li><strong>CAS playground on a tested model</strong> — in-memory
+content-addressable store with WebCrypto SHA-256, dedupe, reference
+counts and LRU eviction; parity test against the real
+<code>cas-store</code> hashes; replaces the current hand-rolled
+simulation.</li>
+<li><strong>Outbox playground on a tested model</strong> — in-memory
+outbox with lease owner and expiry, rate limit, retry and conflict
+policy; parity test against <code>mutation-outbox.ts</code> transitions;
+replaces the current mock.</li>
+<li><strong>SWR lifecycle state graph and stale/gc timeline</strong> —
+graph of the five lifecycle states highlighting the current one, driven
+by its own <code>LifecycleFSM</code> instance, plus a timeline of
+fresh/stale/gc windows.</li>
+<li><strong>Multi-platform guides, parity matrix and tutorial
+path</strong> — WAL and UCB1 sections for TypeScript, Dart and C#;
+side-by-side view; parity matrix sourced from the three packages;
+long-form tutorial pages that embed the visualisers.</li>
+<li><strong>Editable TypeScript sandbox</strong> — editor plus runner
+against browser-safe <code>@ucsa/core</code>, lazy <code>sucrase</code>,
+sandboxed iframe, console capture, error display, preset examples.</li>
+<li><strong>Workflow file, README, handoff and epic check</strong> —
+<code>.github/workflows/docs.yml</code> (build only, validated as YAML);
+README portal section and test-count table regenerated; handoff document
+refreshed; <code>scripts/epic-check.sh</code> implementing
+<code>verification.md</code>; <code>integration.sh</code> runs the docs
+tests and build.</li>
+</ol>
+</body>
+</html>

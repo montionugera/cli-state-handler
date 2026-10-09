@@ -21,6 +21,12 @@ export type {
   ChangeLogKind,
   ChangeLogRow,
   ReadChangesResult,
+  StreamStatus,
+  StreamEncoding,
+  ResumeKind,
+  StreamRecord,
+  StreamChunk,
+  CreateStreamOptions,
 } from './storage/sqlite-adapter.js';
 export {
   MigrationRunner,
@@ -31,6 +37,7 @@ export {
   BASELINE_SQL,
   PAYLOAD_VERSION_SQL,
   CHANGE_LOG_AND_BUS_SQL,
+  STREAMING_CHUNK_STORE_SQL,
   CANONICAL_MIGRATIONS,
   computeSqlChecksum,
 } from './storage/migration-runner.js';
@@ -84,6 +91,8 @@ export type {
   QueryOptions,
   UseQueryResult,
   QueryFunction,
+  StreamQueryOptions,
+  StreamFnContext,
 } from './query/query-engine.js';
 
 export { MutationOutbox } from './query/mutation-outbox.js';
@@ -206,5 +215,33 @@ export type {
 export { BusClient } from './ipc/bus-client.js';
 export type { BusClientOptions } from './ipc/bus-client.js';
 
+export {
+  createRangeResumeStrategy,
+  createLastEventIdResumeStrategy,
+  createContinuationResumeStrategy,
+  createRestartResumeStrategy,
+} from './streaming/resume-strategy.js';
+export type {
+  ResumeContext,
+  RangeResumeStrategy,
+  LastEventIdResumeStrategy,
+  ContinuationResumeStrategy,
+  RestartResumeStrategy,
+  ResumeStrategy,
+} from './streaming/resume-strategy.js';
 
+export { StreamResumeFsm } from './streaming/stream-resume-fsm.js';
+export type {
+  StreamResumeState,
+  StreamResumeFsmOptions,
+  IncomingChunkResult,
+  HandleErrorResult,
+} from './streaming/stream-resume-fsm.js';
+
+export { Utf8StreamDecoder } from './streaming/utf8-stream-decoder.js';
+export { StreamHandle } from './streaming/stream-handle.js';
+export type {
+  StreamSlice,
+  StreamHandleOptions,
+} from './streaming/stream-handle.js';
 

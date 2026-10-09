@@ -24,15 +24,15 @@ describe('CLI Migrate Command Suite', () => {
     const freshResult = await runMigrate('status', { db: dbPath });
     expect(freshResult.action).toBe('status');
     expect(freshResult.currentVersion).toBe(0);
-    expect(freshResult.targetVersion).toBe(3);
-    expect(freshResult.pendingCount).toBe(3);
+    expect(freshResult.targetVersion).toBe(4);
+    expect(freshResult.pendingCount).toBe(4);
     expect(freshResult.appliedCount).toBe(0);
 
     // After migration
     await runMigrate('up', { db: dbPath });
     const migratedResult = await runMigrate('status', { db: dbPath });
-    expect(migratedResult.currentVersion).toBe(3);
-    expect(migratedResult.appliedCount).toBe(3);
+    expect(migratedResult.currentVersion).toBe(4);
+    expect(migratedResult.appliedCount).toBe(4);
     expect(migratedResult.pendingCount).toBe(0);
   });
 
@@ -77,8 +77,8 @@ describe('CLI Migrate Command Suite', () => {
     const result = await runMigrate('up', { db: dbPath });
 
     expect(result.action).toBe('up');
-    expect(result.currentVersion).toBe(3);
-    expect(result.appliedCount).toBe(2); // 0002_payload_version and 0003_change_log_and_bus applied
+    expect(result.currentVersion).toBe(4);
+    expect(result.appliedCount).toBe(3); // 0002_payload_version, 0003_change_log_and_bus, and 0004_streaming_chunk_store applied
   });
 
   it('checks schema integrity returning upToDate status', async () => {
@@ -88,7 +88,7 @@ describe('CLI Migrate Command Suite', () => {
     const checkResult = await runMigrate('check', { db: dbPath });
     expect(checkResult.action).toBe('check');
     expect(checkResult.upToDate).toBe(true);
-    expect(checkResult.currentVersion).toBe(3);
+    expect(checkResult.currentVersion).toBe(4);
 
     // Create an unmigrated database
     const oldDbPath = path.join(tempDir, 'old.db');

@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Ucsa.Unity.Storage;
+using Ucsa.Unity.Streaming;
 
 namespace Ucsa.Unity.Core
 {
@@ -26,6 +28,46 @@ namespace Ucsa.Unity.Core
             SqliteAdapter = sqliteAdapter;
             DefaultStaleTime = defaultStaleTime;
             DefaultGcTime = defaultGcTime;
+        }
+    }
+
+    /// <summary>
+    /// Configuration options for streaming queries.
+    /// </summary>
+    public class StreamQueryOptions
+    {
+        public long? StaleTime { get; set; }
+        public long? GcTime { get; set; }
+        public List<string>? Tags { get; set; }
+        public IResumeStrategy? Strategy { get; set; }
+        public UnityCasStore? CasStore { get; set; }
+        public int CasThresholdBytes { get; set; } = 1048576;
+        public CancellationToken CancellationToken { get; set; } = default;
+        public int BaseDelayMs { get; set; } = 300;
+        public int MaxRetries { get; set; } = 5;
+
+        public StreamQueryOptions() { }
+
+        public StreamQueryOptions(
+            long? staleTime = null,
+            long? gcTime = null,
+            List<string>? tags = null,
+            IResumeStrategy? strategy = null,
+            UnityCasStore? casStore = null,
+            int casThresholdBytes = 1048576,
+            CancellationToken cancellationToken = default,
+            int baseDelayMs = 300,
+            int maxRetries = 5)
+        {
+            StaleTime = staleTime;
+            GcTime = gcTime;
+            Tags = tags;
+            Strategy = strategy;
+            CasStore = casStore;
+            CasThresholdBytes = casThresholdBytes;
+            CancellationToken = cancellationToken;
+            BaseDelayMs = baseDelayMs;
+            MaxRetries = maxRetries;
         }
     }
 
@@ -434,6 +476,353 @@ namespace Ucsa.Unity.Core
                 }
             });
         }
+
+        /// <summary>
+        /// Streams a query with incremental UTF-8 slicing, automatic compaction into SQLite/CAS,
+        /// failure recovery via StreamResumeFsm, and SWR caching.
+        /// </summary>
+        public StreamHandle<T> StreamQueryAsync<T>(
+            object[] queryKey,
+            Func<StreamFnContext, IAsyncEnumerable<byte[]>> streamFn,
+            StreamQueryOptions? options = null)
+        {
+            if (queryKey == null) throw new ArgumentNullException(nameof(queryKey));
+            if (streamFn == null) throw new ArgumentNullException(nameof(streamFn));
+
+            string hash = QueryKeyHasher.Hash(queryKey);
+            InternalQueryRecord<T> record;
+
+            lock (_lock)
+            {
+                record = GetOrCreateRecord<T>(queryKey, hash, new QueryOptions(options?.StaleTime, options?.GcTime, options?.Tags));
+            }
+
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            long effectiveStale = options?.StaleTime ?? record.Options?.StaleTime ?? _defaultStaleTime;
+            long staleThreshold = record.Entry != null
+                ? record.Entry.CreatedAt + effectiveStale
+                : record.Entry?.StaleAt ?? 0;
+
+            bool isFresh = record.Entry != null && now < staleThreshold;
+
+            if (isFresh && record.State.Data != null)
+            {
+                var cachedData = record.State.Data;
+                var cachedHandle = new StreamHandle<T>(hash);
+                cachedHandle.Push(new StreamSlice<T>(
+                    delta: cachedData,
+                    cumulative: cachedData,
+                    seq: 0,
+                    byteOffset: 0,
+                    done: true
+                ));
+                cachedHandle.End(cachedData);
+                return cachedHandle;
+            }
+
+            if (_sqliteAdapter != null)
+            {
+                try
+                {
+                    var existing = _sqliteAdapter.GetStream(hash);
+                    if (existing != null)
+                    {
+                        try
+                        {
+                            _sqliteAdapter.ResetStream(hash);
+                        }
+                        catch { }
+                    }
+                    else
+                    {
+                        _sqliteAdapter.CreateStream(
+                            queryKey,
+                            encoding: StreamEncoding.Utf8,
+                            tags: options?.Tags,
+                            ttlMs: (int)(options?.GcTime ?? 300000),
+                            resumeKind: options?.Strategy is LastEventIdResumeStrategy ? ResumeKind.LastEventId : null
+                        );
+                    }
+                }
+                catch { }
+            }
+
+            var resumeStrategy = options?.Strategy ?? new RangeResumeStrategy();
+            var resumeFsm = new StreamResumeFsm(new StreamResumeFsmOptions
+            {
+                QueryHash = hash,
+                QueryKey = queryKey,
+                Strategy = resumeStrategy,
+                SqliteAdapter = _sqliteAdapter,
+                BaseDelayMs = options?.BaseDelayMs ?? 300,
+                MaxDelayMs = 10000,
+                MaxRetries = options?.MaxRetries ?? 5
+            });
+            resumeFsm.Start();
+
+            var internalCts = new CancellationTokenSource();
+            var handle = new StreamHandle<T>(hash, internalCts);
+
+            void DoCancel(string? reason)
+            {
+                try
+                {
+                    if (!internalCts.IsCancellationRequested)
+                    {
+                        internalCts.Cancel();
+                    }
+                }
+                catch { }
+
+                if (!handle.IsCancelled)
+                {
+                    handle.Cancel(reason);
+                }
+                _sqliteAdapter?.AbortStream(hash, reason);
+                resumeFsm.Abort(reason);
+
+                lock (_lock)
+                {
+                    record.State.IsFetching = false;
+                    NotifySubscribers(record);
+                }
+            }
+
+            if (options != null && options.CancellationToken.IsCancellationRequested)
+            {
+                DoCancel("Cancelled before start");
+                return handle;
+            }
+
+            if (options != null && options.CancellationToken.CanBeCanceled)
+            {
+                options.CancellationToken.Register(() => DoCancel("Cancelled via cancellationToken"));
+            }
+
+            internalCts.Token.Register(() => DoCancel("Cancelled via handle"));
+
+            lock (_lock)
+            {
+                record.ActiveCts = internalCts;
+                record.State.Status = record.State.Data != null ? record.State.Status : QueryStatus.Loading;
+                record.State.IsFetching = true;
+                NotifySubscribers(record);
+            }
+
+            _ = Task.Run(async () =>
+            {
+                Dictionary<string, string>? currentResumeHeaders = null;
+                object? currentContinuationPayload = null;
+                string cumulativeText = string.Empty;
+                var utf8Decoder = new Utf8StreamDecoder();
+
+                while (!handle.IsDone && !handle.IsCancelled && !internalCts.IsCancellationRequested)
+                {
+                    try
+                    {
+                        var ctx = new StreamFnContext(
+                            hash,
+                            internalCts.Token,
+                            currentResumeHeaders,
+                            currentContinuationPayload
+                        );
+
+                        var stream = streamFn(ctx);
+
+                        await foreach (var rawChunk in stream.WithCancellation(internalCts.Token).ConfigureAwait(false))
+                        {
+                            if (handle.IsCancelled || internalCts.IsCancellationRequested)
+                            {
+                                break;
+                            }
+
+                            var chunkResult = resumeFsm.HandleIncomingChunk(rawChunk);
+                            if (!chunkResult.Accepted)
+                            {
+                                continue;
+                            }
+
+                            string delta = utf8Decoder.Decode(chunkResult.Slice);
+                            cumulativeText += delta;
+                            if (!string.IsNullOrEmpty(delta))
+                            {
+                                T deltaT = typeof(T) == typeof(string) ? (T)(object)delta : (T)(object)chunkResult.Slice;
+                                T cumulativeT = typeof(T) == typeof(string) ? (T)(object)cumulativeText : (T)(object)chunkResult.Slice;
+
+                                handle.Push(new StreamSlice<T>(
+                                    delta: deltaT,
+                                    cumulative: cumulativeT,
+                                    seq: chunkResult.Seq,
+                                    byteOffset: chunkResult.ByteOffset,
+                                    done: false
+                                ));
+                            }
+                        }
+
+                        if (handle.IsCancelled || internalCts.IsCancellationRequested)
+                        {
+                            break;
+                        }
+
+                        resumeFsm.Complete();
+
+                        string flushed = utf8Decoder.Flush();
+                        if (!string.IsNullOrEmpty(flushed))
+                        {
+                            cumulativeText += flushed;
+                            T flushedDelta = typeof(T) == typeof(string) ? (T)(object)flushed : default!;
+                            T flushedCumulative = typeof(T) == typeof(string) ? (T)(object)cumulativeText : default!;
+
+                            handle.Push(new StreamSlice<T>(
+                                delta: flushedDelta,
+                                cumulative: flushedCumulative,
+                                seq: resumeFsm.CommittedSeq,
+                                byteOffset: resumeFsm.CommittedByteLength,
+                                done: false
+                            ));
+                        }
+
+                        T finalPayload = typeof(T) == typeof(string) ? (T)(object)cumulativeText : default!;
+
+                        CacheEntry<object>? compactedEntry = null;
+                        if (_sqliteAdapter != null)
+                        {
+                            try
+                            {
+                                compactedEntry = await _sqliteAdapter.CompactStreamAsync(
+                                    hash,
+                                    options?.CasStore,
+                                    options?.CasThresholdBytes ?? 1048576
+                                ).ConfigureAwait(false);
+                            }
+                            catch { }
+                        }
+
+                        long completionNow = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                        long effectiveStaleAfter = options?.StaleTime ?? _defaultStaleTime;
+                        long effectiveGcAfter = options?.GcTime ?? _defaultGcTime;
+
+                        if (compactedEntry != null && options?.StaleTime != null)
+                        {
+                            compactedEntry.StaleAt = compactedEntry.CreatedAt + effectiveStaleAfter;
+                            try
+                            {
+                                _sqliteAdapter?.SetQuery(compactedEntry, options?.Tags);
+                            }
+                            catch { }
+                        }
+
+                        lock (_lock)
+                        {
+                            record.Entry = new CacheEntry<T>(
+                                hash,
+                                queryKey,
+                                finalPayload,
+                                completionNow,
+                                completionNow + effectiveStaleAfter,
+                                completionNow + effectiveGcAfter,
+                                compactedEntry?.Etag,
+                                1
+                            );
+                            record.State.Status = QueryStatus.Success;
+                            record.State.Data = finalPayload;
+                            record.State.DataUpdatedAt = completionNow;
+                            record.State.Error = null;
+                            record.State.IsFetching = false;
+                            NotifySubscribers(record);
+                        }
+
+                        T emptyDelta = typeof(T) == typeof(string) ? (T)(object)string.Empty : default!;
+                        handle.Push(new StreamSlice<T>(
+                            delta: emptyDelta,
+                            cumulative: finalPayload,
+                            seq: resumeFsm.CommittedSeq,
+                            byteOffset: resumeFsm.CommittedByteLength,
+                            done: true
+                        ));
+                        handle.End(finalPayload);
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (handle.IsCancelled || internalCts.IsCancellationRequested)
+                        {
+                            break;
+                        }
+
+                        var errorResult = resumeFsm.HandleError(ex);
+                        if (errorResult.CanResume)
+                        {
+                            currentResumeHeaders = errorResult.Headers;
+                            currentContinuationPayload = errorResult.ContinuationPayload;
+                            if (errorResult.Restart)
+                            {
+                                cumulativeText = string.Empty;
+                                utf8Decoder = new Utf8StreamDecoder();
+                                T emptyT = typeof(T) == typeof(string) ? (T)(object)string.Empty : default!;
+                                handle.Push(new StreamSlice<T>(
+                                    delta: emptyT,
+                                    cumulative: emptyT,
+                                    seq: 0,
+                                    byteOffset: 0,
+                                    done: false,
+                                    reset: true
+                                ));
+                            }
+                            if (errorResult.RetryDelayMs > 0)
+                            {
+                                await Task.Delay(errorResult.RetryDelayMs, internalCts.Token).ConfigureAwait(false);
+                            }
+                            continue;
+                        }
+                        else
+                        {
+                            resumeFsm.Abort(ex.Message);
+                            handle.Error(ex);
+                            lock (_lock)
+                            {
+                                record.State.Status = QueryStatus.Error;
+                                record.State.Error = ex;
+                                record.State.ErrorUpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                                record.State.IsFetching = false;
+                                NotifySubscribers(record);
+                            }
+                            break;
+                        }
+                    }
+                }
+            });
+
+            return handle;
+        }
+
+        /// <summary>
+        /// Streams a text query with incremental token chunks.
+        /// </summary>
+        public StreamHandle<string> StreamQueryAsync(
+            object[] queryKey,
+            Func<StreamFnContext, IAsyncEnumerable<string>> streamFn,
+            StreamQueryOptions? options = null)
+        {
+            async IAsyncEnumerable<byte[]> ByteStreamWrapper(StreamFnContext ctx)
+            {
+                await foreach (var str in streamFn(ctx).ConfigureAwait(false))
+                {
+                    yield return Encoding.UTF8.GetBytes(str);
+                }
+            }
+
+            return StreamQueryAsync<string>(queryKey, ByteStreamWrapper, options);
+        }
+
+        /// <summary>
+        /// Alias for StreamQueryAsync.
+        /// </summary>
+        public StreamHandle<T> StreamQuery<T>(
+            object[] queryKey,
+            Func<StreamFnContext, IAsyncEnumerable<byte[]>> streamFn,
+            StreamQueryOptions? options = null)
+            => StreamQueryAsync<T>(queryKey, streamFn, options);
 
         /// <summary>
         /// Invalidates all queries matching the query key prefix.

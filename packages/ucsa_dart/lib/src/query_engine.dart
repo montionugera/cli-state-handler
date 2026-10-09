@@ -1,8 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'cas_store.dart';
+import 'resume_strategy.dart';
 import 'sqlite_adapter.dart';
+import 'stream_handle.dart';
+import 'stream_resume_fsm.dart';
 import 'structural_sharing.dart';
 import 'types.dart';
+import 'utf8_stream_decoder.dart';
 
 class _InternalQueryRecord {
   final QueryKey queryKey;
@@ -317,6 +322,288 @@ class QueryEngine {
         tags: tags,
         dataParser: dataParser,
       );
+
+  /// Streams a query with incremental UTF-8 slicing, automatic compaction into SQLite/CAS,
+  /// failure recovery via StreamResumeFsm, and SWR caching.
+  StreamHandle<T> streamQuery<T>(
+    QueryKey queryKey,
+    Stream<dynamic> Function(StreamFnContext ctx) streamFn, {
+    Duration? staleTime,
+    Duration? gcTime,
+    List<String>? tags,
+    ResumeStrategy? strategy,
+    CasStore? casStore,
+    int casThresholdBytes = 1048576,
+    CancellationToken? cancellationToken,
+    int? baseDelayMs,
+    int? maxRetries,
+  }) {
+    final queryHash = hashQueryKey(queryKey);
+    final record = _getOrCreateRecord(
+      queryKey,
+      queryHash,
+      tags: tags,
+      staleTime: staleTime,
+      gcTime: gcTime,
+    );
+
+    // SWR check: if query is cached in SQLite or in memory and fresh
+    final effectiveStale = staleTime ?? record.staleTime ?? defaultStaleTime;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final staleThreshold = record.entry != null
+        ? record.entry!.createdAt + effectiveStale.inMilliseconds
+        : (record.entry?.staleAt ?? 0);
+
+    final isFresh = record.entry != null && now < staleThreshold;
+
+    if (isFresh && record.state.data != null) {
+      final cachedData = record.state.data as T;
+      final cachedHandle = StreamHandle<T>(queryHash: queryHash);
+      cachedHandle.push(StreamSlice<T>(
+        delta: cachedData,
+        cumulative: cachedData,
+        seq: 0,
+        byteOffset: 0,
+        done: true,
+      ));
+      cachedHandle.end(cachedData);
+      return cachedHandle;
+    }
+
+    // Create stream in SQLite adapter
+    if (sqliteAdapter != null) {
+      try {
+        final existing = sqliteAdapter!.getStream(queryHash);
+        if (existing != null) {
+          try {
+            sqliteAdapter!.db.execute(
+              'DELETE FROM ucsa_streams WHERE query_hash = ?;',
+              [queryHash],
+            );
+          } catch (_) {}
+        }
+        sqliteAdapter!.createStream(
+          queryKey,
+          encoding: StreamEncoding.utf8,
+          tags: tags,
+          ttlMs: gcTime?.inMilliseconds ?? 300000,
+          resumeKind: strategy is LastEventIdResumeStrategy
+              ? ResumeKind.lastEventId
+              : null,
+        );
+      } catch (_) {}
+    }
+
+    final resumeStrategy = strategy ?? RangeResumeStrategy();
+    final resumeFsm = StreamResumeFsm(StreamResumeFsmOptions(
+      queryHash: queryHash,
+      queryKey: queryKey,
+      strategy: resumeStrategy,
+      sqliteAdapter: sqliteAdapter,
+      baseDelayMs: baseDelayMs ?? 300,
+      maxRetries: maxRetries ?? 5,
+    ));
+    resumeFsm.start();
+
+    final internalToken = CancellationToken();
+    final handle = StreamHandle<T>(
+      queryHash: queryHash,
+      cancellationToken: internalToken,
+    );
+    record.activeToken = internalToken;
+
+    void doCancel([String? reason]) {
+      if (!internalToken.isCancelled) {
+        internalToken.cancel();
+      }
+      if (!handle.isCancelled) {
+        handle.cancel(reason);
+      }
+      sqliteAdapter?.abortStream(queryHash, error: reason);
+      resumeFsm.abort(reason: reason);
+      record.state = record.state.copyWith(isFetching: false);
+      _notifySubscribers(record);
+    }
+
+    if (cancellationToken != null) {
+      if (cancellationToken.isCancelled) {
+        doCancel('Cancelled before start');
+        return handle;
+      }
+      cancellationToken.onCancel(() {
+        doCancel('Cancelled via cancellationToken');
+      });
+    }
+
+    internalToken.onCancel(() {
+      doCancel('Cancelled via internal token');
+    });
+
+    record.state = record.state.copyWith(
+      status: record.state.data != null ? record.state.status : QueryStatus.loading,
+      isFetching: true,
+    );
+    _notifySubscribers(record);
+
+    var cumulativeText = '';
+    var utf8Decoder = Utf8StreamDecoder();
+
+    // Background pipeline execution
+    () async {
+      Map<String, String>? currentResumeHeaders;
+      dynamic currentContinuationPayload;
+
+      while (!handle.isDone && !handle.isCancelled && !internalToken.isCancelled) {
+        try {
+          final ctx = StreamFnContext(
+            queryHash: queryHash,
+            cancellationToken: internalToken,
+            resumeHeaders: currentResumeHeaders,
+            continuationPayload: currentContinuationPayload,
+          );
+
+          final stream = streamFn(ctx);
+
+          await for (final rawChunk in stream) {
+            if (handle.isCancelled || internalToken.isCancelled) {
+              break;
+            }
+
+            final chunkResult = resumeFsm.handleIncomingChunk(rawChunk);
+            if (!chunkResult.accepted) {
+              continue;
+            }
+
+            final delta = utf8Decoder.decode(chunkResult.slice);
+            cumulativeText += delta;
+            if (delta.isNotEmpty) {
+              handle.push(StreamSlice<T>(
+                delta: delta as T,
+                cumulative: cumulativeText as T,
+                seq: chunkResult.seq,
+                byteOffset: chunkResult.byteOffset,
+                done: false,
+              ));
+            }
+          }
+
+          if (handle.isCancelled || internalToken.isCancelled) {
+            break;
+          }
+
+          resumeFsm.complete();
+
+          final flushed = utf8Decoder.flush();
+          if (flushed.isNotEmpty) {
+            cumulativeText += flushed;
+            handle.push(StreamSlice<T>(
+              delta: flushed as T,
+              cumulative: cumulativeText as T,
+              seq: resumeFsm.committedSeq,
+              byteOffset: resumeFsm.committedByteLength,
+              done: false,
+            ));
+          }
+
+          final finalPayload = cumulativeText as T;
+
+          CacheEntry<dynamic>? compactedEntry;
+          if (sqliteAdapter != null) {
+            try {
+              compactedEntry = await sqliteAdapter!.compactStream(
+                queryHash,
+                casStore: casStore,
+                casThresholdBytes: casThresholdBytes,
+              );
+            } catch (_) {}
+          }
+
+          final completionNow = DateTime.now().millisecondsSinceEpoch;
+          final effectiveStaleAfter = staleTime ?? defaultStaleTime;
+          final effectiveGcAfter = gcTime ?? defaultGcTime;
+
+          if (compactedEntry != null && staleTime != null) {
+            compactedEntry = compactedEntry.copyWith(
+              staleAt: compactedEntry.createdAt + effectiveStaleAfter.inMilliseconds,
+            );
+            try {
+              sqliteAdapter!.setQuery(compactedEntry, tags: tags);
+            } catch (_) {}
+          }
+
+          final entryToStore = compactedEntry ?? CacheEntry<dynamic>(
+            queryHash: queryHash,
+            queryKey: queryKey,
+            dataPayload: finalPayload,
+            createdAt: completionNow,
+            staleAt: completionNow + effectiveStaleAfter.inMilliseconds,
+            expiresAt: completionNow + effectiveGcAfter.inMilliseconds,
+            payloadVersion: 1,
+          );
+
+          record.entry = entryToStore;
+          record.state = QueryState<dynamic>(
+            status: QueryStatus.success,
+            data: entryToStore.dataPayload,
+            dataUpdatedAt: completionNow,
+            error: null,
+            errorUpdatedAt: record.state.errorUpdatedAt,
+            isFetching: false,
+          );
+          _notifySubscribers(record);
+
+          handle.push(StreamSlice<T>(
+            delta: '' as T,
+            cumulative: finalPayload,
+            seq: resumeFsm.committedSeq,
+            byteOffset: resumeFsm.committedByteLength,
+            done: true,
+          ));
+          handle.end(finalPayload);
+          break;
+        } catch (err, stack) {
+          if (handle.isCancelled || internalToken.isCancelled) {
+            break;
+          }
+
+          final errorResult = resumeFsm.handleError(err);
+          if (errorResult.canResume) {
+            currentResumeHeaders = errorResult.headers;
+            currentContinuationPayload = errorResult.continuationPayload;
+            if (errorResult.restart) {
+              cumulativeText = '';
+              utf8Decoder = Utf8StreamDecoder();
+              handle.push(StreamSlice<T>(
+                delta: '' as T,
+                cumulative: '' as T,
+                seq: 0,
+                byteOffset: 0,
+                done: false,
+                reset: true,
+              ));
+            }
+            if (errorResult.retryDelayMs > 0) {
+              await Future.delayed(Duration(milliseconds: errorResult.retryDelayMs));
+            }
+            continue;
+          } else {
+            resumeFsm.abort(reason: err.toString());
+            handle.error(err, stack);
+            record.state = record.state.copyWith(
+              status: QueryStatus.error,
+              error: err,
+              errorUpdatedAt: DateTime.now().millisecondsSinceEpoch,
+              isFetching: false,
+            );
+            _notifySubscribers(record);
+            break;
+          }
+        }
+      }
+    }().catchError((_) {});
+
+    return handle;
+  }
 
   /// Subscribes a listener to state changes for the specified query key.
   /// Returns an unsubscribe function.

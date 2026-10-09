@@ -10,3 +10,5 @@ export {
   type MigrateResult,
 } from './migrate.js';
 export { runDaemon, type DaemonCommandOptions } from './daemon.js';
+export { runStream, type StreamCommandOptions } from './stream.js';
+

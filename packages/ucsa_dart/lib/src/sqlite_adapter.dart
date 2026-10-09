@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:sqlite3/sqlite3.dart';
 import 'types.dart';
 import 'migration_runner.dart';
+import 'cas_store.dart';
 
 String _generateUuidV4() {
   final random = Random.secure();
@@ -96,29 +97,57 @@ class SqliteAdapter {
     final serializedPayload = jsonEncode(entry.dataPayload);
 
     transaction(() {
-      _db.execute(
-        '''
-        INSERT INTO ucsa_query_cache (
-          query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(query_hash) DO UPDATE SET
-          query_key = excluded.query_key,
-          data_payload = excluded.data_payload,
-          etag = excluded.etag,
-          created_at = excluded.created_at,
-          stale_at = excluded.stale_at,
-          expires_at = excluded.expires_at;
-        ''',
-        [
-          entry.queryHash,
-          serializedKey,
-          serializedPayload,
-          entry.etag,
-          entry.createdAt,
-          entry.staleAt,
-          entry.expiresAt,
-        ],
-      );
+      if (getSchemaVersion() >= 2) {
+        _db.execute(
+          '''
+          INSERT INTO ucsa_query_cache (
+            query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at, payload_version
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(query_hash) DO UPDATE SET
+            query_key = excluded.query_key,
+            data_payload = excluded.data_payload,
+            etag = excluded.etag,
+            created_at = excluded.created_at,
+            stale_at = excluded.stale_at,
+            expires_at = excluded.expires_at,
+            payload_version = excluded.payload_version;
+          ''',
+          [
+            entry.queryHash,
+            serializedKey,
+            serializedPayload,
+            entry.etag,
+            entry.createdAt,
+            entry.staleAt,
+            entry.expiresAt,
+            entry.payloadVersion,
+          ],
+        );
+      } else {
+        _db.execute(
+          '''
+          INSERT INTO ucsa_query_cache (
+            query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(query_hash) DO UPDATE SET
+            query_key = excluded.query_key,
+            data_payload = excluded.data_payload,
+            etag = excluded.etag,
+            created_at = excluded.created_at,
+            stale_at = excluded.stale_at,
+            expires_at = excluded.expires_at;
+          ''',
+          [
+            entry.queryHash,
+            serializedKey,
+            serializedPayload,
+            entry.etag,
+            entry.createdAt,
+            entry.staleAt,
+            entry.expiresAt,
+          ],
+        );
+      }
 
       if (tags != null) {
         _db.execute(
@@ -143,14 +172,20 @@ class SqliteAdapter {
     String queryHash, {
     T Function(dynamic json)? dataParser,
   }) {
-    final rows = _db.select(
-      '''
-      SELECT query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at
-      FROM ucsa_query_cache
-      WHERE query_hash = ?;
-      ''',
-      [queryHash],
-    );
+    final hasPayloadVersion = getSchemaVersion() >= 2;
+    final sql = hasPayloadVersion
+        ? '''
+          SELECT query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at, payload_version
+          FROM ucsa_query_cache
+          WHERE query_hash = ?;
+          '''
+        : '''
+          SELECT query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at
+          FROM ucsa_query_cache
+          WHERE query_hash = ?;
+          ''';
+
+    final rows = _db.select(sql, [queryHash]);
 
     if (rows.isEmpty) return null;
     final row = rows.first;
@@ -167,6 +202,9 @@ class SqliteAdapter {
       createdAt: row['created_at'] as int,
       staleAt: row['stale_at'] as int,
       expiresAt: row['expires_at'] as int,
+      payloadVersion: (hasPayloadVersion && row['payload_version'] != null)
+          ? row['payload_version'] as int
+          : 1,
     );
   }
 
@@ -780,6 +818,339 @@ class SqliteAdapter {
     if (!_isClosed && !_isInMemory) {
       _db.execute('PRAGMA wal_checkpoint($mode);');
     }
+  }
+
+  /// Creates a new streaming chunk record in ucsa_streams and registers associated tags.
+  StreamRecord createStream(
+    QueryKey queryKey, {
+    StreamEncoding encoding = StreamEncoding.utf8,
+    ResumeKind? resumeKind,
+    String? resumeToken,
+    String? etag,
+    String? writerId,
+    int? writerLeaseUntil,
+    int payloadVersion = 1,
+    int ttlMs = 300000,
+    List<String>? tags,
+  }) {
+    final queryHash = hashQueryKey(queryKey);
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final expiresAt = now + ttlMs;
+    final serializedKey = jsonEncode(queryKey);
+
+    transaction(() {
+      _db.execute(
+        '''
+        INSERT INTO ucsa_streams (
+          query_hash, query_key, status, encoding, next_seq, byte_length,
+          resume_kind, resume_token, etag, writer_id, writer_lease_until,
+          payload_version, error, created_at, updated_at, expires_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        ''',
+        [
+          queryHash,
+          serializedKey,
+          StreamStatus.open.name,
+          encoding.name,
+          0,
+          0,
+          resumeKind?.toWireString(),
+          resumeToken,
+          etag,
+          writerId,
+          writerLeaseUntil,
+          payloadVersion,
+          null,
+          now,
+          now,
+          expiresAt,
+        ],
+      );
+
+      if (tags != null && tags.isNotEmpty) {
+        for (final tag in tags) {
+          _db.execute(
+            '''
+            INSERT OR IGNORE INTO ucsa_stream_tags (tag, query_hash)
+            VALUES (?, ?);
+            ''',
+            [tag, queryHash],
+          );
+        }
+      }
+    });
+
+    return StreamRecord(
+      queryHash: queryHash,
+      queryKey: queryKey,
+      status: StreamStatus.open,
+      encoding: encoding,
+      nextSeq: 0,
+      byteLength: 0,
+      resumeKind: resumeKind,
+      resumeToken: resumeToken,
+      etag: etag,
+      writerId: writerId,
+      writerLeaseUntil: writerLeaseUntil,
+      payloadVersion: payloadVersion,
+      error: null,
+      createdAt: now,
+      updatedAt: now,
+      expiresAt: expiresAt,
+    );
+  }
+
+  /// Appends a chunk to the stream, validating sequence contiguity and byte offsets.
+  Map<String, dynamic> appendStreamChunk(
+    String queryHash,
+    dynamic data, {
+    int? expectedSeq,
+  }) {
+    final List<int> bytes = data is String
+        ? utf8.encode(data)
+        : (data is List<int> ? data : (data as List).cast<int>());
+
+    return transaction(() {
+      final rows = _db.select(
+        'SELECT status, next_seq, byte_length FROM ucsa_streams WHERE query_hash = ?;',
+        [queryHash],
+      );
+
+      if (rows.isEmpty) {
+        throw StateError('Stream not found: $queryHash');
+      }
+
+      final row = rows.first;
+      final statusStr = row['status'] as String;
+      if (statusStr != 'open') {
+        throw StateError('Stream is not open (status: $statusStr)');
+      }
+
+      final nextSeq = row['next_seq'] as int;
+      if (expectedSeq != null && expectedSeq != nextSeq) {
+        throw StateError(
+          'Sequence mismatch: expected $expectedSeq, but next sequence is $nextSeq',
+        );
+      }
+
+      final seq = nextSeq;
+      final byteOffset = row['byte_length'] as int;
+      final byteLength = bytes.length;
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      _db.execute(
+        '''
+        INSERT INTO ucsa_stream_chunks (query_hash, seq, byte_offset, data)
+        VALUES (?, ?, ?, ?);
+        ''',
+        [queryHash, seq, byteOffset, bytes],
+      );
+
+      _db.execute(
+        '''
+        UPDATE ucsa_streams
+        SET next_seq = next_seq + 1, byte_length = byte_length + ?, updated_at = ?
+        WHERE query_hash = ?;
+        ''',
+        [byteLength, now, queryHash],
+      );
+
+      return {
+        'seq': seq,
+        'byteOffset': byteOffset,
+        'byteLength': byteLength,
+      };
+    });
+  }
+
+  /// Retrieves a stream record by its query hash.
+  StreamRecord? getStream(String queryHash) {
+    final rows = _db.select(
+      '''
+      SELECT query_hash, query_key, status, encoding, next_seq, byte_length,
+             resume_kind, resume_token, etag, writer_id, writer_lease_until,
+             payload_version, error, created_at, updated_at, expires_at
+      FROM ucsa_streams
+      WHERE query_hash = ?;
+      ''',
+      [queryHash],
+    );
+
+    if (rows.isEmpty) return null;
+    final row = rows.first;
+    final resumeKindStr = row['resume_kind'] as String?;
+
+    return StreamRecord(
+      queryHash: row['query_hash'] as String,
+      queryKey: (jsonDecode(row['query_key'] as String) as List).cast<Object?>(),
+      status: StreamStatus.fromString(row['status'] as String),
+      encoding: StreamEncoding.fromString(row['encoding'] as String),
+      nextSeq: row['next_seq'] as int,
+      byteLength: row['byte_length'] as int,
+      resumeKind:
+          resumeKindStr != null ? ResumeKind.fromString(resumeKindStr) : null,
+      resumeToken: row['resume_token'] as String?,
+      etag: row['etag'] as String?,
+      writerId: row['writer_id'] as String?,
+      writerLeaseUntil: row['writer_lease_until'] as int?,
+      payloadVersion: row['payload_version'] as int? ?? 1,
+      error: row['error'] as String?,
+      createdAt: row['created_at'] as int,
+      updatedAt: row['updated_at'] as int,
+      expiresAt: row['expires_at'] as int,
+    );
+  }
+
+  /// Retrieves sequential stream chunks starting from [fromSeq].
+  List<StreamChunk> getStreamChunks(String queryHash, {int fromSeq = 0}) {
+    final rows = _db.select(
+      '''
+      SELECT query_hash, seq, byte_offset, data
+      FROM ucsa_stream_chunks
+      WHERE query_hash = ? AND seq >= ?
+      ORDER BY seq ASC;
+      ''',
+      [queryHash, fromSeq],
+    );
+
+    return rows
+        .map((r) => StreamChunk(
+              queryHash: r['query_hash'] as String,
+              seq: r['seq'] as int,
+              byteOffset: r['byte_offset'] as int,
+              data: (r['data'] as List<int>),
+            ))
+        .toList();
+  }
+
+  /// Aborts an active stream and records an optional error.
+  void abortStream(String queryHash, {String? error}) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _db.execute(
+      '''
+      UPDATE ucsa_streams
+      SET status = 'aborted', error = ?, updated_at = ?
+      WHERE query_hash = ?;
+      ''',
+      [error, now, queryHash],
+    );
+  }
+
+  /// Resets a stream by deleting all chunks and resetting sequence counter, byte length, and status.
+  /// Atomically resets next_seq = 0, byte_length = 0, status = 'open', error = NULL.
+  void resetStream(String queryHash) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    transaction(() {
+      _db.execute(
+        'DELETE FROM ucsa_stream_chunks WHERE query_hash = ?;',
+        [queryHash],
+      );
+      _db.execute(
+        '''
+        UPDATE ucsa_streams
+        SET next_seq = 0, byte_length = 0, status = 'open', error = NULL, updated_at = ?
+        WHERE query_hash = ?;
+        ''',
+        [now, queryHash],
+      );
+    });
+  }
+
+  /// Updates the resume token (and optional resume kind) for an active or completed stream.
+  void updateStreamResumeToken(
+    String queryHash,
+    String resumeToken, {
+    ResumeKind? resumeKind,
+  }) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (resumeKind != null) {
+      _db.execute(
+        '''
+        UPDATE ucsa_streams
+        SET resume_token = ?, resume_kind = ?, updated_at = ?
+        WHERE query_hash = ?;
+        ''',
+        [resumeToken, resumeKind.toWireString(), now, queryHash],
+      );
+    } else {
+      _db.execute(
+        '''
+        UPDATE ucsa_streams
+        SET resume_token = ?, updated_at = ?
+        WHERE query_hash = ?;
+        ''',
+        [resumeToken, now, queryHash],
+      );
+    }
+  }
+
+
+  /// Compacts all chunks of a stream atomically into query cache (or CAS store if exceeding [casThresholdBytes]).
+  /// Moves stream tags to ucsa_cache_tags and purges stream row and chunks via cascade.
+  Future<CacheEntry<dynamic>> compactStream(
+    String queryHash, {
+    CasStore? casStore,
+    int casThresholdBytes = 1048576,
+  }) async {
+    final stream = getStream(queryHash);
+    if (stream == null) {
+      throw StateError('Stream not found: $queryHash');
+    }
+
+    final chunks = getStreamChunks(queryHash, fromSeq: 0);
+    final totalBytes = <int>[];
+    for (final c in chunks) {
+      totalBytes.addAll(c.data);
+    }
+
+    dynamic payload;
+
+    if (casStore != null && totalBytes.length > casThresholdBytes) {
+      final casResult = await casStore.put(totalBytes);
+      payload = {
+        '__cas_ref': true,
+        'hash': casResult.hash,
+        'size': casResult.size,
+      };
+    } else {
+      if (stream.encoding == StreamEncoding.utf8) {
+        final text = utf8.decode(totalBytes);
+        try {
+          payload = jsonDecode(text);
+        } catch (_) {
+          payload = text;
+        }
+      } else {
+        payload = totalBytes;
+      }
+    }
+
+    final tagRows = _db.select(
+      'SELECT tag FROM ucsa_stream_tags WHERE query_hash = ?;',
+      [queryHash],
+    );
+    final tags = tagRows.map((r) => r['tag'] as String).toList();
+
+    final cacheEntry = CacheEntry<dynamic>(
+      queryHash: stream.queryHash,
+      queryKey: stream.queryKey,
+      dataPayload: payload,
+      etag: stream.etag,
+      createdAt: stream.createdAt,
+      staleAt: stream.createdAt + 60000,
+      expiresAt: stream.expiresAt,
+      payloadVersion: stream.payloadVersion,
+    );
+
+    transaction(() {
+      setQuery(cacheEntry, tags: tags.isNotEmpty ? tags : null);
+      _db.execute(
+        'DELETE FROM ucsa_streams WHERE query_hash = ?;',
+        [queryHash],
+      );
+    });
+
+    return cacheEntry;
   }
 
   /// Closes the database handle and marks adapter as closed.

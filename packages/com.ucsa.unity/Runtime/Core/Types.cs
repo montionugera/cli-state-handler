@@ -116,6 +116,7 @@ namespace Ucsa.Unity.Core
         public long CreatedAt { get; set; }
         public long StaleAt { get; set; }
         public long ExpiresAt { get; set; }
+        public int PayloadVersion { get; set; } = 1;
 
         public CacheEntry() { }
 
@@ -126,7 +127,8 @@ namespace Ucsa.Unity.Core
             long createdAt,
             long staleAt,
             long expiresAt,
-            string? etag = null)
+            string? etag = null,
+            int payloadVersion = 1)
         {
             QueryHash = queryHash;
             QueryKey = queryKey ?? Array.Empty<object>();
@@ -135,6 +137,7 @@ namespace Ucsa.Unity.Core
             StaleAt = staleAt;
             ExpiresAt = expiresAt;
             Etag = etag;
+            PayloadVersion = payloadVersion;
         }
 
         public bool IsStale(long? nowMs = null)
@@ -422,6 +425,142 @@ namespace Ucsa.Unity.Core
             Rows = rows;
             Truncated = truncated;
             HeadSeq = headSeq;
+        }
+    }
+
+    /// <summary>
+    /// Streaming chunk store status.
+    /// </summary>
+    public enum StreamStatus
+    {
+        Open,
+        Complete,
+        Aborted,
+        Error
+    }
+
+    public static class StreamStatusExtensions
+    {
+        public static string ToWireString(this StreamStatus status) => status switch
+        {
+            StreamStatus.Open => "open",
+            StreamStatus.Complete => "complete",
+            StreamStatus.Aborted => "aborted",
+            StreamStatus.Error => "error",
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, null)
+        };
+
+        public static StreamStatus FromString(string value) => value?.ToLowerInvariant() switch
+        {
+            "open" => StreamStatus.Open,
+            "complete" => StreamStatus.Complete,
+            "aborted" => StreamStatus.Aborted,
+            "error" => StreamStatus.Error,
+            _ => throw new ArgumentException($"Unknown StreamStatus: {value}", nameof(value))
+        };
+    }
+
+    /// <summary>
+    /// Encoding for streaming chunk payloads.
+    /// </summary>
+    public enum StreamEncoding
+    {
+        Utf8,
+        Bytes
+    }
+
+    public static class StreamEncodingExtensions
+    {
+        public static string ToWireString(this StreamEncoding encoding) => encoding switch
+        {
+            StreamEncoding.Utf8 => "utf8",
+            StreamEncoding.Bytes => "bytes",
+            _ => throw new ArgumentOutOfRangeException(nameof(encoding), encoding, null)
+        };
+
+        public static StreamEncoding FromString(string value) => value?.ToLowerInvariant() switch
+        {
+            "utf8" => StreamEncoding.Utf8,
+            "bytes" => StreamEncoding.Bytes,
+            _ => throw new ArgumentException($"Unknown StreamEncoding: {value}", nameof(value))
+        };
+    }
+
+    /// <summary>
+    /// Resume strategy for reconnecting streams.
+    /// </summary>
+    public enum ResumeKind
+    {
+        Range,
+        LastEventId,
+        Continuation,
+        Restart
+    }
+
+    public static class ResumeKindExtensions
+    {
+        public static string ToWireString(this ResumeKind kind) => kind switch
+        {
+            ResumeKind.Range => "range",
+            ResumeKind.LastEventId => "last-event-id",
+            ResumeKind.Continuation => "continuation",
+            ResumeKind.Restart => "restart",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+        };
+
+        public static ResumeKind FromString(string value) => value?.ToLowerInvariant() switch
+        {
+            "range" => ResumeKind.Range,
+            "last-event-id" or "lasteventid" => ResumeKind.LastEventId,
+            "continuation" => ResumeKind.Continuation,
+            "restart" => ResumeKind.Restart,
+            _ => throw new ArgumentException($"Unknown ResumeKind: {value}", nameof(value))
+        };
+    }
+
+    /// <summary>
+    /// Authoritative stream record in ucsa_streams table.
+    /// </summary>
+    public class StreamRecord
+    {
+        public string QueryHash { get; set; } = string.Empty;
+        public object[] QueryKey { get; set; } = Array.Empty<object>();
+        public StreamStatus Status { get; set; } = StreamStatus.Open;
+        public StreamEncoding Encoding { get; set; } = StreamEncoding.Utf8;
+        public int NextSeq { get; set; }
+        public int ByteLength { get; set; }
+        public ResumeKind? ResumeKind { get; set; }
+        public string? ResumeToken { get; set; }
+        public string? Etag { get; set; }
+        public string? WriterId { get; set; }
+        public long? WriterLeaseUntil { get; set; }
+        public int PayloadVersion { get; set; } = 1;
+        public string? Error { get; set; }
+        public long CreatedAt { get; set; }
+        public long UpdatedAt { get; set; }
+        public long ExpiresAt { get; set; }
+
+        public StreamRecord() { }
+    }
+
+    /// <summary>
+    /// Chunk of streaming payload in ucsa_stream_chunks table.
+    /// </summary>
+    public class StreamChunk
+    {
+        public string QueryHash { get; set; } = string.Empty;
+        public int Seq { get; set; }
+        public int ByteOffset { get; set; }
+        public byte[] Data { get; set; } = Array.Empty<byte>();
+
+        public StreamChunk() { }
+
+        public StreamChunk(string queryHash, int seq, int byteOffset, byte[] data)
+        {
+            QueryHash = queryHash;
+            Seq = seq;
+            ByteOffset = byteOffset;
+            Data = data;
         }
     }
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "./manifest.schema.json",
-  "version": 3,
+  "version": 4,
   "migrations": [
     {
       "version": 1,
@@ -19,6 +19,12 @@
       "name": "change_log_and_bus",
       "file": "0003_change_log_and_bus.sql",
       "sha256": "a79e1963523548208d42a61d3be4a08086c4866c71eb1045182eed4ac0a78c05"
+    },
+    {
+      "version": 4,
+      "name": "streaming_chunk_store",
+      "file": "0004_streaming_chunk_store.sql",
+      "sha256": "8082619b731cf1a7b40c41a715c6ddcb6f3df1b162487f524775784458786641"
     }
   ]
 }

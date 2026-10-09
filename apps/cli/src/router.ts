@@ -7,6 +7,7 @@ import {
   runTutorial,
   runMigrate,
   runDaemon,
+  runStream,
 } from './commands/index.js';
 
 export interface ParsedCommand {
@@ -138,6 +139,14 @@ export function parseArgs(argv: string[]): ParsedCommand {
     };
   }
 
+  if (first === 'stream') {
+    return {
+      command: 'stream',
+      args: positionals.slice(1),
+      options,
+    };
+  }
+
   if (first === 'cas') {
     if (second !== undefined) {
       return {
@@ -257,6 +266,7 @@ Usage:
 
 Subcommands:
   query <key>                       Query local SQLite cache / BFF with SWR & ETag
+  stream <key>                      Stream query with live output and atomic compaction
   cas put <file> [--max <bytes>]    Store file in Content-Addressable Storage
   cas get <hash>                    Retrieve file from Content-Addressable Storage
   cas prune <bytes>                 Prune CAS cache to byte quota using LRU
@@ -296,6 +306,14 @@ export async function dispatchCommand(parsed: ParsedCommand): Promise<void> {
             ? Number(parsed.options.ttl)
             : undefined,
         tag: parsed.options.tag as string | undefined,
+      });
+      break;
+    }
+    case 'stream': {
+      const key = parsed.args[0] ?? '';
+      await runStream(key, {
+        db: parsed.options.db as string | undefined,
+        encoding: parsed.options.encoding as string | undefined,
       });
       break;
     }

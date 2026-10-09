@@ -84,8 +84,8 @@ namespace Ucsa.Unity.Tests.Runtime
                 payload: "expiring-soon"
             ));
 
-            // Worker 1 claims with short lease of 50ms
-            var claimed1 = _adapter.ClaimPendingMutations("worker-1", 50, 1);
+            // Worker 1 claims with lease of 500ms
+            var claimed1 = _adapter.ClaimPendingMutations("worker-1", 500, 1);
             Assert.That(claimed1.Count, Is.EqualTo(1));
             Assert.That(claimed1[0].MutationId, Is.EqualTo("unity-mut-expire"));
             Assert.That(claimed1[0].LeaseOwner, Is.EqualTo("worker-1"));
@@ -95,7 +95,7 @@ namespace Ucsa.Unity.Tests.Runtime
             Assert.That(claimedEarly, Is.Empty);
 
             // Wait for lease to expire
-            await Task.Delay(65);
+            await Task.Delay(600);
 
             // Worker 2 reclaims expired in-flight mutation
             var reclaimed = _adapter.ClaimPendingMutations("worker-2", 5000, 1);

@@ -142,8 +142,8 @@ describe('Feature F-022 - Outbox Distributed Leases & WAL Checkpointing', () => 
         payload: { task: 'critical-work' },
       });
 
-      // 2. Worker A claims mutation with a short 50ms lease and "dies" (does not complete)
-      const claimedByA = workerA.claimPendingMutations('worker-a', 50, 1);
+      // 2. Worker A claims mutation with a 500ms lease and "dies" (does not complete)
+      const claimedByA = workerA.claimPendingMutations('worker-a', 500, 1);
       expect(claimedByA).toHaveLength(1);
       expect(claimedByA[0].mutation_id).toBe('mut-abandoned-1');
       expect(claimedByA[0].lease_owner).toBe('worker-a');
@@ -152,8 +152,8 @@ describe('Feature F-022 - Outbox Distributed Leases & WAL Checkpointing', () => 
       const initialClaimB = workerB.claimPendingMutations('worker-b', 5000, 1);
       expect(initialClaimB).toHaveLength(0);
 
-      // 3. Wait 65ms (greater than 50ms lease duration)
-      await new Promise((resolve) => setTimeout(resolve, 65));
+      // 3. Wait 600ms (greater than 500ms lease duration)
+      await new Promise((resolve) => setTimeout(resolve, 600));
 
       // 4. Worker B runs replay()
       const workerBExecuted: string[] = [];

@@ -53,6 +53,21 @@ Abstracted via the `TransportAdapter` interface:
 - **Dedicated Daemon (`ucsa daemon`)**: Standalone background service providing persistent IPC event routing and graceful shutdown handling.
 - **Token Authentication & Slow-Consumer Safety**: Mutual auth using database-level tokens, echo-suppressed broadcasts, and automatic `RESYNC` backpressure fallback.
 
+### 9. Generative AI & LLM Streaming Chunk Store
+- **`ucsa_streams` & `ucsa_stream_chunks`**: Dedicated append-only tables isolating high-frequency token generation from query cache churn.
+- **Strict Ingestion Validation**: Rejects out-of-order chunks and byte offset drift via monotonic sequence and size checks.
+- **Atomic Compaction & CAS Offloading**: Coalesces completed streams directly into `ucsa_query_cache` in a single ACID transaction, with automatic offloading to `CasStore` for payloads exceeding 1MB.
+
+### 10. Resumable Streaming Strategies & Failure Recovery
+- **Four Resume Strategies**: Pluggable support for HTTP Range (`bytes=X-`), SSE `Last-Event-ID`, application-level continuation, and atomic full restart.
+- **Overlap Deduplication**: Slices off redundant sliding window tokens on reconnection to guarantee zero duplicate emission.
+- **Adaptive Recovery & 416/412 Fallback**: Automatic status code fallbacks, exponential backoff with full jitter, and transactional SQLite chunk purges.
+
+### 11. Streaming Query API & CLI Live Stream
+- **`streamQuery` Returning `StreamHandle`**: Async iterable streaming interface yielding incremental `StreamSlice` tokens.
+- **Multi-Byte Safe UTF-8 Decoding**: Zero replacement character (`\uFFFD`) leaks across split multi-byte chunk boundaries.
+- **Atomic Cache Compaction & SWR Return**: Immediate cache hit resolution on fresh cache entries and transactional promotion of completed streams into SQLite/CAS query cache.
+
 ---
 
 ## Architecture Overview
@@ -2217,6 +2232,430 @@ In high-concurrency environments with continuous reader processes:
 
 ---
 
+## 12. Generative AI & LLM Streaming Chunk Store
+
+UCSA features a dedicated, append-only streaming chunk storage engine engineered specifically for LLM tokens, SSE events, and binary audio/video chunk streaming in terminal CLI agents and interactive applications.
+
+### 1. Ingestion Isolation & Chunk Sequence Validation
+
+Streaming AI completions create extreme write pressure. Storing in-flight streaming tokens directly into `ucsa_query_cache` causes excessive table churn, lock contention, and constant index invalidation triggers. 
+
+UCSA isolates active stream generation into dedicated tables (`ucsa_streams`, `ucsa_stream_chunks`, `ucsa_stream_tags`):
+- **Contiguous Sequence Verification**: Each appended chunk enforces monotonic numbering (`expectedSeq == next_seq`). Any out-of-order chunk or network race is rejected immediately.
+- **Strict Byte-Offset Tracking**: Validates that chunk offsets match the stream's accumulated `byte_length` before committing the write.
+- **Stream Status Lifecycle**: Supports `'open' -> 'complete' | 'aborted' | 'error'`. Inactive or aborted streams reject further chunk appends.
+- **Cascade Deletion**: Purging a stream automatically deletes all associated chunk payloads and stream tags in $O(\log N)$ time without dangling records.
+
+```mermaid
+sequenceDiagram
+    participant LLM as LLM / Agent Stream
+    participant S as SqliteAdapter / UCSA
+    participant ST as ucsa_streams
+    participant SC as ucsa_stream_chunks
+    participant QC as ucsa_query_cache
+
+    LLM->>S: createStream(['llm', 'chat', 42], { encoding: 'utf8', tags: ['chat:42'] })
+    S->>ST: INSERT (status='open', next_seq=0, byte_length=0)
+    
+    loop Stream Chunks
+        LLM->>S: appendStreamChunk(hash, chunk, expectedSeq)
+        Note over S: Validate expectedSeq == next_seq<br/>and offset == byte_length
+        S->>SC: INSERT (query_hash, seq, byte_offset, data)
+        S->>ST: UPDATE (next_seq += 1, byte_length += size)
+    end
+
+    Note over S,QC: Atomic Compaction
+    LLM->>S: compactStream(hash)
+    S->>SC: SELECT data ORDER BY seq ASC (Concatenate)
+    S->>QC: INSERT INTO ucsa_query_cache (payload, tags, status='success')
+    S->>ST: DELETE FROM ucsa_streams (Cascades to chunks & stream tags)
+    S-->>LLM: CacheEntry (Compact Complete)
+```
+
+### 2. Atomic Compaction & CAS Store Fallback
+
+When a streaming generation completes successfully, `compactStream(queryHash, casStore?, casThresholdBytes?)` executes an atomic ACID transaction:
+1. **Payload Concatenation**: Assembles and coalesces chunks according to encoding (`utf8` text/JSON, or binary `bytes`).
+2. **Tag Migration**: Migrates transient `ucsa_stream_tags` directly into indexed `ucsa_cache_tags`.
+3. **CAS Offloading**: If the compacted payload exceeds `casThresholdBytes` (default 1MB), the payload is offloaded directly to the Content-Addressable Storage (`CasStore`) engine, storing an immutable CAS hash pointer in `ucsa_query_cache` with `payload_version`.
+4. **Purge Stream**: Deletes the stream record from `ucsa_streams`, triggering SQLite foreign key cascade deletion of all interim chunk records.
+
+### 3. Cross-Platform Parity
+
+The streaming chunk store is implemented natively with full feature parity across TypeScript, Dart, and C# Unity:
+
+#### TypeScript (`packages/core`)
+```typescript
+import { SqliteAdapter } from 'cli-state-handler';
+
+const sqlite = new SqliteAdapter({ path: './state.db' });
+const stream = sqlite.createStream(['agent', 'generate'], {
+  encoding: 'utf8',
+  tags: ['gen:agent'],
+});
+
+await sqlite.appendStreamChunk(stream.query_hash, 'Hello, ', 0);
+await sqlite.appendStreamChunk(stream.query_hash, 'world!', 1);
+
+const cached = await sqlite.compactStream(stream.query_hash);
+console.log(cached.data); // "Hello, world!"
+```
+
+#### Dart / Flutter (`packages/ucsa_dart`)
+```dart
+import 'package:ucsa_dart/ucsa_dart.dart';
+
+final sqlite = SqliteAdapter(path: './state.db');
+final stream = sqlite.createStream(['agent', 'generate'], encoding: StreamEncoding.utf8);
+
+sqlite.appendStreamChunk(stream.queryHash, 'Thinking...', expectedSeq: 0);
+sqlite.appendStreamChunk(stream.queryHash, ' Completed.', expectedSeq: 1);
+
+final cached = sqlite.compactStream(stream.queryHash);
+print(cached.data); // "Thinking... Completed."
+```
+
+#### C# / Unity (`packages/com.ucsa.unity`)
+```csharp
+using Ucsa.Unity.Core;
+using Ucsa.Unity.Storage;
+
+var adapter = new UnitySqliteAdapter("Data Source=state.db");
+var stream = adapter.CreateStream(new object[] { "agent", "generate" }, StreamEncoding.Utf8);
+
+adapter.AppendStreamChunk(stream.QueryHash, "Streaming token...", expectedSeq: 0);
+var entry = await adapter.CompactStreamAsync(stream.QueryHash);
+```
+
+---
+
+## 13. Resumable Streaming Strategies & Failure Recovery
+
+In network environments subject to high latency, transient socket drops, or client disconnections, long-running streaming responses (such as LLM generation, SSE event feeds, and large binary downloads) can fail mid-stream. Naive restarts waste compute tokens and introduce noticeable latency, while naive re-fetching can duplicate tokens and corrupt structured JSON payloads.
+
+UCSA implements **pluggable resumable streaming strategies** and an integrated **Stream Resume Finite State Machine (`StreamResumeFsm`)** with cross-platform parity across TypeScript, Dart, and C# Unity.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Streaming: start() / first chunk
+    Streaming --> Interrupted: Network drop / Timeout
+    Interrupted --> Resuming: Apply Strategy + Backoff
+    Resuming --> Streaming: Chunk received (deduplicated)
+    Resuming --> Aborted: Retries >= maxRetries
+    Resuming --> Resuming: HTTP 416/412 -> ResetStream Fallback
+    Streaming --> Complete: complete() / stream finished
+    Streaming --> Aborted: abort() / fatal error
+    Complete --> [*]
+    Aborted --> [*]
+```
+
+### 1. The Four Resume Strategies
+
+UCSA provides four pluggable strategies matching the major streaming transport protocols:
+
+1. **HTTP Range Resume (`RangeResumeStrategy`)**:
+   - Computes standard HTTP byte range headers: `Range: bytes=<committedByteLength>-`.
+   - Attaches `If-Range: <etag>` when an ETag is present to prevent resumption against modified content.
+   - Ideal for REST streaming endpoints, chunked model weights, and audio/video byte streams.
+
+2. **SSE Last-Event-ID (`LastEventIdResumeStrategy`)**:
+   - Tracks the latest SSE event ID persisted in `ucsa_streams.resume_token`.
+   - Emits `Last-Event-ID: <id>` on reconnection so upstream servers can replay events starting from the exact disconnect boundary.
+   - Standard compliance with HTML5 Server-Sent Events.
+
+3. **Application-Level Continuation (`ContinuationResumeStrategy`)**:
+   - Executes an application callback with full `ResumeContext` (`accumulatedText`, `byteLength`, `nextSeq`, `queryKey`, `queryHash`).
+   - Enables generative AI prompting strategies such as `"Please continue from: <accumulatedText>"`, cursor token advancement, or custom model pagination.
+
+4. **Full Restart with Atomic Reset (`RestartResumeStrategy`)**:
+   - Emits a `{ reset: true, seq: 0, byteOffset: 0 }` control signal.
+   - Atomically purges interim chunks from `ucsa_stream_chunks` via `resetStream(queryHash)` and resets sequence counters to 0 while keeping the stream record `open`.
+   - Triggers client-side UI buffer reset callbacks (`onReset`).
+
+### 2. Chunk Overlap Deduplication & Slicing
+
+Upstream proxies or reconnected LLM providers may send a sliding window that overlaps previously received tokens (e.g. re-sending from byte 450 when the client already committed byte 500).
+
+`StreamResumeFsm` intercepts all incoming chunks and enforces strict deduplication:
+- **Total Duplicate**: If `byteOffset + chunk.length <= committedByteLength`, the chunk is entirely redundant and is discarded (`accepted: false, duplicate: true`).
+- **Partial Overlap**: If `byteOffset < committedByteLength` but extends further, the overlapping prefix is surgically sliced (`committedByteLength - byteOffset`), committing only the novel suffix bytes.
+- **Sequence Continuity**: Updates `committedByteLength`, increments `committedSeq`, and maintains contiguous zero-gap records in SQLite.
+
+### 3. HTTP 416 & 412 Failure Recovery
+
+When resuming via HTTP Range, the server may reply with:
+- **`416 Range Not Satisfiable`**: The server's in-flight buffer or cache expired, or the resource length changed.
+- **`412 Precondition Failed`**: The cached ETag is no longer valid.
+
+`StreamResumeFsm` detects `416` and `412` status codes and automatically falls back to clean restart:
+1. Calls `sqliteAdapter.resetStream(queryHash)` to delete stale chunks and reset `next_seq = 0, byte_length = 0, status = 'open'`.
+2. Triggers `onReset()` to clear local consumer text buffers.
+3. Resumes stream ingestion from byte 0 without stalling or failing the application.
+
+### 4. Exponential Backoff with Full Jitter
+
+Transient socket drops are handled using exponential backoff with full randomized jitter to prevent thundering herd reconnection storms:
+$$\text{delay} = \text{Random}(0, \min(\text{maxDelayMs}, \text{baseDelayMs} \times 2^{\text{retryCount}}))$$
+If `retryCount >= maxRetries` (default 5), the stream transitions to `'aborted'` and records the fatal error in `ucsa_streams`.
+
+---
+
+### 5. Multi-Platform Implementation & Usage
+
+#### TypeScript (`packages/core`)
+```typescript
+import {
+  StreamResumeFsm,
+  createRangeResumeStrategy,
+  SqliteAdapter
+} from 'cli-state-handler';
+
+const adapter = new SqliteAdapter('./state.db');
+const fsm = new StreamResumeFsm({
+  queryHash: 'chat-completion-42',
+  queryKey: ['ai', 'chat', 42],
+  strategy: createRangeResumeStrategy(),
+  sqliteAdapter: adapter,
+  maxRetries: 5,
+  onReset: () => console.log('Buffer reset due to 416 fallback')
+});
+
+fsm.start();
+
+// Handle incoming chunk with overlap deduplication
+const result = fsm.handleIncomingChunk(chunkBuffer, seq, byteOffset);
+
+// On transport drop, compute resume parameters and headers
+try {
+  await fetchStream();
+} catch (err) {
+  const recovery = fsm.handleError(err, response?.status);
+  if (recovery.canResume) {
+    await wait(recovery.retryDelayMs);
+    await reconnectWithHeaders(recovery.headers);
+  }
+}
+```
+
+#### Dart / Flutter (`packages/ucsa_dart`)
+```dart
+import 'package:ucsa_dart/ucsa_dart.dart';
+
+final adapter = SqliteAdapter.file('./state.db');
+final fsm = StreamResumeFsm(StreamResumeFsmOptions(
+  queryHash: 'chat-completion-42',
+  queryKey: ['ai', 'chat', 42],
+  strategy: createRangeResumeStrategy(),
+  sqliteAdapter: adapter,
+  maxRetries: 5,
+  onReset: () => print('Buffer reset'),
+));
+
+fsm.start();
+
+// Ingest chunk with automatic deduplication
+final chunkResult = fsm.handleIncomingChunk(chunkBytes, seq: seq, byteOffset: offset);
+
+// Recover on network error
+final recovery = fsm.handleError(exception, statusCode: statusCode);
+if (recovery.canResume) {
+  await Future.delayed(Duration(milliseconds: recovery.retryDelayMs));
+  // Reconnect passing recovery.headers (Range: bytes=X-)
+}
+```
+
+#### C# / Unity (`packages/com.ucsa.unity`)
+```csharp
+using Ucsa.Unity.Streaming;
+using Ucsa.Unity.Storage;
+
+var adapter = new UnitySqliteAdapter("Data Source=state.db");
+var fsm = new StreamResumeFsm(new StreamResumeFsmOptions
+{
+    QueryHash = "chat-completion-42",
+    QueryKey = new object[] { "ai", "chat", 42 },
+    Strategy = ResumeStrategies.CreateRange(),
+    SqliteAdapter = adapter,
+    MaxRetries = 5,
+    OnReset = () => UnityEngine.Debug.Log("Stream buffer reset")
+});
+
+fsm.Start();
+
+// Ingest chunk with overlap slicing
+var res = fsm.HandleIncomingChunk(chunkBytes, seq, byteOffset);
+
+// Handle error with jittered backoff and headers
+var recovery = fsm.HandleError(socketException, statusCode);
+if (recovery.CanResume)
+{
+    await Task.Delay(recovery.RetryDelayMs);
+    // Reconnect with recovery.Headers["Range"]
+}
+```
+
+---
+
+## 14. Streaming Query API (streamQuery) & CLI Stream
+
+Long-running LLM inference, real-time agent output, and SSE feeds require streaming data incrementally to user interfaces before the final response is complete. Naive string concatenations or basic chunk iteration can split multi-byte UTF-8 character sequences (such as 4-byte emojis `🚀` or 3-byte multilingual characters `你好`) across chunk boundaries, resulting in corrupt replacement characters (`\uFFFD`) on screen. Furthermore, developers need unified cancellation (`AbortSignal` / `CancellationToken`), automatic Stale-While-Revalidate (SWR) cache checks, and atomic SQLite/CAS compaction once the stream terminates.
+
+UCSA provides **`QueryEngine.streamQuery()`** (TypeScript / Dart) and **`QueryEngine.StreamQueryAsync()`** (C# Unity) returning a **`StreamHandle`** async iterable, paired with **`Utf8StreamDecoder`** and the **`ucsa stream <key>`** CLI command.
+
+```mermaid
+sequenceDiagram
+    participant UI as Client UI / Terminal
+    participant QE as QueryEngine
+    participant FSM as StreamResumeFsm
+    participant UTF as Utf8StreamDecoder
+    participant DB as SQLite WAL (ucsa_streams)
+    participant CAS as CasStore
+
+    UI->>QE: streamQuery(key, producer)
+    alt Fresh Cache Hit (SWR)
+        QE-->>UI: Immediate cached StreamSlice (done: true)
+    else Cold / Stale Stream
+        QE->>DB: createStream(key)
+        QE->>FSM: start()
+        loop Streaming Chunks
+            QE->>FSM: handleIncomingChunk(rawBytes)
+            FSM->>DB: appendStreamChunk()
+            QE->>UTF: decode(slice)
+            UTF-->>UI: yield StreamSlice(delta, cumulative, seq, done: false)
+        end
+        QE->>UTF: flush()
+        QE->>DB: compactStream(key)
+        opt Large Stream (> 1MB)
+            DB->>CAS: put(totalBytes)
+        end
+        DB->>DB: INSERT ucsa_query_cache & DELETE ucsa_streams
+        QE-->>UI: yield StreamSlice(done: true) & resolve handle.done
+    end
+```
+
+### 1. Multi-Byte Safe UTF-8 Stream Decoding
+
+`Utf8StreamDecoder` inspects the trailing 1 to 4 bytes of incoming chunks:
+- Identifies UTF-8 leading bytes (`0xC0-0xDF` for 2-byte, `0xE0-0xEF` for 3-byte, `0xF0-0xF7` for 4-byte code points).
+- Holds back incomplete sequences in an internal leftover buffer until the next chunk arrives.
+- Emits clean, valid unicode without emitting replacement characters (`\uFFFD`).
+- `flush()` safely decodes any remaining bytes when the stream closes.
+
+### 2. StreamHandle & StreamSlice Primitives
+
+Every streaming query returns a `StreamHandle<T>` exposing:
+- **Async Iterable**: `AsyncIterable<StreamSlice<T>>` in TypeScript (`for await (const slice of handle)`), `Stream<StreamSlice<T>>` in Dart (`await for (final slice in handle.stream)`), and `IAsyncEnumerable<StreamSlice<T>>` in C# Unity (`await foreach (var slice in handle.ReadAllAsync())`).
+- **Incremental Slices**: `StreamSlice<T>` carries `delta`, `cumulative`, monotonic `seq`, `byteOffset`, and `done` flag.
+- **Completion Future/Task**: `handle.done` resolves to the final cumulative payload once compaction finishes.
+- **Cancellation**: `handle.cancel(reason)` aborts upstream producers, stops iteration, and marks the SQLite stream record as aborted.
+
+### 3. CLI Live Stream Command (`ucsa stream`)
+
+The UCSA CLI provides a first-class `stream` command for monitoring or streaming live queries from the terminal:
+
+```bash
+# Stream an active or mock token query
+ucsa stream "['llm', 'chat', '1']"
+
+# Stream with custom stale time and delay options
+ucsa stream "['models', 'qwen', 'completion']" --db ./state.db --stale-time 60000 --delay 15
+```
+
+Terminal output:
+```text
+[ucsa:stream] Key: ["llm","chat","1"] (Hash: 3f8b1a9c...)
+[ucsa:stream] Database: /path/to/state.db
+[ucsa:stream] Live streaming output:
+--------------------------------------------------------------------------------
+The quick brown fox jumps over the lazy dog.
+--------------------------------------------------------------------------------
+[ucsa:stream] Stream finished in 184ms (11 chunks, 45 bytes). Compacted into cache.
+```
+
+---
+
+### 4. Multi-Platform Code Examples
+
+#### TypeScript (`packages/core`)
+```typescript
+import { QueryEngine, SqliteAdapter, type StreamSlice } from 'cli-state-handler';
+
+const engine = new QueryEngine({ sqliteAdapter: new SqliteAdapter(':memory:') });
+
+const handle = engine.streamQuery(['ai', 'story'], async function* (ctx) {
+  const words = ['Once ', 'upon ', 'a ', 'time... 🚀'];
+  for (const word of words) {
+    if (ctx.signal.aborted) break;
+    yield word;
+  }
+});
+
+for await (const slice of handle) {
+  process.stdout.write(slice.delta);
+}
+
+const finalStory = await handle.done;
+console.log('\nCompleted story:', finalStory);
+```
+
+#### Dart / Flutter (`packages/ucsa_dart`)
+```dart
+import 'package:ucsa_dart/ucsa_dart.dart';
+
+final engine = QueryEngine(sqliteAdapter: SqliteAdapter.inMemory());
+
+final handle = engine.streamQuery<String>(
+  ['ai', 'story'],
+  (ctx) async* {
+    final tokens = ['Once ', 'upon ', 'a ', 'time... 🚀'];
+    for (final token in tokens) {
+      if (ctx.cancellationToken?.isCancelled == true) break;
+      yield token.codeUnits;
+    }
+  },
+);
+
+await for (final slice in handle.stream) {
+  print('Chunk delta: ${slice.delta} | Cumulative: ${slice.cumulative}');
+}
+
+final finalStory = await handle.done;
+print('Completed story: $finalStory');
+```
+
+#### C# / Unity (`packages/com.ucsa.unity`)
+```csharp
+using Ucsa.Unity.Core;
+using Ucsa.Unity.Storage;
+using Ucsa.Unity.Streaming;
+
+var engine = new QueryEngine(new QueryEngineOptions(new UnitySqliteAdapter(":memory:")));
+
+var handle = engine.StreamQueryAsync(
+    new object[] { "ai", "story" },
+    async ctx =>
+    {
+        var tokens = new[] { "Once ", "upon ", "a ", "time... 🚀" };
+        foreach (var t in tokens)
+        {
+            if (ctx.CancellationToken.IsCancellationRequested) yield break;
+            yield return t;
+        }
+    }
+);
+
+await foreach (var slice in handle.ReadAllAsync())
+{
+    UnityEngine.Debug.Log($"Chunk: {slice.Delta} | Total: {slice.Cumulative}");
+}
+
+string finalStory = await handle.Done;
+UnityEngine.Debug.Log($"Completed story: {finalStory}");
+```
+
+---
+
 ## Development & Verification
 
 ### Verified Test Coverage Metrics
@@ -2227,6 +2666,13 @@ In high-concurrency environments with continuous reader processes:
 | **SQLite WAL Storage** | `packages/core/tests/storage/sqlite.test.ts` | 13 | Passing (100%) |
 | **Schema Migration Engine** | `packages/core/tests/storage/migration-runner.test.ts` | 9 | Passing (100%) |
 | **Schema Migration v3** | `packages/core/tests/storage/migration-v3.test.ts` | 5 | Passing (100%) |
+| **Schema Migration v4** | `packages/core/tests/storage/migration-v4.test.ts` | 5 | Passing (100%) |
+| **Streaming Chunk Store & Compaction** | `packages/core/tests/storage/stream-chunk-store.test.ts` | 17 | Passing (100%) |
+| **Streaming Resume Strategies** | `packages/core/tests/streaming/resume-strategy.test.ts` | 12 | Passing (100%) |
+| **Stream Resume FSM & Recovery** | `packages/core/tests/streaming/stream-resume-fsm.test.ts` | 19 | Passing (100%) |
+| **Streaming UTF-8 Decoder** | `packages/core/tests/streaming/utf8-decoder.test.ts` | 14 | Passing (100%) |
+| **StreamHandle Async Iterable** | `packages/core/tests/streaming/stream-handle.test.ts` | 14 | Passing (100%) |
+| **Streaming Query Engine** | `packages/core/tests/query/stream-query.test.ts` | 8 | Passing (100%) |
 | **Durable Change Log & Catch-up** | `packages/core/tests/storage/change-log.test.ts` | 10 | Passing (100%) |
 | **Cross-Language Fixtures** | `packages/core/tests/storage/cross-language-fixtures.test.ts` | 2 | Passing (100%) |
 | **CAS Store (SHA-256)** | `packages/core/tests/storage/cas.test.ts` | 13 | Passing (100%) |
@@ -2251,8 +2697,9 @@ In high-concurrency environments with continuous reader processes:
 | **React 19 Framework (DOM)** | `packages/core/tests/consumer/react-framework.test.tsx` | 1 | Passing (100%) |
 | **CLI Process Durability** | `packages/core/tests/cli/durability.test.ts` | 19 | Passing (100%) |
 | **Full-Chain E2E Gate** | `packages/core/tests/e2e/full-chain.test.ts` | 1 | Passing (100%) |
-| **CLI Argument Router** | `apps/cli/tests/router.test.ts` | 10 | Passing (100%) |
+| **CLI Argument Router** | `apps/cli/tests/router.test.ts` | 11 | Passing (100%) |
 | **CLI Commands Integration** | `apps/cli/tests/cli-commands.test.ts` | 11 | Passing (100%) |
+| **CLI Stream Command** | `apps/cli/tests/stream-command.test.ts` | 4 | Passing (100%) |
 | **CLI Tutorial & Docs** | `apps/cli/tests/tutorial-command.test.ts` | 7 | Passing (100%) |
 | **CLI Migration Suite** | `apps/cli/tests/migrate-command.test.ts` | 6 | Passing (100%) |
 | **CLI Daemon & Status Bus** | `apps/cli/tests/daemon-command.test.ts` | 6 | Passing (100%) |
@@ -2275,6 +2722,9 @@ In high-concurrency environments with continuous reader processes:
 | **Dart UCB1 Frame Codec & Parity** | `packages/ucsa_dart/test/frame_codec_test.dart` | 28 | Passing (100%) |
 | **Dart Bus Hub & Election** | `packages/ucsa_dart/test/bus_hub_test.dart` | 8 | Passing (100%) |
 | **Dart Full-Chain E2E Gate** | `packages/ucsa_dart/test/e2e_full_chain_test.dart` | 1 | Passing (100%) |
+| **Dart Streaming Chunk Store** | `packages/ucsa_dart/test/stream_chunk_test.dart` | 10 | Passing (100%) |
+| **Dart Streaming Resume Strategies & FSM** | `packages/ucsa_dart/test/resume_strategy_test.dart` | 17 | Passing (100%) |
+| **Dart Streaming Query Engine** | `packages/ucsa_dart/test/stream_query_test.dart` | 12 | Passing (100%) |
 | **Flutter Widget Framework** | `packages/ucsa_flutter/test/widget_test.dart` | 1 | Passing (100%) |
 | **Unity Lifecycle FSM** | `packages/com.ucsa.unity/Tests/Runtime/LifecycleFsmTests.cs` | 6 | Passing (100%) |
 | **Unity State Observer** | `packages/com.ucsa.unity/Tests/Runtime/StateObserverTests.cs` | 8 | Passing (100%) |
@@ -2292,7 +2742,10 @@ In high-concurrency environments with continuous reader processes:
 | **Unity UCB1 Frame Codec & Parity** | `packages/com.ucsa.unity/Tests/Runtime/FrameCodecTests.cs` | 17 | Passing (100%) |
 | **Unity Bus Hub Models & Parity** | `packages/com.ucsa.unity/Tests/Runtime/BusHubTests.cs` | 5 | Passing (100%) |
 | **Unity Full-Chain E2E Gate** | `packages/com.ucsa.unity/Tests/Runtime/E2EFullChainTests.cs` | 1 | Passing (100%) |
-| **Total** | **69 Test Suites** | **577 Tests** | **577 / 577 Passing (100%) (103 C# Unity + 131 Dart + 1 Flutter + 342 Node/TS/React/CLI/Docs)** |
+| **Unity Streaming Chunk Store** | `packages/com.ucsa.unity/Tests/Runtime/StreamChunkTests.cs` | 10 | Passing (100%) |
+| **Unity Streaming Resume Strategies & FSM** | `packages/com.ucsa.unity/Tests/Runtime/ResumeStrategyTests.cs` | 17 | Passing (100%) |
+| **Unity Streaming Query Engine** | `packages/com.ucsa.unity/Tests/Runtime/StreamQueryTests.cs` | 7 | Passing (100%) |
+| **Total** | **83 Test Suites** | **744 Tests** | **744 / 744 Passing (100%) (137 C# Unity + 170 Dart + 1 Flutter + 436 Node/TS/React/CLI/Docs)** |
 
 ### Verification Commands
 
@@ -2304,16 +2757,16 @@ pnpm run test:full-chain
 # Run type checks and build
 pnpm run typecheck && pnpm run build
 
-# Run complete Vitest suite (342 tests across 38 files, including React DOM, CLI & Docs)
+# Run complete Vitest suite (436 tests across 46 files, including React DOM, CLI & Docs)
 pnpm test
 
 # Run Flutter widget test suite
 (cd packages/ucsa_flutter && flutter test)
 
-# Run complete Dart test suite (131 tests across 14 files)
+# Run complete Dart test suite (170 tests across 17 files)
 (cd packages/ucsa_dart && dart test)
 
-# Run complete C# Unity test suite (103 tests across 16 files)
+# Run complete C# Unity test suite (137 tests across 19 files)
 dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
 
 # Run Gate 1 precheck script (cross-platform verification)
@@ -2322,6 +2775,7 @@ dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
 # Run Gate 2 integration script (real datastore & platform engines)
 ./scripts/integration.sh
 ```
+
 
 
 

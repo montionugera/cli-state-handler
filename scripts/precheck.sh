@@ -87,8 +87,9 @@ slot_unit_tests() {
 # (handlers missing, unclosed containers, overlays covering buttons), e.g.
 # `pnpm lint`, svelte-check, an antislop script. No browser here - that is Gate 2.
 slot_static_ui_checks() {
-  # n/a: headless state engine, UI components are in consuming client applications
-  unfilled
+  echo "apps/docs: typecheck (tsc -b) + tests"
+  (cd apps/docs && pnpm exec tsc -b)
+  pnpm --filter @ucsa/docs test
 }
 
 for slot in build_typecheck unit_tests static_ui_checks; do

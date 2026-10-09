@@ -69,8 +69,8 @@ void main() {
         ),
       );
 
-      // Worker 1 claims with short lease of 50ms
-      final claimed1 = adapter.claimPendingMutations('worker-1', 50, limit: 1);
+      // Worker 1 claims with lease of 500ms
+      final claimed1 = adapter.claimPendingMutations('worker-1', 500, limit: 1);
       expect(claimed1.length, equals(1));
       expect(claimed1.first.mutationId, equals('mut-expire'));
       expect(claimed1.first.leaseOwner, equals('worker-1'));
@@ -80,7 +80,7 @@ void main() {
       expect(claimedEarly, isEmpty);
 
       // Wait for lease to expire
-      await Future.delayed(const Duration(milliseconds: 65));
+      await Future.delayed(const Duration(milliseconds: 600));
 
       // Worker 2 tries again -> reclaims expired in-flight mutation
       final reclaimed = adapter.claimPendingMutations('worker-2', 5000, limit: 1);

@@ -17,7 +17,7 @@ void main() {
         engine,
         queryKey,
         (data) => data['price'] as int,
-        throttleDuration: const Duration(milliseconds: 200),
+        throttleDuration: const Duration(milliseconds: 600),
       );
 
       final unsubscribe = observer.subscribe(() {
@@ -32,7 +32,7 @@ void main() {
       expect(listenerCount, equals(1));
       expect(lastPrice, equals(151));
 
-      // 2. Rapid updates within 200ms window are suppressed
+      // 2. Rapid updates within 600ms window are suppressed
       await Future.delayed(const Duration(milliseconds: 20));
       engine.setQueryData(queryKey, {'symbol': 'AAPL', 'price': 152});
 
@@ -45,8 +45,8 @@ void main() {
       expect(listenerCount, equals(1));
       expect(lastPrice, equals(151));
 
-      // 3. Wait until throttle window expires (200ms total): trailing edge fires once with latest price (154)
-      await Future.delayed(const Duration(milliseconds: 160));
+      // 3. Wait until throttle window expires (600ms total): trailing edge fires once with latest price (154)
+      await Future.delayed(const Duration(milliseconds: 600));
       expect(listenerCount, equals(2));
       expect(lastPrice, equals(154));
 
@@ -66,7 +66,7 @@ void main() {
         engine,
         queryKey,
         (data) => data['term'] as String,
-        debounceDuration: const Duration(milliseconds: 60),
+        debounceDuration: const Duration(milliseconds: 600),
       );
 
       final unsubscribe = observer.subscribe(() {
@@ -92,12 +92,12 @@ void main() {
       engine.setQueryData(queryKey, {'term': 'apple'});
       expect(listenerCount, equals(0));
 
-      // Quiet period: wait 30ms (still not 60ms)
-      await Future.delayed(const Duration(milliseconds: 30));
+      // Quiet period: wait 50ms (still within 600ms)
+      await Future.delayed(const Duration(milliseconds: 50));
       expect(listenerCount, equals(0));
 
-      // Wait remaining 40ms (exceeding 60ms)
-      await Future.delayed(const Duration(milliseconds: 40));
+      // Wait remaining 600ms (exceeding 600ms)
+      await Future.delayed(const Duration(milliseconds: 600));
       expect(listenerCount, equals(1));
       expect(lastTerm, equals('apple'));
 

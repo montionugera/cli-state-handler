@@ -17,26 +17,28 @@ void main() {
     }
   });
 
-  test('migrates fresh database from user_version 0 to target version 3 by default', () {
+  test('migrates fresh database from user_version 0 to target version 4 by default', () {
     final dbFile = File('${tempDir.path}/fresh.db');
     final db = sqlite3.open(dbFile.path);
 
     expect(MigrationRunner.getUserVersion(db), equals(0));
 
     final result = MigrationRunner.migrate(db);
-    expect(result.currentVersion, equals(3));
-    expect(result.appliedCount, equals(3));
-    expect(MigrationRunner.getUserVersion(db), equals(3));
+    expect(result.currentVersion, equals(4));
+    expect(result.appliedCount, equals(4));
+    expect(MigrationRunner.getUserVersion(db), equals(4));
 
     // Verify ucsa_migrations table
     final migrations = MigrationRunner.getAppliedMigrations(db);
-    expect(migrations.length, equals(3));
+    expect(migrations.length, equals(4));
     expect(migrations[1]?.name, equals('baseline'));
     expect(migrations[1]?.checksum, equals(canonicalMigrations[0].sha256));
     expect(migrations[2]?.name, equals('payload_version'));
     expect(migrations[2]?.checksum, equals(canonicalMigrations[1].sha256));
     expect(migrations[3]?.name, equals('change_log_and_bus'));
     expect(migrations[3]?.checksum, equals(canonicalMigrations[2].sha256));
+    expect(migrations[4]?.name, equals('streaming_chunk_store'));
+    expect(migrations[4]?.checksum, equals(canonicalMigrations[3].sha256));
 
     // Verify tables exist
     final tables = db
@@ -52,6 +54,9 @@ void main() {
     expect(tables, contains('ucsa_meta'));
     expect(tables, contains('ucsa_change_log'));
     expect(tables, contains('ucsa_bus_hub'));
+    expect(tables, contains('ucsa_streams'));
+    expect(tables, contains('ucsa_stream_chunks'));
+    expect(tables, contains('ucsa_stream_tags'));
 
     // Verify payload_version column exists on ucsa_query_cache
     final cacheColumns = db
@@ -105,10 +110,10 @@ void main() {
     final db = sqlite3.open(dbFile.path);
 
     MigrationRunner.migrate(db);
-    expect(MigrationRunner.getUserVersion(db), equals(3));
+    expect(MigrationRunner.getUserVersion(db), equals(4));
 
     final rerun = MigrationRunner.migrate(db);
-    expect(rerun.currentVersion, equals(3));
+    expect(rerun.currentVersion, equals(4));
     expect(rerun.appliedCount, equals(0));
 
     db.dispose();
@@ -121,25 +126,25 @@ void main() {
     final customMigrations = [
       ...canonicalMigrations,
       const MigrationDefinition(
-        version: 4,
+        version: 5,
         name: 'failing_step',
         sql: 'INVALID SYNTAX SQL STATEMENT THAT WILL FAIL;',
       ),
     ];
 
-    MigrationRunner.migrate(db, targetVersion: 3);
-    expect(MigrationRunner.getUserVersion(db), equals(3));
+    MigrationRunner.migrate(db, targetVersion: 4);
+    expect(MigrationRunner.getUserVersion(db), equals(4));
 
     expect(
       () => MigrationRunner.migrate(db,
-          targetVersion: 4, availableMigrations: customMigrations),
+          targetVersion: 5, availableMigrations: customMigrations),
       throwsA(isA<MigrationException>()),
     );
 
-    expect(MigrationRunner.getUserVersion(db), equals(3));
+    expect(MigrationRunner.getUserVersion(db), equals(4));
     final applied = MigrationRunner.getAppliedMigrations(db);
-    expect(applied.length, equals(3));
-    expect(applied.containsKey(4), isFalse);
+    expect(applied.length, equals(4));
+    expect(applied.containsKey(5), isFalse);
 
     db.dispose();
   });
@@ -191,7 +196,7 @@ void main() {
     legacyDb.dispose();
 
     final adapter = SqliteAdapter.file(dbFile.path);
-    expect(adapter.getSchemaVersion(), equals(3));
+    expect(adapter.getSchemaVersion(), equals(4));
 
     final entry = adapter.getQuery<Map<String, dynamic>>('h_legacy_dart');
     expect(entry, isNotNull);

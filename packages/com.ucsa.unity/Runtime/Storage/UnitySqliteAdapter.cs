@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
+using System.Text;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Ucsa.Unity.Core;
 
@@ -159,21 +161,42 @@ namespace Ucsa.Unity.Storage
             {
                 using var tx = _connection.BeginTransaction();
 
+                bool hasPayloadVersion = GetSchemaVersion() >= 2;
                 using (var cmd = _connection.CreateCommand())
                 {
                     cmd.Transaction = tx;
-                    cmd.CommandText = @"
-                        INSERT INTO ucsa_query_cache (
-                            query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at
-                        ) VALUES ($hash, $key, $payload, $etag, $created, $stale, $expires)
-                        ON CONFLICT(query_hash) DO UPDATE SET
-                            query_key = excluded.query_key,
-                            data_payload = excluded.data_payload,
-                            etag = excluded.etag,
-                            created_at = excluded.created_at,
-                            stale_at = excluded.stale_at,
-                            expires_at = excluded.expires_at;
-                    ";
+                    if (hasPayloadVersion)
+                    {
+                        cmd.CommandText = @"
+                            INSERT INTO ucsa_query_cache (
+                                query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at, payload_version
+                            ) VALUES ($hash, $key, $payload, $etag, $created, $stale, $expires, $payloadVersion)
+                            ON CONFLICT(query_hash) DO UPDATE SET
+                                query_key = excluded.query_key,
+                                data_payload = excluded.data_payload,
+                                etag = excluded.etag,
+                                created_at = excluded.created_at,
+                                stale_at = excluded.stale_at,
+                                expires_at = excluded.expires_at,
+                                payload_version = excluded.payload_version;
+                        ";
+                        cmd.Parameters.AddWithValue("$payloadVersion", entry.PayloadVersion);
+                    }
+                    else
+                    {
+                        cmd.CommandText = @"
+                            INSERT INTO ucsa_query_cache (
+                                query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at
+                            ) VALUES ($hash, $key, $payload, $etag, $created, $stale, $expires)
+                            ON CONFLICT(query_hash) DO UPDATE SET
+                                query_key = excluded.query_key,
+                                data_payload = excluded.data_payload,
+                                etag = excluded.etag,
+                                created_at = excluded.created_at,
+                                stale_at = excluded.stale_at,
+                                expires_at = excluded.expires_at;
+                        ";
+                    }
                     cmd.Parameters.AddWithValue("$hash", entry.QueryHash);
                     cmd.Parameters.AddWithValue("$key", serializedKey);
                     cmd.Parameters.AddWithValue("$payload", serializedPayload);
@@ -224,12 +247,19 @@ namespace Ucsa.Unity.Storage
 
             lock (_lock)
             {
+                bool hasPayloadVersion = GetSchemaVersion() >= 2;
                 using var cmd = _connection.CreateCommand();
-                cmd.CommandText = @"
-                    SELECT query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at
-                    FROM ucsa_query_cache
-                    WHERE query_hash = $hash;
-                ";
+                cmd.CommandText = hasPayloadVersion
+                    ? @"
+                        SELECT query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at, payload_version
+                        FROM ucsa_query_cache
+                        WHERE query_hash = $hash;
+                    "
+                    : @"
+                        SELECT query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at
+                        FROM ucsa_query_cache
+                        WHERE query_hash = $hash;
+                    ";
                 cmd.Parameters.AddWithValue("$hash", queryHash);
 
                 using var reader = cmd.ExecuteReader();
@@ -242,6 +272,7 @@ namespace Ucsa.Unity.Storage
                 long createdAt = reader.GetInt64(4);
                 long staleAt = reader.GetInt64(5);
                 long expiresAt = reader.GetInt64(6);
+                int payloadVersion = hasPayloadVersion && !reader.IsDBNull(7) ? reader.GetInt32(7) : 1;
 
                 object[] queryKey = JsonSerializer.Deserialize<object[]>(keyJson, SerializerOptions) ?? Array.Empty<object>();
                 T dataPayload = JsonSerializer.Deserialize<T>(payloadJson, SerializerOptions)!;
@@ -253,7 +284,8 @@ namespace Ucsa.Unity.Storage
                     createdAt,
                     staleAt,
                     expiresAt,
-                    etag
+                    etag,
+                    payloadVersion
                 );
             }
         }
@@ -1183,6 +1215,557 @@ namespace Ucsa.Unity.Storage
             }
 
             return list;
+        }
+
+        #endregion
+
+        #region Streaming Chunk Store Methods
+
+        /// <summary>
+        /// Creates a new streaming chunk record in ucsa_streams and registers associated tags.
+        /// </summary>
+        public StreamRecord CreateStream(
+            object[] queryKey,
+            StreamEncoding encoding = StreamEncoding.Utf8,
+            ResumeKind? resumeKind = null,
+            string? resumeToken = null,
+            string? etag = null,
+            string? writerId = null,
+            long? writerLeaseUntil = null,
+            int payloadVersion = 1,
+            long ttlMs = 300000,
+            List<string>? tags = null)
+        {
+            if (queryKey == null) throw new ArgumentNullException(nameof(queryKey));
+            string queryHash = QueryKeyHasher.Hash(queryKey);
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            long expiresAt = now + ttlMs;
+            string serializedKey = JsonSerializer.Serialize(queryKey, SerializerOptions);
+
+            lock (_lock)
+            {
+                using var tx = _connection.BeginTransaction();
+
+                using (var cmd = _connection.CreateCommand())
+                {
+                    cmd.Transaction = tx;
+                    cmd.CommandText = @"
+                        INSERT INTO ucsa_streams (
+                            query_hash, query_key, status, encoding, next_seq, byte_length,
+                            resume_kind, resume_token, etag, writer_id, writer_lease_until,
+                            payload_version, error, created_at, updated_at, expires_at
+                        ) VALUES (
+                            $hash, $key, $status, $encoding, 0, 0,
+                            $resumeKind, $resumeToken, $etag, $writerId, $writerLeaseUntil,
+                            $payloadVersion, NULL, $createdAt, $updatedAt, $expiresAt
+                        );
+                    ";
+                    cmd.Parameters.AddWithValue("$hash", queryHash);
+                    cmd.Parameters.AddWithValue("$key", serializedKey);
+                    cmd.Parameters.AddWithValue("$status", "open");
+                    cmd.Parameters.AddWithValue("$encoding", encoding == StreamEncoding.Utf8 ? "utf8" : "bytes");
+                    cmd.Parameters.AddWithValue("$resumeKind", (object?)resumeKind?.ToWireString() ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("$resumeToken", (object?)resumeToken ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("$etag", (object?)etag ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("$writerId", (object?)writerId ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("$writerLeaseUntil", (object?)writerLeaseUntil ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("$payloadVersion", payloadVersion);
+                    cmd.Parameters.AddWithValue("$createdAt", now);
+                    cmd.Parameters.AddWithValue("$updatedAt", now);
+                    cmd.Parameters.AddWithValue("$expiresAt", expiresAt);
+                    cmd.ExecuteNonQuery();
+                }
+
+                if (tags != null && tags.Count > 0)
+                {
+                    foreach (var tag in tags)
+                    {
+                        using var tagCmd = _connection.CreateCommand();
+                        tagCmd.Transaction = tx;
+                        tagCmd.CommandText = @"
+                            INSERT INTO ucsa_stream_tags (tag, query_hash)
+                            VALUES ($tag, $hash)
+                            ON CONFLICT(tag, query_hash) DO NOTHING;
+                        ";
+                        tagCmd.Parameters.AddWithValue("$tag", tag);
+                        tagCmd.Parameters.AddWithValue("$hash", queryHash);
+                        tagCmd.ExecuteNonQuery();
+                    }
+                }
+
+                tx.Commit();
+            }
+
+            return new StreamRecord
+            {
+                QueryHash = queryHash,
+                QueryKey = queryKey,
+                Status = StreamStatus.Open,
+                Encoding = encoding,
+                NextSeq = 0,
+                ByteLength = 0,
+                ResumeKind = resumeKind,
+                ResumeToken = resumeToken,
+                Etag = etag,
+                WriterId = writerId,
+                WriterLeaseUntil = writerLeaseUntil,
+                PayloadVersion = payloadVersion,
+                Error = null,
+                CreatedAt = now,
+                UpdatedAt = now,
+                ExpiresAt = expiresAt
+            };
+        }
+
+        /// <summary>
+        /// Appends a chunk to the stream, validating sequence contiguity and byte offsets.
+        /// </summary>
+        public (int Seq, int ByteOffset, int ByteLength) AppendStreamChunk(
+            string queryHash,
+            byte[] data,
+            int? expectedSeq = null)
+        {
+            if (string.IsNullOrEmpty(queryHash)) throw new ArgumentNullException(nameof(queryHash));
+            if (data == null) throw new ArgumentNullException(nameof(data));
+
+            lock (_lock)
+            {
+                using var tx = _connection.BeginTransaction();
+
+                string status;
+                int currentNextSeq;
+                int byteLength;
+
+                using (var getCmd = _connection.CreateCommand())
+                {
+                    getCmd.Transaction = tx;
+                    getCmd.CommandText = "SELECT status, next_seq, byte_length FROM ucsa_streams WHERE query_hash = $hash;";
+                    getCmd.Parameters.AddWithValue("$hash", queryHash);
+                    using var reader = getCmd.ExecuteReader();
+                    if (!reader.Read())
+                    {
+                        throw new InvalidOperationException($"Stream not found: {queryHash}");
+                    }
+                    status = reader.GetString(0);
+                    currentNextSeq = reader.GetInt32(1);
+                    byteLength = reader.GetInt32(2);
+                }
+
+                if (!string.Equals(status, "open", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException($"Stream is not open (status: {status})");
+                }
+
+                if (expectedSeq.HasValue && expectedSeq.Value != currentNextSeq)
+                {
+                    throw new InvalidOperationException(
+                        $"Sequence mismatch: expected {expectedSeq.Value}, but next sequence is {currentNextSeq}");
+                }
+
+                int seq = currentNextSeq;
+                int byteOffset = byteLength;
+                int chunkLen = data.Length;
+                long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+                using (var insertCmd = _connection.CreateCommand())
+                {
+                    insertCmd.Transaction = tx;
+                    insertCmd.CommandText = @"
+                        INSERT INTO ucsa_stream_chunks (query_hash, seq, byte_offset, data)
+                        VALUES ($hash, $seq, $byteOffset, $data);
+                    ";
+                    insertCmd.Parameters.AddWithValue("$hash", queryHash);
+                    insertCmd.Parameters.AddWithValue("$seq", seq);
+                    insertCmd.Parameters.AddWithValue("$byteOffset", byteOffset);
+                    insertCmd.Parameters.AddWithValue("$data", data);
+                    insertCmd.ExecuteNonQuery();
+                }
+
+                using (var updateCmd = _connection.CreateCommand())
+                {
+                    updateCmd.Transaction = tx;
+                    updateCmd.CommandText = @"
+                        UPDATE ucsa_streams
+                        SET next_seq = next_seq + 1, byte_length = byte_length + $len, updated_at = $now
+                        WHERE query_hash = $hash;
+                    ";
+                    updateCmd.Parameters.AddWithValue("$len", chunkLen);
+                    updateCmd.Parameters.AddWithValue("$now", now);
+                    updateCmd.Parameters.AddWithValue("$hash", queryHash);
+                    updateCmd.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+                return (seq, byteOffset, chunkLen);
+            }
+        }
+
+        /// <summary>
+        /// Appends a UTF-8 text chunk to the stream.
+        /// </summary>
+        public (int Seq, int ByteOffset, int ByteLength) AppendStreamChunk(
+            string queryHash,
+            string text,
+            int? expectedSeq = null)
+        {
+            return AppendStreamChunk(queryHash, Encoding.UTF8.GetBytes(text), expectedSeq);
+        }
+
+        /// <summary>
+        /// Retrieves a stream record by its query hash.
+        /// </summary>
+        public StreamRecord? GetStream(string queryHash)
+        {
+            if (string.IsNullOrEmpty(queryHash)) return null;
+
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT query_hash, query_key, status, encoding, next_seq, byte_length,
+                           resume_kind, resume_token, etag, writer_id, writer_lease_until,
+                           payload_version, error, created_at, updated_at, expires_at
+                    FROM ucsa_streams
+                    WHERE query_hash = $hash;
+                ";
+                cmd.Parameters.AddWithValue("$hash", queryHash);
+
+                using var reader = cmd.ExecuteReader();
+                if (!reader.Read()) return null;
+
+                string hash = reader.GetString(0);
+                string keyJson = reader.GetString(1);
+                string statusStr = reader.GetString(2);
+                string encodingStr = reader.GetString(3);
+                int nextSeq = reader.GetInt32(4);
+                int byteLength = reader.GetInt32(5);
+                string? resumeKindStr = reader.IsDBNull(6) ? null : reader.GetString(6);
+                string? resumeToken = reader.IsDBNull(7) ? null : reader.GetString(7);
+                string? etag = reader.IsDBNull(8) ? null : reader.GetString(8);
+                string? writerId = reader.IsDBNull(9) ? null : reader.GetString(9);
+                long? writerLeaseUntil = reader.IsDBNull(10) ? null : reader.GetInt64(10);
+                int payloadVersion = reader.GetInt32(11);
+                string? error = reader.IsDBNull(12) ? null : reader.GetString(12);
+                long createdAt = reader.GetInt64(13);
+                long updatedAt = reader.GetInt64(14);
+                long expiresAt = reader.GetInt64(15);
+
+                object[] queryKey = JsonSerializer.Deserialize<object[]>(keyJson, SerializerOptions) ?? Array.Empty<object>();
+
+                return new StreamRecord
+                {
+                    QueryHash = hash,
+                    QueryKey = queryKey,
+                    Status = StreamStatusExtensions.FromString(statusStr),
+                    Encoding = StreamEncodingExtensions.FromString(encodingStr),
+                    NextSeq = nextSeq,
+                    ByteLength = byteLength,
+                    ResumeKind = resumeKindStr != null ? ResumeKindExtensions.FromString(resumeKindStr) : null,
+                    ResumeToken = resumeToken,
+                    Etag = etag,
+                    WriterId = writerId,
+                    WriterLeaseUntil = writerLeaseUntil,
+                    PayloadVersion = payloadVersion,
+                    Error = error,
+                    CreatedAt = createdAt,
+                    UpdatedAt = updatedAt,
+                    ExpiresAt = expiresAt
+                };
+            }
+        }
+
+        /// <summary>
+        /// Retrieves sequential stream chunks starting from fromSeq.
+        /// </summary>
+        public List<StreamChunk> GetStreamChunks(string queryHash, int fromSeq = 0)
+        {
+            var list = new List<StreamChunk>();
+            if (string.IsNullOrEmpty(queryHash)) return list;
+
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT query_hash, seq, byte_offset, data
+                    FROM ucsa_stream_chunks
+                    WHERE query_hash = $hash AND seq >= $fromSeq
+                    ORDER BY seq ASC;
+                ";
+                cmd.Parameters.AddWithValue("$hash", queryHash);
+                cmd.Parameters.AddWithValue("$fromSeq", fromSeq);
+
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    string hash = reader.GetString(0);
+                    int seq = reader.GetInt32(1);
+                    int byteOffset = reader.GetInt32(2);
+                    byte[] data = (byte[])reader["data"];
+
+                    list.Add(new StreamChunk(hash, seq, byteOffset, data));
+                }
+            }
+
+            return list;
+        }
+
+        /// <summary>
+        /// Aborts an active stream and records optional error.
+        /// </summary>
+        public void AbortStream(string queryHash, string? error = null)
+        {
+            if (string.IsNullOrEmpty(queryHash)) return;
+
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                cmd.CommandText = @"
+                    UPDATE ucsa_streams
+                    SET status = 'aborted', error = $error, updated_at = $now
+                    WHERE query_hash = $hash;
+                ";
+                cmd.Parameters.AddWithValue("$error", (object?)error ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("$now", now);
+                cmd.Parameters.AddWithValue("$hash", queryHash);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        /// <summary>
+        /// Resets a stream by deleting all chunks and resetting sequence counter, byte length, and status.
+        /// Atomically resets next_seq = 0, byte_length = 0, status = 'open', error = NULL.
+        /// </summary>
+        public void ResetStream(string queryHash)
+        {
+            if (string.IsNullOrEmpty(queryHash)) return;
+
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            lock (_lock)
+            {
+                using var tx = _connection.BeginTransaction();
+
+                using (var delChunksCmd = _connection.CreateCommand())
+                {
+                    delChunksCmd.Transaction = tx;
+                    delChunksCmd.CommandText = "DELETE FROM ucsa_stream_chunks WHERE query_hash = $hash;";
+                    delChunksCmd.Parameters.AddWithValue("$hash", queryHash);
+                    delChunksCmd.ExecuteNonQuery();
+                }
+
+                using (var updateStreamCmd = _connection.CreateCommand())
+                {
+                    updateStreamCmd.Transaction = tx;
+                    updateStreamCmd.CommandText = @"
+                        UPDATE ucsa_streams
+                        SET next_seq = 0, byte_length = 0, status = 'open', error = NULL, updated_at = $now
+                        WHERE query_hash = $hash;
+                    ";
+                    updateStreamCmd.Parameters.AddWithValue("$now", now);
+                    updateStreamCmd.Parameters.AddWithValue("$hash", queryHash);
+                    updateStreamCmd.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+            }
+        }
+
+        /// <summary>
+        /// Updates the resume token (and optional resume kind) for an active or completed stream.
+        /// </summary>
+        public void UpdateStreamResumeToken(string queryHash, string resumeToken, ResumeKind? resumeKind = null)
+        {
+            if (string.IsNullOrEmpty(queryHash)) return;
+
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            lock (_lock)
+            {
+                using var cmd = _connection.CreateCommand();
+                if (resumeKind.HasValue)
+                {
+                    cmd.CommandText = @"
+                        UPDATE ucsa_streams
+                        SET resume_token = $token, resume_kind = $kind, updated_at = $now
+                        WHERE query_hash = $hash;
+                    ";
+                    cmd.Parameters.AddWithValue("$token", resumeToken);
+                    cmd.Parameters.AddWithValue("$kind", resumeKind.Value.ToWireString());
+                    cmd.Parameters.AddWithValue("$now", now);
+                    cmd.Parameters.AddWithValue("$hash", queryHash);
+                }
+                else
+                {
+                    cmd.CommandText = @"
+                        UPDATE ucsa_streams
+                        SET resume_token = $token, updated_at = $now
+                        WHERE query_hash = $hash;
+                    ";
+                    cmd.Parameters.AddWithValue("$token", resumeToken);
+                    cmd.Parameters.AddWithValue("$now", now);
+                    cmd.Parameters.AddWithValue("$hash", queryHash);
+                }
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+
+        /// <summary>
+        /// Compacts all chunks of a stream atomically into query cache (or CAS store if exceeding casThresholdBytes).
+        /// Moves stream tags to ucsa_cache_tags and purges stream row and chunks via cascade.
+        /// </summary>
+        public async Task<CacheEntry<object>> CompactStreamAsync(
+            string queryHash,
+            UnityCasStore? casStore = null,
+            int casThresholdBytes = 1048576)
+        {
+            var stream = GetStream(queryHash);
+            if (stream == null)
+            {
+                throw new InvalidOperationException($"Stream not found: {queryHash}");
+            }
+
+            var chunks = GetStreamChunks(queryHash, 0);
+            int totalLength = 0;
+            foreach (var c in chunks) totalLength += c.Data.Length;
+            byte[] totalBytes = new byte[totalLength];
+            int offset = 0;
+            foreach (var c in chunks)
+            {
+                Buffer.BlockCopy(c.Data, 0, totalBytes, offset, c.Data.Length);
+                offset += c.Data.Length;
+            }
+
+            object payload;
+
+            if (casStore != null && totalBytes.Length > casThresholdBytes)
+            {
+                var casResult = await casStore.PutAsync(totalBytes).ConfigureAwait(false);
+                payload = new Dictionary<string, object>
+                {
+                    ["__cas_ref"] = true,
+                    ["hash"] = casResult.Hash,
+                    ["size"] = casResult.Size
+                };
+            }
+            else
+            {
+                if (stream.Encoding == StreamEncoding.Utf8)
+                {
+                    string text = Encoding.UTF8.GetString(totalBytes);
+                    try
+                    {
+                        payload = JsonSerializer.Deserialize<object>(text, SerializerOptions)!;
+                    }
+                    catch
+                    {
+                        payload = text;
+                    }
+                }
+                else
+                {
+                    payload = totalBytes;
+                }
+            }
+
+            var tags = new List<string>();
+            lock (_lock)
+            {
+                using var tagCmd = _connection.CreateCommand();
+                tagCmd.CommandText = "SELECT tag FROM ucsa_stream_tags WHERE query_hash = $hash;";
+                tagCmd.Parameters.AddWithValue("$hash", queryHash);
+                using var reader = tagCmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    tags.Add(reader.GetString(0));
+                }
+            }
+
+            var entry = new CacheEntry<object>(
+                stream.QueryHash,
+                stream.QueryKey,
+                payload,
+                stream.CreatedAt,
+                stream.CreatedAt + 60000,
+                stream.ExpiresAt,
+                stream.Etag,
+                stream.PayloadVersion
+            );
+
+            lock (_lock)
+            {
+                using var tx = _connection.BeginTransaction();
+
+                // Save to ucsa_query_cache and move tags
+                string serializedKey = JsonSerializer.Serialize(entry.QueryKey, SerializerOptions);
+                string serializedPayload = JsonSerializer.Serialize(entry.DataPayload, SerializerOptions);
+
+                using (var cmd = _connection.CreateCommand())
+                {
+                    cmd.Transaction = tx;
+                    cmd.CommandText = @"
+                        INSERT INTO ucsa_query_cache (
+                            query_hash, query_key, data_payload, etag, created_at, stale_at, expires_at, payload_version
+                        ) VALUES ($hash, $key, $payload, $etag, $created, $stale, $expires, $payloadVersion)
+                        ON CONFLICT(query_hash) DO UPDATE SET
+                            query_key = excluded.query_key,
+                            data_payload = excluded.data_payload,
+                            etag = excluded.etag,
+                            created_at = excluded.created_at,
+                            stale_at = excluded.stale_at,
+                            expires_at = excluded.expires_at,
+                            payload_version = excluded.payload_version;
+                    ";
+                    cmd.Parameters.AddWithValue("$hash", entry.QueryHash);
+                    cmd.Parameters.AddWithValue("$key", serializedKey);
+                    cmd.Parameters.AddWithValue("$payload", serializedPayload);
+                    cmd.Parameters.AddWithValue("$etag", (object?)entry.Etag ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("$created", entry.CreatedAt);
+                    cmd.Parameters.AddWithValue("$stale", entry.StaleAt);
+                    cmd.Parameters.AddWithValue("$expires", entry.ExpiresAt);
+                    cmd.Parameters.AddWithValue("$payloadVersion", entry.PayloadVersion);
+                    cmd.ExecuteNonQuery();
+                }
+
+                if (tags.Count > 0)
+                {
+                    using (var delTagsCmd = _connection.CreateCommand())
+                    {
+                        delTagsCmd.Transaction = tx;
+                        delTagsCmd.CommandText = "DELETE FROM ucsa_cache_tags WHERE query_hash = $hash;";
+                        delTagsCmd.Parameters.AddWithValue("$hash", entry.QueryHash);
+                        delTagsCmd.ExecuteNonQuery();
+                    }
+
+                    foreach (var tag in tags)
+                    {
+                        using (var insertTagCmd = _connection.CreateCommand())
+                        {
+                            insertTagCmd.Transaction = tx;
+                            insertTagCmd.CommandText = @"
+                                INSERT INTO ucsa_cache_tags (tag, query_hash)
+                                VALUES ($tag, $hash)
+                                ON CONFLICT(tag, query_hash) DO NOTHING;
+                            ";
+                            insertTagCmd.Parameters.AddWithValue("$tag", tag);
+                            insertTagCmd.Parameters.AddWithValue("$hash", entry.QueryHash);
+                            insertTagCmd.ExecuteNonQuery();
+                        }
+                    }
+                }
+
+                // Delete stream row (cascades to ucsa_stream_chunks and ucsa_stream_tags)
+                using (var delStreamCmd = _connection.CreateCommand())
+                {
+                    delStreamCmd.Transaction = tx;
+                    delStreamCmd.CommandText = "DELETE FROM ucsa_streams WHERE query_hash = $hash;";
+                    delStreamCmd.Parameters.AddWithValue("$hash", queryHash);
+                    delStreamCmd.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+            }
+
+            return entry;
         }
 
         #endregion

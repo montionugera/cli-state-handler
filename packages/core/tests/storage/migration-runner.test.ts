@@ -25,20 +25,20 @@ describe('Schema Migration Runner & Versioning Engine', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('migrates fresh database from user_version 0 to target version 3 by default', () => {
+  it('migrates fresh database from user_version 0 to target version 4 by default', () => {
     const dbPath = path.join(tmpDir, 'fresh.db');
     const db = new Database(dbPath);
 
     expect(MigrationRunner.getUserVersion(db)).toBe(0);
 
     const result = MigrationRunner.migrate(db);
-    expect(result.currentVersion).toBe(3);
-    expect(result.appliedCount).toBe(3);
-    expect(MigrationRunner.getUserVersion(db)).toBe(3);
+    expect(result.currentVersion).toBe(4);
+    expect(result.appliedCount).toBe(4);
+    expect(MigrationRunner.getUserVersion(db)).toBe(4);
 
     // Verify ucsa_migrations ledger
     const migrations = MigrationRunner.getAppliedMigrations(db);
-    expect(migrations.size).toBe(3);
+    expect(migrations.size).toBe(4);
     const m1 = migrations.get(1);
     expect(m1).toBeDefined();
     expect(m1?.name).toBe('baseline');
@@ -54,6 +54,11 @@ describe('Schema Migration Runner & Versioning Engine', () => {
     expect(m3?.name).toBe('change_log_and_bus');
     expect(m3?.checksum).toBe(CANONICAL_MIGRATIONS[2].sha256);
 
+    const m4 = migrations.get(4);
+    expect(m4).toBeDefined();
+    expect(m4?.name).toBe('streaming_chunk_store');
+    expect(m4?.checksum).toBe(CANONICAL_MIGRATIONS[3].sha256);
+
     // Verify tables exist
     const tables = db
       .prepare("SELECT name FROM sqlite_master WHERE type='table'")
@@ -68,6 +73,9 @@ describe('Schema Migration Runner & Versioning Engine', () => {
     expect(tables).toContain('ucsa_meta');
     expect(tables).toContain('ucsa_change_log');
     expect(tables).toContain('ucsa_bus_hub');
+    expect(tables).toContain('ucsa_streams');
+    expect(tables).toContain('ucsa_stream_chunks');
+    expect(tables).toContain('ucsa_stream_tags');
 
     // Verify payload_version column exists on ucsa_query_cache
     const columns = db
@@ -135,10 +143,10 @@ describe('Schema Migration Runner & Versioning Engine', () => {
     const db = new Database(dbPath);
 
     MigrationRunner.migrate(db);
-    expect(MigrationRunner.getUserVersion(db)).toBe(3);
+    expect(MigrationRunner.getUserVersion(db)).toBe(4);
 
     const rerun = MigrationRunner.migrate(db);
-    expect(rerun.currentVersion).toBe(3);
+    expect(rerun.currentVersion).toBe(4);
     expect(rerun.appliedCount).toBe(0);
 
     db.close();
@@ -270,7 +278,7 @@ describe('Schema Migration Runner & Versioning Engine', () => {
 
     // Now open via SqliteAdapter
     const adapter = new SqliteAdapter(dbPath);
-    expect(adapter.getSchemaVersion()).toBe(3);
+    expect(adapter.getSchemaVersion()).toBe(4);
 
     // Verify pre-existing data is preserved 100%
     const query = adapter.getQuery<{ message: string }>('hash_legacy_1');
@@ -294,8 +302,8 @@ describe('Schema Migration Runner & Versioning Engine', () => {
     const adapter1 = new SqliteAdapter(dbPath);
     const adapter2 = new SqliteAdapter(dbPath);
 
-    expect(adapter1.getSchemaVersion()).toBe(3);
-    expect(adapter2.getSchemaVersion()).toBe(3);
+    expect(adapter1.getSchemaVersion()).toBe(4);
+    expect(adapter2.getSchemaVersion()).toBe(4);
 
     adapter1.setQuery({
       query_hash: 'q1',

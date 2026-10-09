@@ -8,6 +8,7 @@ vi.mock('../src/commands/index.js', () => ({
   runDurability: vi.fn(async () => console.log('[mock:durability]')),
   runStatus: vi.fn(async () => console.log('[mock:status]')),
   runDaemon: vi.fn(async () => console.log('[mock:daemon]')),
+  runStream: vi.fn(async () => console.log('[mock:stream]')),
 }));
 
 describe('CLI Router', () => {
@@ -17,6 +18,13 @@ describe('CLI Router', () => {
       expect(parsed.command).toBe('query');
       expect(parsed.args).toEqual(['users/123']);
       expect(parsed.options).toEqual({});
+    });
+
+    it('parses stream "llm/completion" --db custom.db --encoding utf8', () => {
+      const parsed = parseArgs(['stream', 'llm/completion', '--db', 'custom.db', '--encoding', 'utf8']);
+      expect(parsed.command).toBe('stream');
+      expect(parsed.args).toEqual(['llm/completion']);
+      expect(parsed.options).toEqual({ db: 'custom.db', encoding: 'utf8' });
     });
 
     it('parses cas put "myfile.tar.gz" --max 1000', () => {
