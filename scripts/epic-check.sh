@@ -1,12 +1,35 @@
 #!/usr/bin/env bash
-# Epic verification: implements assertions 1-10 of E-008's verification.md.
-# Usage: scripts/epic-check.sh <epic-id>
-# Any epic id other than E-008 exits 0 immediately (nothing to check).
+# Epic verification: implements E-008 (assertions 1-10) and E-009 (pre-merge assertions 1-5).
+# Usage: scripts/epic-check.sh <epic-id>   (id from $1 or PSRW_EPIC_ID)
+# Any other epic id exits 0 immediately (nothing to check).
 # Assertion 11 (Chrome at 360px/1280px) is manual and is NOT checked here.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-EPIC="${1:-}"
+EPIC="${1:-${PSRW_EPIC_ID:-}}"
+if [ "$EPIC" = "E-009" ]; then
+  # Pre-merge assertions 1-5 of E-009's verification.md. Assertions 6-10 only
+  # become true after a real release and are checked by hand.
+  rc=0
+  # The gate runs in a fresh snapshot worktree with no node_modules.
+  [ -d node_modules ] || pnpm install --frozen-lockfile >/dev/null 2>&1 || { echo "FAIL  pnpm install"; exit 1; }
+  run() {
+    local n=$1 desc=$2 out; shift 2
+    if out=$("$@" 2>&1); then echo "PASS  assertion $n: $desc"
+    else echo "FAIL  assertion $n: $desc"; echo "$out" | tail -n 8 | sed 's/^/        /'; rc=1; fi
+  }
+  W=.github/workflows/release.yml
+  run 1 "version script unit tests pass" pnpm exec vitest run scripts/release
+  run 2 "script names the features of release 1.8 at its merge commit" node scripts/release/history-check.mjs
+  run 3 "release.yml: runs on push to main, no environment, docs built after publish" bash -c "
+    grep -q 'branches: \[main\]' $W && ! grep -qE '^\s*environment:' $W && ! grep -q 'tags:' $W &&
+    [ \"\$(grep -n 'npm publish' $W | head -n 1 | cut -d: -f1)\" -lt \"\$(grep -n '@ucsa/docs build' $W | head -n 1 | cut -d: -f1)\" ]"
+  run 4 "no workflow targets GitHub Pages" bash -c "! grep -rlE 'deploy-pages|upload-pages-artifact|configure-pages' .github/workflows"
+  run 5 "docs build has a release notes page and version.json" bash -c "
+    pnpm --filter @montionugera/ucsa-core build >/dev/null && pnpm --filter @ucsa/docs build >/dev/null &&
+    test -f apps/docs/dist/version.json && grep -q 'release-notes' apps/docs/src/routes.ts"
+  exit $rc
+fi
 if [ "$EPIC" != "E-008" ]; then
   echo "epic-check: no checks defined for '${EPIC}', nothing to do"
   exit 0
