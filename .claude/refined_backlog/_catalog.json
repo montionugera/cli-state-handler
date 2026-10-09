@@ -383,12 +383,13 @@
     "from_idea": "I-028",
     "created_at": "2026-10-09T02:05:38.336612+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.8",
     "epic": "E-008",
     "claimed_at": "2026-10-09T02:05:40.617094+00:00",
     "shipped_at": "2026-10-09T02:42:40.870314+00:00",
-    "shipped_sha": "03325c7047e7ef6c6e4123a77c133520cf5d88ea"
+    "shipped_sha": "03325c7047e7ef6c6e4123a77c133520cf5d88ea",
+    "promoted_at": "2026-10-09T06:30:34.766189+00:00"
   },
   {
     "id": "F-029",
@@ -396,12 +397,13 @@
     "from_idea": "I-029",
     "created_at": "2026-10-09T02:42:54.079297+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.8",
     "epic": "E-008",
     "claimed_at": "2026-10-09T02:42:56.944842+00:00",
     "shipped_at": "2026-10-09T03:54:18.687998+00:00",
-    "shipped_sha": "fd1593fad86a0c3e6263d95cbdf2648e341fb979"
+    "shipped_sha": "fd1593fad86a0c3e6263d95cbdf2648e341fb979",
+    "promoted_at": "2026-10-09T06:30:35.763326+00:00"
   },
   {
     "id": "F-030",
@@ -409,12 +411,13 @@
     "from_idea": "I-030",
     "created_at": "2026-10-09T02:42:54.321889+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.8",
     "epic": "E-008",
     "claimed_at": "2026-10-09T02:42:58.469832+00:00",
     "shipped_at": "2026-10-09T03:23:07.139659+00:00",
-    "shipped_sha": "5199288c1e2331f9a0ae482d922e3abb7b2933aa"
+    "shipped_sha": "5199288c1e2331f9a0ae482d922e3abb7b2933aa",
+    "promoted_at": "2026-10-09T06:30:37.834359+00:00"
   },
   {
     "id": "F-031",
@@ -422,12 +425,13 @@
     "from_idea": "I-031",
     "created_at": "2026-10-09T02:42:54.584487+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.8",
     "epic": "E-008",
     "claimed_at": "2026-10-09T02:43:00.357032+00:00",
     "shipped_at": "2026-10-09T03:27:30.525619+00:00",
-    "shipped_sha": "f63b6c9c027418520fca769240c84326d878c30b"
+    "shipped_sha": "f63b6c9c027418520fca769240c84326d878c30b",
+    "promoted_at": "2026-10-09T06:30:39.435370+00:00"
   },
   {
     "id": "F-032",
@@ -435,12 +439,13 @@
     "from_idea": "I-032",
     "created_at": "2026-10-09T02:42:54.862417+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.8",
     "epic": "E-008",
     "claimed_at": "2026-10-09T02:43:02.873645+00:00",
     "shipped_at": "2026-10-09T03:59:14.906482+00:00",
-    "shipped_sha": "ace939894db392d79dfb4ed07df500e5bf19acbc"
+    "shipped_sha": "ace939894db392d79dfb4ed07df500e5bf19acbc",
+    "promoted_at": "2026-10-09T06:30:40.448443+00:00"
   },
   {
     "id": "F-033",
@@ -448,12 +453,13 @@
     "from_idea": "I-033",
     "created_at": "2026-10-09T02:42:55.105583+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.8",
     "epic": "E-008",
     "claimed_at": "2026-10-09T02:43:05.588139+00:00",
     "shipped_at": "2026-10-09T03:32:03.004004+00:00",
-    "shipped_sha": "a90b771448e00d8a8978c841552ed6b3e189f2ae"
+    "shipped_sha": "a90b771448e00d8a8978c841552ed6b3e189f2ae",
+    "promoted_at": "2026-10-09T06:30:41.325047+00:00"
   },
   {
     "id": "F-034",
@@ -461,12 +467,13 @@
     "from_idea": "I-035",
     "created_at": "2026-10-09T03:32:10.756687+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.8",
     "epic": "E-008",
     "claimed_at": "2026-10-09T03:32:17.093941+00:00",
     "shipped_at": "2026-10-09T04:30:29.155476+00:00",
-    "shipped_sha": "57d560bef930067ac843e033301644ca7cce24cb"
+    "shipped_sha": "57d560bef930067ac843e033301644ca7cce24cb",
+    "promoted_at": "2026-10-09T06:30:42.058756+00:00"
   },
   {
     "id": "F-035",
@@ -474,12 +481,13 @@
     "from_idea": "I-034",
     "created_at": "2026-10-09T03:59:27.434687+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.8",
     "epic": "E-008",
     "claimed_at": "2026-10-09T03:59:30.728722+00:00",
     "shipped_at": "2026-10-09T04:34:43.842355+00:00",
-    "shipped_sha": "19d01f11ccc4815f990fbef43f1cd9870ac4a0e6"
+    "shipped_sha": "19d01f11ccc4815f990fbef43f1cd9870ac4a0e6",
+    "promoted_at": "2026-10-09T06:30:43.024037+00:00"
   },
   {
     "id": "F-036",
@@ -487,12 +495,13 @@
     "from_idea": "I-036",
     "created_at": "2026-10-09T04:02:37.661596+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.8",
     "epic": "E-008",
     "claimed_at": "2026-10-09T04:02:42.759533+00:00",
     "shipped_at": "2026-10-09T05:03:18.831981+00:00",
-    "shipped_sha": "a3d9dbb92db719ba05b715a2193b623e41c3f902"
+    "shipped_sha": "a3d9dbb92db719ba05b715a2193b623e41c3f902",
+    "promoted_at": "2026-10-09T06:30:44.224845+00:00"
   },
   {
     "id": "F-037",
@@ -500,10 +509,11 @@
     "from_idea": "I-037",
     "created_at": "2026-10-09T04:06:31.578916+00:00",
     "claimed_by": "claude-a6c35399",
-    "status": "shipped",
+    "status": "promoted",
     "release_version": "1.8",
     "claimed_at": "2026-10-09T04:06:33.376940+00:00",
     "shipped_at": "2026-10-09T04:20:04.529385+00:00",
-    "shipped_sha": "d7ec84bddb9a2f8bf8f3c2064da5b4186b14b9b5"
+    "shipped_sha": "d7ec84bddb9a2f8bf8f3c2064da5b4186b14b9b5",
+    "promoted_at": "2026-10-09T06:30:45.891433+00:00"
   }
 ]
