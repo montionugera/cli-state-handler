@@ -54,7 +54,7 @@
   - `changelogEntry(version: string, date: string, notes: string[]): string`
   - `prependEntry(existing: string, entry: string): string`
   - `extractEntry(changelog: string, version: string): string`
-  - Command `node scripts/release/next-release.mjs [--apply] [--notes <path>]`: prints `action=<...>` and `version=<...>`, appends the same two lines to `$GITHUB_OUTPUT` when set. With `--apply` and action `release` it rewrites both `package.json` versions and `CHANGELOG.md`. With `--notes <path>` and action other than `none` it writes that version's notes to the path.
+  - Command `node scripts/release/next-release.mjs [--apply] [--notes <path>]`: prints `action=<...>` and `version=<...>`, appends the same two lines to `$GITHUB_OUTPUT` when set. With `--apply` and action `release` it rewrites both `package.json` versions and `CHANGELOG.md`. With `--notes <path>` it always writes the notes of the printed version to the path. It exits non-zero if npm cannot be reached (only a "not found" answer counts as unpublished).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -300,9 +300,21 @@ if (parsed.some((p) => p.version !== currentVersion)) {
 }
 
 const currentIsTagged = capture('git', ['rev-parse', '-q', '--verify', `refs/tags/v${currentVersion}`]) !== null;
-const currentIsPublished = parsed.every(
-  (p) => capture('npm', ['view', `${p.name}@${currentVersion}`, 'version']) === currentVersion,
-);
+// Only "not found" means unpublished. Any other npm failure (network, registry
+// outage) must stop the run rather than be mistaken for a missing version.
+const isPublished = (name) => {
+  try {
+    const out = execFileSync('npm', ['view', `${name}@${currentVersion}`, 'version'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return out.trim() === currentVersion;
+  } catch (error) {
+    if (/E404/.test(String(error.stderr))) return false;
+    throw new Error(`npm view ${name}@${currentVersion} failed: ${String(error.stderr).trim()}`);
+  }
+};
+const currentIsPublished = parsed.every((p) => isPublished(p.name));
 const lastTag = capture('git', ['describe', '--tags', '--abbrev=0', '--match', 'v*']);
 const log = capture('git', ['log', lastTag ? `${lastTag}..HEAD` : 'HEAD', '--format=%s%x1f%b%x1e']) ?? '';
 const commits = log
@@ -326,7 +338,9 @@ if (apply && decision.action === 'release') {
   changelog = prependEntry(changelog, changelogEntry(decision.version, date, decision.notes));
   writeFileSync(CHANGELOG, changelog);
 }
-if (notesPath && decision.action !== 'none') {
+// Written for every action: a later run may still need the notes to create a
+// GitHub Release that an earlier, failed run never made.
+if (notesPath) {
   const notes = decision.action === 'release' ? decision.notes.map((n) => `- ${n}`).join('\n') : extractEntry(changelog, decision.version);
   writeFileSync(notesPath, `${notes || `Release ${decision.version}`}\n`);
 }
@@ -445,8 +459,11 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
+      # ref: main, not the commit that started the run: a queued or re-run job
+      # must see bumps and tags that earlier runs already pushed.
       - uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
@@ -466,10 +483,24 @@ jobs:
           npm install -g npm@^11.5.1
           node scripts/release/next-release.mjs --apply --notes "$RUNNER_TEMP/release-notes.md"
 
+      # True for a new release, and also when an earlier run published the
+      # version but failed before attaching the docs, so a re-run repairs it.
+      - name: Check for a missing docs archive
+        id: docs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.decide.outputs.version }}
+        run: |
+          if gh release view "v$VERSION" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx docs-site.tgz; then
+            echo "needed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       # Only the published packages (and the workspace deps they need); a
       # docs-site break must not block a release.
       - name: Build
-        if: steps.decide.outputs.action != 'none'
+        if: steps.decide.outputs.action != 'none' || steps.docs.outputs.needed == 'true'
         run: pnpm --filter "@montionugera/ucsa-cli..." build
 
       - name: Unit tests
@@ -487,9 +518,10 @@ jobs:
           git commit -m "chore(release): v$VERSION [skip ci]"
           # The planned-release flow pushes a cleanup commit seconds after the merge.
           git pull --rebase origin main
-          git push origin HEAD:main
           git tag "v$VERSION"
-          git push origin "v$VERSION"
+          # Atomic: a bump commit on main without its tag would make the next
+          # run bump again and skip this version.
+          git push --atomic origin HEAD:main "v$VERSION"
 
       - name: Publish to npmjs.com (trusted publishing)
         if: steps.decide.outputs.action != 'none'
@@ -511,13 +543,13 @@ jobs:
 
       # After publish on purpose: a docs failure leaves the libraries released.
       - name: Build docs archive
-        if: steps.decide.outputs.action != 'none'
+        if: steps.docs.outputs.needed == 'true'
         run: |
           pnpm --filter @ucsa/docs build
           tar -czf "$RUNNER_TEMP/docs-site.tgz" -C apps/docs/dist .
 
       - name: GitHub Release
-        if: steps.decide.outputs.action != 'none'
+        if: steps.docs.outputs.needed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.decide.outputs.version }}
@@ -529,7 +561,7 @@ jobs:
           fi
 
       - name: Signal the developer portal
-        if: steps.decide.outputs.action != 'none'
+        if: steps.docs.outputs.needed == 'true'
         env:
           GH_TOKEN: ${{ secrets.PORTAL_DISPATCH_TOKEN }}
         run: |
@@ -540,9 +572,36 @@ jobs:
           gh workflow run ci.yml -R montionugera/joy-design --ref main
 ```
 
-- [ ] **Step 3: Delete the GitHub Pages workflow**
+- [ ] **Step 3: Delete the GitHub Pages workflow and everything that still points at it**
 
 Run: `git rm .github/workflows/docs.yml`
+
+Three places still describe or test that workflow; fix each in this same commit:
+
+1. `scripts/epic-check.sh`, the block under the comment `# 8. Pages workflow exists, parses as YAML, references apps/docs` (the `if python3 -c '...'` through its closing `fi`). Replace the comment and the whole block with:
+
+```bash
+# 8. Docs are built and attached by the release workflow; no GitHub Pages workflow
+if [ ! -e .github/workflows/docs.yml ] && grep -q "docs-site.tgz" .github/workflows/release.yml \
+   && grep -q "@ucsa/docs build" .github/workflows/release.yml; then
+  pass 8 "release.yml builds apps/docs and attaches docs-site.tgz; no Pages workflow"
+else
+  fail 8 "release.yml does not build and attach the docs, or docs.yml still exists"
+fi
+```
+
+2. `README.md`, the subsection headed `### Deploying (GitHub Pages)`: change the heading to `### Deploying` and replace its paragraph with:
+
+```markdown
+The docs are not deployed from this repo directly. On every release, `.github/workflows/release.yml` builds `apps/docs`, attaches the build to the GitHub Release as `docs-site.tgz`, and signals the developer portal (`dev.joymify.com/cli-state-handler/`, served from the `joy-design` repo). The base path stays `/cli-state-handler/`. See "Publishing".
+```
+
+3. `docs/handoff/ucsa-docs-portal.md`, the `## Deploy` section: replace its first paragraph (the one starting with `` `.github/workflows/docs.yml` ``) with the same paragraph as in item 2.
+
+Then run: `grep -rn "docs\.yml" --include='*.md' --include='*.sh' --include='*.yml' . 2>/dev/null | grep -v node_modules | grep -v "^./.claude/" | grep -v "^./graft/"`
+Expected: no output except the `[ ! -e .github/workflows/docs.yml ]` line in `scripts/epic-check.sh`.
+
+Add `scripts/epic-check.sh README.md docs/handoff/ucsa-docs-portal.md` to the `git add` in Step 6.
 
 - [ ] **Step 4: Verify the workflow file**
 
@@ -556,7 +615,9 @@ echo "publish line $(grep -n 'npm publish' "$W" | head -n 1 | cut -d: -f1), docs
 ls .github/workflows
 ```
 
-Expected: `yaml ok`; counts `1`, `0`, `0`; the publish line number is lower than the docs line number; the only workflow file is `release.yml`. If `actionlint` is installed (`command -v actionlint`), also run `actionlint "$W"` and expect no output.
+Expected: `yaml ok`; counts `1`, `0`, `0`; the publish line number is lower than the docs line number; the only workflow file is `release.yml`. Also confirm `grep -c "ref: main" "$W"` prints `1` and `grep -c "push --atomic" "$W"` prints `1`.
+
+Known consequence, state it in the task report: the first run after this merges finds no GitHub Release for the current version, so even a housekeeping merge creates the Release and attaches the docs once. If `actionlint` is installed (`command -v actionlint`), also run `actionlint "$W"` and expect no output.
 
 - [ ] **Step 5: Dry-run the decision exactly as the workflow will**
 
@@ -571,7 +632,7 @@ Expected: `action=` and `version=` lines; no tracked file modified (no `--apply`
 - [ ] **Step 6: Commit**
 
 ```bash
-git add CHANGELOG.md .github/workflows/release.yml
+git add CHANGELOG.md .github/workflows/release.yml scripts/epic-check.sh README.md docs/handoff/ucsa-docs-portal.md
 git commit -m "feat(release): release on every merge to main with changelog, GitHub Release and docs archive
 
 Removes the tag trigger and the GitHub Pages workflow, which failed on every
@@ -672,12 +733,13 @@ Create `apps/docs/src/components/ReleaseNotes.tsx`:
 ```tsx
 import changelog from "../../../../CHANGELOG.md?raw";
 import { parseChangelog } from "../models/changelog.js";
+import { Prose } from "./Prose.js";
 
 const entries = parseChangelog(changelog);
 
 export function ReleaseNotes() {
   return (
-    <article className="prose">
+    <Prose>
       <h1>Release notes</h1>
       <p>
         Every version of <code>@montionugera/ucsa-core</code> and <code>@montionugera/ucsa-cli</code>. Both packages
@@ -696,12 +758,16 @@ export function ReleaseNotes() {
           </ul>
         </section>
       ))}
-    </article>
+    </Prose>
   );
 }
 ```
 
-In `apps/docs/src/routes.ts`: add `import { ReleaseNotes } from "./components/ReleaseNotes.js";` after the last component import, and add one entry as the LAST element of the `routes` array, copying the exact property shape of the entry directly above it and changing only: `id: "release-notes"`, `title: "Release notes"`, `component: ReleaseNotes`. Keep the same `group` value as that neighbouring entry. If the other content pages use a different wrapper class than `prose`, use the one they use (check one component under `apps/docs/src/content/`).
+In `apps/docs/src/routes.ts`: add `import { ReleaseNotes } from "./components/ReleaseNotes.js";` after the `Sandbox` import, and add this line to the `routes` array directly after the `parity` entry (so it sits in the existing "Guides" group, before the Sandbox entry):
+
+```ts
+  { id: "release-notes", title: "Release notes", icon: "📝", group: "Guides", component: ReleaseNotes },
+```
 
 - [ ] **Step 6: Add the version marker plugin**
 
@@ -747,6 +813,7 @@ Expected: both builds exit 0; `version.json` prints `{"version":"<x>"}` where `<
 
 ```bash
 git add apps/docs
+git add CHANGELOG.md 2>/dev/null || true   # only present here if this task had to create it
 git commit -m "feat(docs): release notes page from CHANGELOG.md and version.json build marker
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -805,13 +872,21 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Add the E-009 checks**
 
-In `scripts/epic-check.sh`, change the header comment's second and fourth lines to say the script implements E-008 and E-009, and insert this block immediately after the line `EPIC="${1:-}"`:
+The release tool's epic gate calls this script with no arguments and passes the epic id in the environment variable `PSRW_EPIC_ID`; today the script only reads its first argument, so in the gate it always reports "nothing to do". Fix that first: change the line `EPIC="${1:-}"` to
+
+```bash
+EPIC="${1:-${PSRW_EPIC_ID:-}}"
+```
+
+Then change the header comment's second and fourth lines to say the script implements E-008 and E-009 and takes the id from the first argument or `PSRW_EPIC_ID`, and insert this block immediately after the `EPIC=` line:
 
 ```bash
 if [ "$EPIC" = "E-009" ]; then
   # Pre-merge assertions 1-5 of E-009's verification.md. Assertions 6-10 only
   # become true after a real release and are checked by hand.
   rc=0
+  # The gate runs in a fresh snapshot worktree with no node_modules.
+  [ -d node_modules ] || pnpm install --frozen-lockfile >/dev/null 2>&1 || { echo "FAIL  pnpm install"; exit 1; }
   run() {
     local n=$1 desc=$2 out; shift 2
     if out=$("$@" 2>&1); then echo "PASS  assertion $n: $desc"
@@ -836,15 +911,23 @@ fi
 Run: `scripts/epic-check.sh E-009; echo "exit $?"`
 Expected: five `PASS` lines, `exit 0`.
 
+Run: `PSRW_EPIC_ID=E-009 scripts/epic-check.sh; echo "exit $?"`
+Expected: the same five `PASS` lines, `exit 0` (this is how the release tool calls it).
+
 Run: `scripts/epic-check.sh E-000; echo "exit $?"`
 Expected: `epic-check: no checks defined for 'E-000', nothing to do`, `exit 0` (unchanged behaviour).
 
+Run: `scripts/epic-check.sh E-008 2>&1 | grep -E "^(PASS|FAIL)" | sort | uniq -c | head -n 12; scripts/epic-check.sh E-008 >/dev/null 2>&1; echo "exit $?"`
+Expected: no `FAIL` line and `exit 0`. Because the id is now also read from the environment, the E-008 checks will run for real in the gate for the first time. If any E-008 assertion fails for a reason unrelated to this epic, stop and report it with its output; do not weaken the assertion.
+
 - [ ] **Step 3: Rewrite the README "Publishing" section**
 
-Replace the body of the existing "Publishing" section in `README.md` with:
+The "Publishing" section of `README.md` has four parts: an opening paragraph, `**First publish (one-time, manual)**`, `**Cutting a release**`, and `**Requirements and notes**`. Keep the opening paragraph, "First publish" and "Requirements and notes" exactly as they are. Replace only the `**Cutting a release**` part (from that bold line up to, not including, `**Requirements and notes**`) with the text below, leaving out its first line (`## Publishing`) and its last paragraph (`**New package:** ...`). Then add that `**New package:**` paragraph as the last line of the "First publish" part, as the command-line alternative to the settings table.
 
 ```markdown
 ## Publishing
+
+**How a release happens**
 
 Merging to `main` is the release. `.github/workflows/release.yml` runs on every merge and:
 
@@ -891,7 +974,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Open the `joy-design` work item: download `docs-site.tgz` for each library in its pipeline before the image build (unpack over `apps/storybook-hub/portal-bundles/<library>`), skip the Flutter build for runs started by a library release, compare `version.json` in `scripts/smoke-prod.sh`.
 - Owner creates the `PORTAL_DISPATCH_TOKEN` credential and a read credential for `joy-design`, and adds both to the `gh-secrets` repo.
 - No architecture diagram in draw.io format accompanies this plan; the spec's two flowcharts are the diagrams.
+- Known limit: a docs-only merge (commit type `docs`) is housekeeping, so the portal docs are refreshed at the next real release, not immediately.
+- The release workflow cannot run before `release/1.9` is merged to `main`. That first merge publishes the next version to npmjs.com (permanent) and pushes a commit and tag to `main`; it is the first real test of the workflow.
 
 ## Audit trail
 
-- (filled in by self-grill-audit)
+- 2026-10-09 self-grill-audit: verdict safe-with-fixes. The auditor ran the plan's code in a scratch directory: 18 of 18 tests pass, `next-release.mjs` prints `action=none version=0.1.1` on `release/1.9`, `history-check.mjs` passes with 10 notes, the workflow parses and `actionlint` is clean. Corrected: checkout now uses `ref: main` (a queued or re-run job re-decided the same release and died on "tag already exists"); docs build, GitHub Release and portal signal are gated on "no `docs-site.tgz` on the release" so a re-run can repair them; `scripts/epic-check.sh` reads `PSRW_EPIC_ID` (the release tool's gate passes the id there, so the checks never ran) and installs dependencies; commit and tag are pushed atomically (a lost tag caused a double bump); only an npm "not found" counts as unpublished; stale references to `docs.yml` in `README.md`, `docs/handoff/ucsa-docs-portal.md` and E-008 assertion 8 are fixed in Task 2; the release notes route names its group and icon; the page uses the existing `Prose` component; the README rewrite keeps the first-publish and requirements parts.
+  Open: the two workflow fixes were reasoned and simulated by the auditor in a scratch repo, not run on GitHub.
