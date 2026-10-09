@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Badge, Button } from "@joymify/react";
 import { guides, guideIds, platforms, type GuideId, type PlatformId, type Snippet } from "../content/guides/index.js";
 import "./multiplatform.css";
 
@@ -44,9 +45,9 @@ function SnippetView({ snippet }: { snippet: Snippet }) {
       <header className="mp-snippet__head">
         <span className="mp-snippet__title">{snippet.title}</span>
         {snippet.available && (
-          <button className="btn btn-secondary" onClick={handleCopy}>
+          <Button variant="outline" onClick={handleCopy}>
             {status === "copied" ? "✓ Copied to Clipboard" : status === "failed" ? "Copy failed" : "📋 Copy Code"}
-          </button>
+          </Button>
         )}
       </header>
       {snippet.available ? (
@@ -87,19 +88,19 @@ export function MultiPlatformDocs() {
               source file it was checked against; see the <a href="#/parity">parity matrix</a> for what each platform lacks.
             </p>
           </div>
-          <span className="badge badge-cyan">3 Native Implementations</span>
+          <Badge variant="brand">3 Native Implementations</Badge>
         </div>
 
         <div className="mp-row" role="group" aria-label="Subsystem">
           {guideIds.map((id, i) => (
-            <button
+            <Button
               key={id}
-              className={`btn ${concept === id ? "btn-primary" : "btn-secondary"}`}
+              variant={concept === id ? "solid" : "outline"}
               aria-pressed={concept === id}
               onClick={() => setConcept(id)}
             >
               {`${CONCEPT_ICON[id]} ${i + 1}. ${guides[id].label}`}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -107,26 +108,26 @@ export function MultiPlatformDocs() {
           {view === "tabs" ? (
             <div className="mp-row" role="group" aria-label="Platform">
               {platforms.map((p) => (
-                <button
+                <Button
                   key={p}
-                  className={`btn ${platform === p ? "btn-primary" : "btn-secondary"}`}
+                  variant={platform === p ? "solid" : "outline"}
                   aria-pressed={platform === p}
                   onClick={() => setPlatform(p)}
                 >
                   {PLATFORM_LABEL[p]}
-                </button>
+                </Button>
               ))}
             </div>
           ) : (
             <span />
           )}
           <div className="mp-row mp-viewtoggle" role="group" aria-label="Layout">
-            <button className={`btn ${view === "tabs" ? "btn-primary" : "btn-secondary"}`} aria-pressed={view === "tabs"} onClick={() => setView("tabs")}>
+            <Button variant={view === "tabs" ? "solid" : "outline"} aria-pressed={view === "tabs"} onClick={() => setView("tabs")}>
               Tabs
-            </button>
-            <button className={`btn ${view === "side" ? "btn-primary" : "btn-secondary"}`} aria-pressed={view === "side"} onClick={() => setView("side")}>
+            </Button>
+            <Button variant={view === "side" ? "solid" : "outline"} aria-pressed={view === "side"} onClick={() => setView("side")}>
               Side by side
-            </button>
+            </Button>
           </div>
         </div>
 

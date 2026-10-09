@@ -11,6 +11,11 @@
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "paths": {
+      "react": ["./node_modules/@types/react/index.d.ts"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"],
+      "@joymify/react": ["../../../joy-design/packages/react/src/index.ts"],
+      "@joymify/icons/react": ["../../../joy-design/packages/icons/src/react.ts"],
+      "@joymify/brand": ["../../../joy-design/packages/brand/src/index.d.ts"],
       "@montionugera/ucsa-core": ["../../packages/core/src/index.ts"]
     }
   },

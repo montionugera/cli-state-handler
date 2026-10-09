@@ -4,7 +4,7 @@
 .st-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-3); }
 .st-controls label { display: flex; flex-direction: column; gap: var(--space-1); color: var(--text-muted); font-size: var(--text-sm); min-width: 0; }
 .st-controls input { min-width: 0; padding: var(--space-2); background: var(--bg-card-subtle); color: var(--text-main); border: 1px solid var(--border-card); border-radius: var(--radius-md); }
-.st-controls input:focus-visible, .st-buttons .btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.st-controls input:focus-visible, .st-buttons .joy-button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .st-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
 .st-readout { margin: var(--space-3) 0; color: var(--text-main); }
 .st-scroll { overflow-x: auto; color-scheme: dark; scrollbar-color: var(--border-highlight) var(--bg-card-subtle); }

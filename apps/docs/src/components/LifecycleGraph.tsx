@@ -1,4 +1,5 @@
 import React, { useId, useState } from "react";
+import { Button } from "@joymify/react";
 import type { QueryStatus } from "@montionugera/ucsa-core";
 import { LIFECYCLE_EDGES, LIFECYCLE_STATES, applyEdge, attemptOf, findEdge, fsmAt } from "../models/lifecycle-graph.js";
 import "./LifecycleGraph.css";
@@ -106,15 +107,15 @@ export function LifecycleGraph({ initialState = "idle" }: { initialState?: Query
       </p>
       <div className="lc-buttons" role="group" aria-label="Transitions from the current state">
         {LIFECYCLE_STATES.map((s) => (
-          <button
+          <Button
             key={s}
             type="button"
-            className="btn btn-secondary lc-btn"
+            variant="outline" className="lc-btn"
             disabled={!findEdge(state, s)}
             onClick={() => go(s)}
           >
             Go to {s}
-          </button>
+          </Button>
         ))}
       </div>
       <details className="lc-edges">

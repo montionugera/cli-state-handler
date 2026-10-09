@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { Badge, Button, Input } from "@joymify/react";
 import type { ConflictPolicy } from "@montionugera/ucsa-core";
 import { OutboxModel } from "../models/outbox-model.js";
 import type { OutboxMutation, SettleOutcome } from "../models/outbox-model.js";
@@ -14,10 +15,10 @@ const STATUS_GLYPH: Record<OutboxMutation["status"], string> = {
   failed: "✖ failed",
 };
 
-const STATUS_CLASS: Record<OutboxMutation["status"], string> = {
-  pending: "badge-blue",
-  in_flight: "badge-amber",
-  failed: "badge-rose",
+const STATUS_VARIANT: Record<OutboxMutation["status"], "brand" | "warning" | "danger"> = {
+  pending: "brand",
+  in_flight: "warning",
+  failed: "danger",
 };
 
 type WorkerId = "worker-a" | "worker-b";
@@ -250,13 +251,13 @@ export function OutboxPlayground({ headingLevel: Title = "h1" }: { headingLevel?
               This is a browser model of the outbox. Its behaviour is checked against the real SQLite-backed MutationOutbox by the parity test suite.
             </p>
           </div>
-          <button
+          <Button
             type="button"
             onClick={handleToggle}
-            className={`btn ${isOnline ? "btn-primary" : "btn-danger"}`}
+            variant={isOnline ? "solid" : "danger"}
           >
             {isOnline ? "🟢 Network: ONLINE" : "🔴 Network: OFFLINE"}
-          </button>
+          </Button>
         </div>
 
         <div className="ob-config">
@@ -266,7 +267,7 @@ export function OutboxPlayground({ headingLevel: Title = "h1" }: { headingLevel?
           </div>
           <div>
             <label className="stat-label" htmlFor="ob-batch">Batch size</label>
-            <select id="ob-batch" className="input ob-full" value={batchSize} onChange={(e) => setBatchSize(Number(e.target.value))}>
+            <select id="ob-batch" className="joy-select ob-full" value={batchSize} onChange={(e) => setBatchSize(Number(e.target.value))}>
               <option value="1">1 mutation / batch</option>
               <option value="2">2 mutations / batch</option>
               <option value="5">5 mutations / batch</option>
@@ -274,7 +275,7 @@ export function OutboxPlayground({ headingLevel: Title = "h1" }: { headingLevel?
           </div>
           <div>
             <label className="stat-label" htmlFor="ob-policy">Conflict policy</label>
-            <select id="ob-policy" className="input ob-full" value={selectedPolicy} onChange={(e) => setSelectedPolicy(e.target.value as ConflictPolicy)}>
+            <select id="ob-policy" className="joy-select ob-full" value={selectedPolicy} onChange={(e) => setSelectedPolicy(e.target.value as ConflictPolicy)}>
               <option value="merge">merge (resolver combines local and server)</option>
               <option value="server-wins">server-wins (rollback)</option>
               <option value="client-wins">client-wins (force overwrite)</option>
@@ -287,7 +288,7 @@ export function OutboxPlayground({ headingLevel: Title = "h1" }: { headingLevel?
           <div className="ob-form-grid">
             <div>
               <label className="stat-label" htmlFor="ob-method">Method</label>
-              <select id="ob-method" className="input ob-full" value={method} onChange={(e) => setMethod(e.target.value)}>
+              <select id="ob-method" className="joy-select ob-full" value={method} onChange={(e) => setMethod(e.target.value)}>
                 <option value="POST">POST</option>
                 <option value="PATCH">PATCH</option>
                 <option value="PUT">PUT</option>
@@ -296,11 +297,11 @@ export function OutboxPlayground({ headingLevel: Title = "h1" }: { headingLevel?
             </div>
             <div>
               <label className="stat-label" htmlFor="ob-endpoint">Endpoint</label>
-              <input id="ob-endpoint" type="text" className="input ob-full" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} />
+              <Input id="ob-endpoint" type="text" className="ob-full" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} />
             </div>
             <div>
               <label className="stat-label" htmlFor="ob-payload">JSON payload</label>
-              <input id="ob-payload" type="text" className="input ob-full" value={payloadStr} onChange={(e) => setPayloadStr(e.target.value)} />
+              <Input id="ob-payload" type="text" className="ob-full" value={payloadStr} onChange={(e) => setPayloadStr(e.target.value)} />
             </div>
             <label className="ob-check">
               <input type="checkbox" checked={serverNewer} onChange={(e) => setServerNewer(e.target.checked)} />
@@ -308,26 +309,26 @@ export function OutboxPlayground({ headingLevel: Title = "h1" }: { headingLevel?
             </label>
           </div>
           <div className="ob-actions">
-            <button type="button" className="btn btn-secondary" onClick={handleEnqueue}>📥 Enqueue</button>
+            <Button type="button" variant="outline" onClick={handleEnqueue}>📥 Enqueue</Button>
           </div>
         </div>
 
         <div className="stat-grid">
-          <div className="stat-tile">
-            <div className="stat-label">Pending</div>
-            <div className="stat-value ob-amber">{count("pending")}</div>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Pending</div>
+            <div className="joy-metric-tile__value ob-amber">{count("pending")}</div>
           </div>
-          <div className="stat-tile">
-            <div className="stat-label">In flight (leased)</div>
-            <div className="stat-value ob-cyan">{count("in_flight")}</div>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">In flight (leased)</div>
+            <div className="joy-metric-tile__value ob-cyan">{count("in_flight")}</div>
           </div>
-          <div className="stat-tile">
-            <div className="stat-label">Failed</div>
-            <div className="stat-value ob-rose">{count("failed")}</div>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Failed</div>
+            <div className="joy-metric-tile__value ob-rose">{count("failed")}</div>
           </div>
-          <div className="stat-tile">
-            <div className="stat-label">Completed</div>
-            <div className="stat-value ob-emerald">{completed}</div>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Completed</div>
+            <div className="joy-metric-tile__value ob-emerald">{completed}</div>
           </div>
         </div>
 
@@ -336,11 +337,11 @@ export function OutboxPlayground({ headingLevel: Title = "h1" }: { headingLevel?
             <section key={w.id} className="ob-worker" aria-label={w.label}>
               <div className="ob-form-title">{w.label} <code>{w.id}</code></div>
               <div className="ob-actions">
-                <button type="button" className="btn btn-secondary" disabled={!isOnline || isReplaying} onClick={() => handleClaim(w.id)}>Claim as {w.label}</button>
+                <Button type="button" variant="outline" disabled={!isOnline || isReplaying} onClick={() => handleClaim(w.id)}>Claim as {w.label}</Button>
                 {[200, 503, 409, 400].map((status) => (
-                  <button key={status} type="button" className="btn btn-secondary" disabled={!isOnline || isReplaying} onClick={() => void handleRespond(w.id, status)}>
+                  <Button key={status} type="button" variant="outline" disabled={!isOnline || isReplaying} onClick={() => void handleRespond(w.id, status)}>
                     {w.label}: respond {status}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </section>
@@ -351,11 +352,11 @@ export function OutboxPlayground({ headingLevel: Title = "h1" }: { headingLevel?
 
         <div className="ob-actions ob-clock">
           <span className="stat-label ob-clock-label">Virtual clock: t+{Math.round((now - CLOCK_START) / 1000)}s (lease length {LEASE_MS / 1000}s)</span>
-          <button type="button" className="btn btn-secondary" onClick={() => advance(10000)}>Advance clock +10s</button>
-          <button type="button" className="btn btn-secondary" onClick={() => advance(31000)}>Advance clock +31s</button>
-          <button type="button" className="btn btn-primary" disabled={isReplaying} onClick={() => void handleReplay()}>
+          <Button type="button" variant="outline" onClick={() => advance(10000)}>Advance clock +10s</Button>
+          <Button type="button" variant="outline" onClick={() => advance(31000)}>Advance clock +31s</Button>
+          <Button type="button" variant="solid" disabled={isReplaying} onClick={() => void handleReplay()}>
             {isReplaying ? "⏳ Replaying..." : "🚀 Replay Outbox"}
-          </button>
+          </Button>
         </div>
 
         <div className="ob-meter">
@@ -388,8 +389,8 @@ export function OutboxPlayground({ headingLevel: Title = "h1" }: { headingLevel?
                     <td className="ob-strong">{m.method}</td>
                     <td className="ob-mono">{m.endpoint}</td>
                     <td className="ob-payload ob-mono">{JSON.stringify(m.payload)}</td>
-                    <td><span className="badge badge-cyan">{m.conflictPolicy ?? "server-wins"}</span></td>
-                    <td><span className={`badge ${STATUS_CLASS[m.status]}`}>{STATUS_GLYPH[m.status]}</span></td>
+                    <td><Badge variant="brand">{m.conflictPolicy ?? "server-wins"}</Badge></td>
+                    <td><Badge variant={STATUS_VARIANT[m.status]}>{STATUS_GLYPH[m.status]}</Badge></td>
                     <td>{m.retry_count}</td>
                     <td>{leaseText(m, now)}</td>
                     <td className="ob-mono">{m.forced ? "forced · X-Force-Overwrite" : "-"}{m.error ? ` · ${m.error}` : ""}</td>

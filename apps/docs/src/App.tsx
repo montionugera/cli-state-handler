@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Badge } from "@joymify/react";
 import { groups, routes } from "./routes.js";
 import { useHashRoute } from "./router.js";
 import { NotFound } from "./pages/NotFound.js";
@@ -116,7 +117,7 @@ export function App() {
       <aside id="sidebar" ref={sidebarRef} className={`sidebar${drawerOpen ? " sidebar--open" : ""}`}>
         <div className="sidebar__brand">
           <span className="sidebar__name">UCSA Studio</span>
-          <span className="badge badge-emerald">v1.4</span>
+          <Badge variant="success">v1.4</Badge>
           <p>Unified Client State Architecture</p>
         </div>
 

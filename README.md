@@ -1584,6 +1584,8 @@ ucsa docs --port 6006 --dry-run   # validate the launch without starting a serve
 
 `ucsa docs` shells out to `pnpm --filter @ucsa/docs dev`, so it needs the workspace checked out with dependencies installed.
 
+The studio UI reuses the Joymify design system (`@joymify/react`, `@joymify/tokens`), which is unpublished: the `joy-design` repo must be checked out as a sibling directory of this repo (`../joy-design`, with `packages/tokens/dist/theme.css` built) for `pnpm dev:docs`, the docs build and the docs tests to resolve it.
+
 ### Simulation versus real behaviour
 
 Most pages run a small in-browser **model** of a subsystem, not the production class. Where a model exists it is pinned to the real implementation by a parity test under `apps/docs/tests/` (UCB1 codec bytes against `ipc/frame-codec.ts`; CAS hashes against the real CAS store; Outbox transitions against `mutation-outbox.ts`). The WAL page is a labelled simulation of SQLite's pager, and the UCB1 page simulates the hub (no HELLO/token handshake). Treat the pages as explanations of the documented behaviour, and read `packages/core/src` for the authoritative semantics.

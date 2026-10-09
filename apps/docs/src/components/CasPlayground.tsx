@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Badge, Button, Input } from "@joymify/react";
 import { CasModel, type CasEntry } from "../models/cas-model.js";
 import "./CasPlayground.css";
 
@@ -117,7 +118,7 @@ export function CasPlayground() {
             </p>
             <p className="cas-model-label">browser model, hash-compatible with the real store</p>
           </div>
-          <span className="badge badge-emerald">Storage Engine: SHA-256 CAS</span>
+          <Badge variant="success">Storage Engine: SHA-256 CAS</Badge>
         </div>
 
         <div className="cas-gauge">
@@ -137,29 +138,29 @@ export function CasPlayground() {
             <label className="stat-label" htmlFor="cas-input">
               Payload to store (SHA-256 hashed in the browser)
             </label>
-            <input
+            <Input
               id="cas-input"
               type="text"
-              className="input"
+              
               data-testid="cas-input"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
             />
           </div>
-          <button className="btn btn-primary" onClick={handleStore}>
+          <Button variant="solid" onClick={handleStore}>
             💾 Store in CAS
-          </button>
+          </Button>
         </div>
 
         <div className="cas-budget">
           <label className="stat-label" htmlFor="cas-budget">
             Byte budget
           </label>
-          <input
+          <Input
             id="cas-budget"
             type="number"
             min={0}
-            className="input"
+            
             data-testid="cas-budget"
             value={budget}
             onChange={(e) => handleBudget(e.target.value)}
@@ -171,24 +172,24 @@ export function CasPlayground() {
         </div>
 
         <div className="stat-grid">
-          <div className="stat-tile">
-            <div className="stat-label">Stored Objects</div>
-            <div className="stat-value" data-testid="cas-count">{snap.entries.length}</div>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Stored Objects</div>
+            <div className="joy-metric-tile__value" data-testid="cas-count">{snap.entries.length}</div>
           </div>
-          <div className="stat-tile">
-            <div className="stat-label">Total Size</div>
-            <div className="stat-value">{snap.total} B</div>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Total Size</div>
+            <div className="joy-metric-tile__value">{snap.total} B</div>
           </div>
-          <div className="stat-tile">
-            <div className="stat-label">Quota Capacity</div>
-            <div className="stat-value">{budget} B</div>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Quota Capacity</div>
+            <div className="joy-metric-tile__value">{budget} B</div>
           </div>
         </div>
 
         <div className="cas-actions">
-          <button className="btn btn-secondary" onClick={handlePrune}>
+          <Button variant="outline" onClick={handlePrune}>
             🧹 Prune to 70% LRU
-          </button>
+          </Button>
         </div>
 
         <ul className="cas-log" aria-live="polite" aria-label="Store activity" data-testid="cas-log">
@@ -219,12 +220,12 @@ export function CasPlayground() {
                   <td className="cas-key">{o.key}</td>
                   <td>
                     <div className="cas-row-actions">
-                      <button className="btn btn-secondary cas-btn-sm" onClick={() => handleRead(o.hash)} aria-label={`Touch / read ${SHORT(o.hash)}`}>
+                      <Button variant="outline" size="sm" onClick={() => handleRead(o.hash)} aria-label={`Touch / read ${SHORT(o.hash)}`}>
                         🔍 Touch / Read
-                      </button>
-                      <button className="btn btn-danger cas-btn-sm" onClick={() => handleDelete(o.hash)} aria-label={`Delete ${SHORT(o.hash)}`}>
+                      </Button>
+                      <Button variant="danger" size="sm" onClick={() => handleDelete(o.hash)} aria-label={`Delete ${SHORT(o.hash)}`}>
                         ✕
-                      </button>
+                      </Button>
                     </div>
                   </td>
                 </tr>

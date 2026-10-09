@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Button } from "@joymify/react";
 import { useHashRoute } from "../router.js";
 import { transpile } from "../sandbox/transpile.js";
 import { buildSandboxProgram, buildSrcdoc, RUN_LIMIT_MS } from "../sandbox/program.js";
@@ -236,15 +237,15 @@ export function Sandbox({ limitMs = RUN_LIMIT_MS }: { limitMs?: number }) {
 
       <div className="sbx-presets" role="group" aria-label="Examples">
         {presets.map((p) => (
-          <button
+          <Button
             key={p.id}
             type="button"
-            className="btn btn-secondary"
+            variant="outline"
             aria-pressed={p.id === presetId}
             onClick={() => choosePreset(p.id)}
           >
             {p.title}
-          </button>
+          </Button>
         ))}
       </div>
       <p className="sbx-desc">{active.description}</p>
@@ -282,12 +283,12 @@ export function Sandbox({ limitMs = RUN_LIMIT_MS }: { limitMs?: number }) {
       </p>
 
       <div className="sbx-actions">
-        <button type="button" className="btn btn-primary" onClick={() => void run()}>
+        <Button type="button" variant="solid" onClick={() => void run()}>
           Run
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={stop} disabled={frame === null}>
+        </Button>
+        <Button type="button" variant="outline" onClick={stop} disabled={frame === null}>
           Stop
-        </button>
+        </Button>
         <span className="sbx-status" role="status">{STATUS_TEXT[status]}</span>
         <span className="sbx-warn">A synchronous infinite loop can freeze the tab in some browsers.</span>
       </div>

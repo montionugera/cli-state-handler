@@ -12,21 +12,21 @@ export function Home() {
       </p>
 
       <div className="stat-grid">
-        <div className="stat-tile">
-          <div className="stat-label">Platforms</div>
-          <div className="stat-value">3 Native</div>
+        <div className="joy-metric-tile">
+          <div className="joy-metric-tile__title">Platforms</div>
+          <div className="joy-metric-tile__value">3 Native</div>
         </div>
-        <div className="stat-tile">
-          <div className="stat-label">Cache Strategy</div>
-          <div className="stat-value">SWR + WAL</div>
+        <div className="joy-metric-tile">
+          <div className="joy-metric-tile__title">Cache Strategy</div>
+          <div className="joy-metric-tile__value">SWR + WAL</div>
         </div>
-        <div className="stat-tile">
-          <div className="stat-label">Structural Sharing</div>
-          <div className="stat-value">Zero Redraw</div>
+        <div className="joy-metric-tile">
+          <div className="joy-metric-tile__title">Structural Sharing</div>
+          <div className="joy-metric-tile__value">Zero Redraw</div>
         </div>
-        <div className="stat-tile">
-          <div className="stat-label">Test Suites</div>
-          <div className="stat-value">100% Green</div>
+        <div className="joy-metric-tile">
+          <div className="joy-metric-tile__title">Test Suites</div>
+          <div className="joy-metric-tile__value">100% Green</div>
         </div>
       </div>
 
