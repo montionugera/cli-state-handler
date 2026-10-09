@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 
 export default defineConfig({
+  base: "/cli-state-handler/",
   plugins: [react()],
   server: {
     port: 6006,
@@ -10,7 +11,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@ucsa/core": path.resolve(import.meta.dirname, "../../packages/core/src/index.ts")
+      "@ucsa/core": path.resolve(import.meta.dirname, "../../packages/core/src/browser.ts")
     }
   }
 });
