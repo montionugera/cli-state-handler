@@ -12,7 +12,8 @@
   "dependencies": {
     "@ucsa/core": "workspace:*",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "sucrase": "^3.35.1"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { QueryEngine, hashQueryKey, replaceEqualDeep } from "@ucsa/core";
 import type { QueryState } from "@ucsa/core";
+import { LifecycleGraph } from "./LifecycleGraph.js";
+import { StaleTimeline } from "./StaleTimeline.js";
 
 // Mock remote backend state
 let mockServerUser = {
@@ -18,7 +20,7 @@ let mockServerUser = {
   }
 };
 
-export function SwrPlayground() {
+export function SwrPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "h1" | "h2" } = {}) {
   const [engine] = useState(() => new QueryEngine({ defaultStaleTime: 5000 }));
   const [queryKeyStr, setQueryKeyStr] = useState("users/profile");
   const [staleTimeMs, setStaleTimeMs] = useState(4000);
@@ -135,9 +137,9 @@ export function SwrPlayground() {
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
           <div>
-            <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-main)", marginBottom: "0.25rem" }}>
+            <Title style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-main)", marginBottom: "0.25rem" }}>
               SWR & Query Lifecycle Playground
-            </h2>
+            </Title>
             <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
               Live interactive query lifecycle demonstrating Stale-While-Revalidate caching, structural sharing reference preservation, and indexed tag invalidations.
             </p>
@@ -323,6 +325,13 @@ export function SwrPlayground() {
           )}
         </div>
       </div>
+      {Title === "h1" && (
+        <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-main)", marginTop: "var(--space-6)" }}>
+          State graph and freshness timeline
+        </h2>
+      )}
+      <LifecycleGraph />
+      <StaleTimeline />
     </div>
   );
 }

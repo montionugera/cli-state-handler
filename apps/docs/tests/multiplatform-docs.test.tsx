@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import React from "react";
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
 import { MultiPlatformDocs } from "../src/components/MultiPlatformDocs.js";
 import { App } from "../src/App.js";
@@ -27,29 +27,68 @@ describe("MultiPlatformDocs Component", () => {
     expect(screen.getByText("QueryEngine & SWR Lifecycle (Dart / Flutter)")).toBeDefined();
 
     // Switch to C# Unity
-    const csharpBtn = screen.getByText("🎮 C# Unity (.NET / IL2CPP)");
+    const csharpBtn = screen.getByText("🎮 C# Unity (.NET)");
     fireEvent.click(csharpBtn);
     expect(screen.getByText("QueryEngine & SWR Lifecycle (C# Unity)")).toBeDefined();
   });
 
-  it("switches concept tabs to Zero-Rebuild Observer", () => {
+  it("switches concept tabs to the WAL and UCB1 guides", () => {
     render(<MultiPlatformDocs />);
 
-    const observerTab = screen.getByText("🎯 2. Zero-Rebuild Observer");
-    fireEvent.click(observerTab);
+    fireEvent.click(screen.getByText("🪵 5. WAL Durability"));
+    expect(screen.getByText("SQLite WAL and Checkpoints (TypeScript)")).toBeDefined();
 
-    expect(screen.getByText("Zero-Rebuild Selector Observer (React 19)")).toBeDefined();
+    fireEvent.click(screen.getByText("🚌 6. UCB1 Event Bus"));
+    fireEvent.click(screen.getByText("🎮 C# Unity (.NET)"));
+    expect(screen.getByText("UCB1 Frames and Hub Record (C# Unity)")).toBeDefined();
   });
 
-  it("copies code snippet to clipboard", async () => {
+  it("shows all three platforms at once in the side-by-side view", () => {
     render(<MultiPlatformDocs />);
 
-    const copyBtn = screen.getByText("📋 Copy Code");
+    fireEvent.click(screen.getByText("Side by side"));
+    expect(screen.getByText("QueryEngine & SWR Lifecycle (TypeScript)")).toBeDefined();
+    expect(screen.getByText("QueryEngine & SWR Lifecycle (Dart / Flutter)")).toBeDefined();
+    expect(screen.getByText("QueryEngine & SWR Lifecycle (C# Unity)")).toBeDefined();
+    expect(screen.getAllByRole("region", { name: /code, scrollable$/ }).length).toBe(3);
+  });
+
+  it("copies code snippet to clipboard only after writeText resolves", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    render(<MultiPlatformDocs />);
+
     await act(async () => {
-      fireEvent.click(copyBtn);
+      fireEvent.click(screen.getByText("📋 Copy Code"));
     });
 
+    expect(writeText).toHaveBeenCalledTimes(1);
     expect(screen.getByText("✓ Copied to Clipboard")).toBeDefined();
+  });
+
+  it("shows Copy failed when writeText rejects", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    render(<MultiPlatformDocs />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("📋 Copy Code"));
+    });
+
+    expect(screen.getByText("Copy failed")).toBeDefined();
+    expect(screen.queryByText("✓ Copied to Clipboard")).toBeNull();
+  });
+
+  it("shows Copy failed and never claims success when the clipboard is missing", async () => {
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    render(<MultiPlatformDocs />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("📋 Copy Code"));
+    });
+
+    expect(screen.getByText("Copy failed")).toBeDefined();
+    expect(screen.queryByText("✓ Copied to Clipboard")).toBeNull();
   });
 
   it("renders through Storybook App tab navigation", () => {

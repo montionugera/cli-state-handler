@@ -1,0 +1,32 @@
+.st { margin-top: var(--space-6); padding: var(--space-4); background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius-md); min-width: 0; }
+.st-title { margin: 0 0 var(--space-2); font-size: var(--text-lg); color: var(--text-main); }
+.st-note { color: var(--text-muted); font-size: var(--text-sm); margin: 0 0 var(--space-3); }
+.st-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-3); }
+.st-controls label { display: flex; flex-direction: column; gap: var(--space-1); color: var(--text-muted); font-size: var(--text-sm); min-width: 0; }
+.st-controls input { min-width: 0; padding: var(--space-2); background: var(--bg-card-subtle); color: var(--text-main); border: 1px solid var(--border-card); border-radius: var(--radius-md); }
+.st-controls input:focus-visible, .st-buttons .btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.st-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
+.st-readout { margin: var(--space-3) 0; color: var(--text-main); }
+.st-scroll { overflow-x: auto; color-scheme: dark; scrollbar-color: var(--border-highlight) var(--bg-card-subtle); }
+/* 600px = viewBox width W, so 11px phase text and 12px labels render at scale 1 (never below 11px). */
+.st-svg { display: block; width: 100%; min-width: 600px; height: auto; }
+.st-fresh { fill: var(--accent-emerald); }
+.st-stale { fill: var(--accent-amber); }
+.st-expired { fill: var(--accent-rose); }
+.st-hatch { stroke: var(--bg-main); stroke-width: 2; }
+.st-hatch-dot { fill: var(--bg-main); }
+.st-phase-text { fill: var(--bg-main); font-size: 11px; font-weight: 700; font-family: var(--font-sans); }
+.st-axis { stroke: var(--text-muted); stroke-width: 1; }
+.st-now { stroke: var(--text-main); stroke-width: 2; stroke-dasharray: 4 3; }
+.st-label { fill: var(--text-muted); font-size: 12px; font-family: var(--font-sans); }
+.st-mark { stroke: var(--bg-main); stroke-width: 2; }
+.st-mark-fetch { fill: var(--accent-cyan); }
+.st-mark-read { fill: var(--accent-blue); }
+.st-mark-expiry { fill: var(--accent-rose); }
+.st-legend { display: flex; flex-wrap: wrap; gap: var(--space-4); list-style: none; padding: 0; margin: var(--space-2) 0; color: var(--text-muted); font-size: var(--text-sm); }
+.st-key { display: inline-block; width: 1rem; height: 0.8rem; border-radius: 2px; vertical-align: middle; border: 1px solid var(--border-card); }
+.st-key-fresh { background: var(--accent-emerald); }
+.st-key-stale { background: repeating-linear-gradient(45deg, var(--accent-amber) 0 3px, var(--bg-main) 3px 5px); }
+.st-key-expired { background: radial-gradient(var(--bg-main) 1px, var(--accent-rose) 1.5px) 0 0 / 5px 5px; }
+.st-glyph { color: var(--text-main); }
+.st-log { margin: var(--space-3) 0 0; padding-left: var(--space-6); max-height: 9rem; overflow-y: auto; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted); overflow-wrap: anywhere; }

@@ -1545,55 +1545,57 @@ $ node apps/cli/bin/ucsa.js tutorial --dry-run
 
 ## Interactive Storybook Tutorial & Live Documentation Studio (`apps/docs`)
 
-`apps/docs` provides a standalone, interactive Storybook-like documentation and tutorial studio built with React 19 and Vite. It offers interactive, real-time sandboxes to visualize, experiment with, and master every UCSA core concept without writing boilerplate.
+`apps/docs` (package `@ucsa/docs`) is a standalone, hash-routed documentation portal built with React 19 and Vite. Each page is an interactive visualiser of one UCSA subsystem. The portal runs entirely in the browser against the browser-safe entry of `@ucsa/core` (`packages/core/src/browser.ts`); it never touches SQLite or the filesystem.
 
-```
-       ┌────────────────────────────────────────────────────────┐
-       │   ⚡ UCSA Live Studio & Interactive Documentation       │
-       │   [⚡ SWR Cache] [⏱️ Timing] [📦 Outbox] [🗄️ CAS] [🌐 Code] │
-       └────────────────────────────────────────────────────────┘
-```
+### Pages
 
-### Launching the Studio
+The pages are the entries of the `routes` array in `apps/docs/src/routes.ts` (that file is the source of truth; a page appears at `#/<id>`):
 
-You can launch the studio using pnpm or directly via the UCSA CLI:
+| Page (route title) | Hash | Group | What it does |
+| :--- | :--- | :--- | :--- |
+| Architecture Overview | `#/home` (also `#/`) | Start | Landing page with the architecture overview. |
+| 1. Your First Query | `#/tutorial-first-query` | Tutorial | Explains `useQuery` / `watchQuery` / `WatchQuery` and embeds the SWR playground. |
+| 2. Freshness and Refetch Timing | `#/tutorial-freshness` | Tutorial | Embeds the stale/expiry timeline and the timing playground. |
+| 3. Durable Cache and WAL | `#/tutorial-durable-cache` | Tutorial | Embeds the WAL visualiser. |
+| 4. Offline Mutations | `#/tutorial-outbox` | Tutorial | Embeds the outbox playground. |
+| 5. Cross-Process Events | `#/tutorial-ucb1` | Tutorial | Embeds the UCB1 event bus visualiser. |
+| SWR & Lifecycle | `#/swr` | Visualisers | SWR playground, lifecycle state graph and stale/expiry timeline. |
+| Timing & Rate-Limiting | `#/timing` | Visualisers | Throttle and debounce controls with a burst button and search input. |
+| Offline Outbox & Conflict | `#/outbox` | Visualisers | Outbox model: offline queueing, replay, leases, retries and conflict policies. |
+| CAS Storage & LRU | `#/cas` | Visualisers | Content-addressed store model with LRU eviction under a byte budget. |
+| UCB1 Event Bus | `#/ucb1` | Visualisers | Labelled UCB1 header fields and a simulated hub with per-process topic filters. |
+| WAL Storage | `#/wal` | Visualisers | Labelled simulation of SQLite WAL: readers, checkpoint, crash recovery, rollback-journal mode. |
+| TS / Dart / Unity C# | `#/multiplatform` | Guides | Per-subsystem code snippets for TypeScript, Dart and C#, as tabs or side by side; each names its source file. |
+| Platform Parity Matrix | `#/parity` | Guides | Table of how much of each subsystem exists per platform (full / partial / none), with reasons and source files. |
+| TypeScript Sandbox | `#/sandbox` | Sandbox | Editable TypeScript with presets; Run executes it against `@ucsa/core` in a sandboxed iframe (`allow-scripts` only) and shows console output and errors. Types are stripped, not checked. |
+
+An unknown hash renders a not-found page. The sandbox is not a network-isolation guarantee; the page says so.
+
+### Commands
 
 ```bash
-# Via pnpm script:
-pnpm dev:docs
-
-# Or via UCSA CLI (automatically resolves port collisions, falling back from 6006 to 6007):
-ucsa tutorial
-# or alias:
-ucsa docs --port 6006
+pnpm --filter @ucsa/docs dev      # dev server on port 6006 (falls back to 6007 if busy)
+pnpm --filter @ucsa/docs test     # Vitest + jsdom, no browser needed
+pnpm --filter @ucsa/docs build    # tsc -b && vite build -> apps/docs/dist
+ucsa docs                         # CLI launcher: runs the dev server above (alias: ucsa tutorial)
+ucsa docs --port 6006 --dry-run   # validate the launch without starting a server
 ```
 
-### Studio Playgrounds & Features
+`ucsa docs` shells out to `pnpm --filter @ucsa/docs dev`, so it needs the workspace checked out with dependencies installed.
 
-1. **⚡ Live SWR Playground (`<SwrPlayground />`)**:
-   - **Real-Time Lifecycle Tracking**: Visualizes queries through `idle`, `loading`, `success`, and `revalidating` states with millisecond telemetry.
-   - **Structural Sharing Diff Visualizer**: Displays live referential equality status (`prevData === nextData`) alongside JSON payload diffs, demonstrating how `replaceEqualDeep` eliminates component re-renders.
-   - **Tag Invalidation Trigger**: One-click tag invalidation buttons (`users`, `orders`, `profile`) demonstrating $O(\log N)$ cascade purges.
+### Simulation versus real behaviour
 
-2. **⏱️ Timing Controls Simulator (`<TimingPlayground />`)**:
-   - **Dynamic Observer Throttling**: Interactive slider adjusting `throttleMs` (0ms to 1000ms).
-   - **Rapid Burst Generator**: Fires 30 consecutive updates to visually prove render suppression and telemetry reduction (e.g. 30 incoming events suppressed to 3 renders).
-   - **Debounced Search Typeahead**: Interactive search bar with configurable `debounceMs` demonstrating query cancellation and debounced SWR execution.
+Most pages run a small in-browser **model** of a subsystem, not the production class. Where a model exists it is pinned to the real implementation by a parity test under `apps/docs/tests/` (UCB1 codec bytes against `ipc/frame-codec.ts`; CAS hashes against the real CAS store; Outbox transitions against `mutation-outbox.ts`). The WAL page is a labelled simulation of SQLite's pager, and the UCB1 page simulates the hub (no HELLO/token handshake). Treat the pages as explanations of the documented behaviour, and read `packages/core/src` for the authoritative semantics.
 
-3. **📦 Offline Mutation Outbox Simulator (`<OutboxPlayground />`)**:
-   - **Network Offline/Online Switch**: Toggle network connectivity in real time.
-   - **Pending Mutation Queue**: Enqueues and inspects queued mutations with status badges (`pending`, `in_flight`, `failed`).
-   - **Paced Replay**: Demonstrates rate-limited replays (`rateLimitMs`, `batchSize`) to prevent server overload.
-   - **Conflict Resolution Matrix**: Demonstrates and tests `server-wins`, `client-wins`, and custom `merge` policies when encountering HTTP 409 conflicts.
+### Shell, hash routing and adding a page
 
-4. **🗄️ Content-Addressable Storage (CAS) Inspector (`<CasPlayground />`)**:
-   - **Cryptographic Hash Engine**: Calculates and displays SHA-256 digests in real time.
-   - **Storage Quota Utilization Gauge**: Real-time progress bar showing byte quota consumption against high-watermark thresholds.
-   - **LRU Eviction Visualizer**: Interactive "Prune" trigger showcasing deterministic pruning down to 70% of quota based on explicit SQLite access timestamps.
+The sidebar groups are derived from each route's `group` in order of first appearance, the sidebar becomes a drawer under 768px, and it has a skip link and `aria-current="page"` on the active link.
 
-5. **🌐 Multi-Platform Code Tutorial (`<MultiPlatformDocs />`)**:
-   - **Side-by-Side Comparison**: Tabbed interface comparing idiomatic code implementations across **TypeScript Core**, **Dart 3+**, and **C# Unity**.
-   - **5 Core Architectural Patterns**: Covers SWR queries, zero-rebuild observers, timing controls, offline outbox, and CAS storage with copyable code snippets.
+To add a page, add one line to `routes` in `apps/docs/src/routes.ts` plus your own component and CSS files. Do not otherwise edit `App.tsx` or `index.css` (a convention stated in `routes.ts`, not enforced). Use `Prose`, `Callout` and `CodeBlock` from `src/components/Prose.tsx` for text pages.
+
+### Deploying (GitHub Pages)
+
+`.github/workflows/docs.yml` runs on every push to `main` (and manually): it installs with pnpm, builds `@ucsa/core`, runs the `apps/docs` tests, builds `apps/docs`, uploads `apps/docs/dist` as the Pages artifact and deploys it. The build uses the base path `/cli-state-handler/`, so the site is served at `https://<owner>.github.io/cli-state-handler/`. The repository currently has no git remote and no CI, so the workflow exists as a file only and has never run; to use it, add a remote and set Settings > Pages > Source to "GitHub Actions". See `docs/handoff/ucsa-docs-portal.md` for state and follow-ups, and `scripts/epic-check.sh E-008` for the epic's automated verification.
 
 ---
 
@@ -2705,9 +2707,23 @@ UnityEngine.Debug.Log($"Completed story: {finalStory}");
 | **CLI Daemon & Status Bus** | `apps/cli/tests/daemon-command.test.ts` | 6 | Passing (100%) |
 | **Live SWR Playground** | `apps/docs/tests/swr-playground.test.tsx` | 4 | Passing (100%) |
 | **Timing Controls Simulator** | `apps/docs/tests/timing-playground.test.tsx` | 3 | Passing (100%) |
-| **Offline Outbox Simulator** | `apps/docs/tests/outbox-playground.test.tsx` | 2 | Passing (100%) |
-| **CAS Package Inspector** | `apps/docs/tests/cas-playground.test.tsx` | 3 | Passing (100%) |
-| **Multi-Platform Code Docs** | `apps/docs/tests/multiplatform-docs.test.tsx` | 5 | Passing (100%) |
+| **Offline Outbox Simulator** | `apps/docs/tests/outbox-playground.test.tsx` | 15 | Passing (100%) |
+| **CAS Package Inspector** | `apps/docs/tests/cas-playground.test.tsx` | 10 | Passing (100%) |
+| **Multi-Platform Code Docs** | `apps/docs/tests/multiplatform-docs.test.tsx` | 8 | Passing (100%) |
+| **Docs App Shell & Routing** | `apps/docs/tests/app-shell.test.tsx` | 33 | Passing (100%) |
+| **Platform Parity Matrix (docs)** | `apps/docs/tests/parity.test.tsx` | 43 | Passing (100%) |
+| **TypeScript Sandbox (docs)** | `apps/docs/tests/sandbox.test.tsx` | 41 | Passing (100%) |
+| **Tutorial Path (docs)** | `apps/docs/tests/tutorial.test.tsx` | 7 | Passing (100%) |
+| **CAS Model Parity (docs)** | `apps/docs/tests/cas-model.parity.test.ts` | 7 | Passing (100%) |
+| **CAS Model (docs)** | `apps/docs/tests/cas-model.test.ts` | 5 | Passing (100%) |
+| **SWR Lifecycle Graph (docs)** | `apps/docs/tests/lifecycle-graph.test.tsx` | 20 | Passing (100%) |
+| **Outbox Model Parity (docs)** | `apps/docs/tests/outbox-model.parity.test.ts` | 17 | Passing (100%) |
+| **Stale/GC Timeline (docs)** | `apps/docs/tests/stale-timeline.test.tsx` | 17 | Passing (100%) |
+| **UCB1 Codec Parity (docs)** | `apps/docs/tests/ucb1-codec.parity.test.ts` | 28 | Passing (100%) |
+| **UCB1 Hub Model (docs)** | `apps/docs/tests/ucb1-hub.test.ts` | 5 | Passing (100%) |
+| **UCB1 Visualiser (docs)** | `apps/docs/tests/ucb1-visualiser.test.tsx` | 12 | Passing (100%) |
+| **WAL Model (docs)** | `apps/docs/tests/wal-model.test.ts` | 34 | Passing (100%) |
+| **WAL Visualiser (docs)** | `apps/docs/tests/wal-visualiser.test.tsx` | 11 | Passing (100%) |
 | **Dart Lifecycle FSM** | `packages/ucsa_dart/test/lifecycle_test.dart` | 15 | Passing (100%) |
 | **Dart SQLite WAL Storage** | `packages/ucsa_dart/test/sqlite_test.dart` | 19 | Passing (100%) |
 | **Dart Schema Migrations** | `packages/ucsa_dart/test/migration_test.dart` | 6 | Passing (100%) |
@@ -2745,7 +2761,9 @@ UnityEngine.Debug.Log($"Completed story: {finalStory}");
 | **Unity Streaming Chunk Store** | `packages/com.ucsa.unity/Tests/Runtime/StreamChunkTests.cs` | 10 | Passing (100%) |
 | **Unity Streaming Resume Strategies & FSM** | `packages/com.ucsa.unity/Tests/Runtime/ResumeStrategyTests.cs` | 17 | Passing (100%) |
 | **Unity Streaming Query Engine** | `packages/com.ucsa.unity/Tests/Runtime/StreamQueryTests.cs` | 7 | Passing (100%) |
-| **Total** | **83 Test Suites** | **744 Tests** | **744 / 744 Passing (100%) (137 C# Unity + 170 Dart + 1 Flutter + 436 Node/TS/React/CLI/Docs)** |
+| **Total** | **97 Test Suites** | **1047 Tests** | **1047 / 1047 Passing (137 C# Unity + 170 Dart + 1 Flutter + 739 Node/TS/React/CLI/Docs)** |
+
+> All counts in the Total row come from real runs on this branch. Node/TS/React/CLI/Docs: `pnpm test` (60 files, 739 tests; the `apps/docs` subset is 19 files, 320 tests). Dart (170), Flutter (1) and C# (137, via `dotnet test`) come from `scripts/precheck.sh`. The per-row Unity counts above are carried over from earlier releases and sum to 151, which differs from the 137 that `dotnet test` reports; the rows were not reconciled in this change.
 
 ### Verification Commands
 
@@ -2757,7 +2775,7 @@ pnpm run test:full-chain
 # Run type checks and build
 pnpm run typecheck && pnpm run build
 
-# Run complete Vitest suite (436 tests across 46 files, including React DOM, CLI & Docs)
+# Run complete Vitest suite (739 tests across 60 files, including React DOM, CLI & Docs)
 pnpm test
 
 # Run Flutter widget test suite

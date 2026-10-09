@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { QueryEngine, debounceQuery } from "@ucsa/core";
 
-export function TimingPlayground() {
+export function TimingPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "h1" | "h2" } = {}) {
   // --- Section 1: Observer Throttling & Debouncing ---
   const [throttleMs, setThrottleMs] = useState(100);
   const [debounceMs, setDebounceMs] = useState(0);
@@ -149,9 +149,9 @@ export function TimingPlayground() {
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
           <div>
-            <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-main)", marginBottom: "0.25rem" }}>
+            <Title style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-main)", marginBottom: "0.25rem" }}>
               Observer Timing & UI Render Suppression
-            </h2>
+            </Title>
             <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
               Simulates high-frequency incoming data streams (e.g. 60Hz telemetry, rapid WebSocket feeds) and demonstrates how UCSA observer timing controls suppress redundant downstream UI repaints.
             </p>

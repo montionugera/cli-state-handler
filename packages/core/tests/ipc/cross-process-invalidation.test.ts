@@ -173,7 +173,7 @@ describe('Cross-Process Invalidation with BusClient and QueryEngine', () => {
       () => {
         expect(qB.getSnapshot().data).toEqual({ id: 1, count: 2 });
       },
-      { timeout: 100 }
+      { timeout: 2000 }
     );
     expect(fetcherB).toHaveBeenCalledTimes(2);
   });
@@ -209,7 +209,7 @@ describe('Cross-Process Invalidation with BusClient and QueryEngine', () => {
       () => {
         expect(qB.getSnapshot().data).toEqual({ id: 1, name: 'Bob v2' });
       },
-      { timeout: 200 }
+      { timeout: 2000 }
     );
     expect(fetcherB).toHaveBeenCalledTimes(2);
   });

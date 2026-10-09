@@ -1,0 +1,31 @@
+/* Home page styles. Per-page CSS lives next to the page and is imported by it. */
+.home__title { font-size: var(--text-xl); font-weight: 800; margin-bottom: var(--space-3); }
+.home__lead { color: var(--text-muted); margin-bottom: var(--space-6); }
+
+.home__panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+.home__panel {
+  min-width: 0;
+  padding: 1.25rem;
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-md);
+}
+.home__panel-title { font-size: var(--text-base); font-weight: 700; margin-bottom: var(--space-2); }
+.home__panel-title--cyan { color: var(--accent-cyan); }
+.home__panel-title--emerald { color: var(--accent-emerald); }
+.home__list {
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+@media (max-width: 767px) {
+  .home__panels { grid-template-columns: minmax(0, 1fr); }
+}

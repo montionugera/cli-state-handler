@@ -1,218 +1,293 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import type { ConflictPolicy } from "@ucsa/core";
+import { OutboxModel } from "../models/outbox-model.js";
+import type { OutboxMutation, SettleOutcome } from "../models/outbox-model.js";
+import "./outbox-playground.css";
 
-interface SimulatedMutation {
-  id: string;
-  endpoint: string;
-  method: string;
-  payload: string;
-  status: "pending" | "in_flight" | "synced" | "conflict";
-  retryCount: number;
-  conflictPolicy: ConflictPolicy;
-  outcome?: string;
-  createdAt: number;
+const LEASE_MS = 30000;
+const CLOCK_START = 1_700_000_000_000;
+const SERVER_DATA = { serverField: "from-server", theme: "light" };
+
+const STATUS_GLYPH: Record<OutboxMutation["status"], string> = {
+  pending: "● pending",
+  in_flight: "▶ in_flight",
+  failed: "✖ failed",
+};
+
+const STATUS_CLASS: Record<OutboxMutation["status"], string> = {
+  pending: "badge-blue",
+  in_flight: "badge-amber",
+  failed: "badge-rose",
+};
+
+type WorkerId = "worker-a" | "worker-b";
+const WORKERS: Array<{ id: WorkerId; label: string }> = [
+  { id: "worker-a", label: "Worker A" },
+  { id: "worker-b", label: "Worker B" },
+];
+
+const OUTCOME_TEXT: Record<SettleOutcome, string> = {
+  synced: "synced, removed from outbox",
+  "rolled-back": "server-wins: rolled back and removed",
+  forced: "client-wins: re-queued with X-Force-Overwrite",
+  merged: "merge: payload merged with server data, re-queued",
+  failed: "failed permanently",
+  retry: "transient failure, back to pending",
+};
+
+function parsePayload(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
 }
 
-export function OutboxPlayground() {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function mergePayload(local: unknown, server: unknown): unknown {
+  return isRecord(local) && isRecord(server) ? { ...server, ...local } : local;
+}
+
+function leaseText(m: OutboxMutation, now: number): string {
+  if (m.status !== "in_flight" || !m.lease_owner || m.lease_until == null) return "none";
+  const seconds = Math.ceil(Math.abs(m.lease_until - now) / 1000);
+  return m.lease_until < now
+    ? `${m.lease_owner}, lease expired ${seconds}s ago (claimable)`
+    : `${m.lease_owner}, expires in ${seconds}s`;
+}
+
+export function OutboxPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "h1" | "h2" } = {}) {
+  const clockRef = useRef(CLOCK_START);
+  const logRef = useRef<Array<{ id: number; text: string }>>([]);
+  const logSeq = useRef(0);
+  const serverConflicts = useRef(new Set<string>());
+  const conflicted = useRef(new Set<string>());
+  // Each worker keeps the mutations it claimed and settles them by id, as a real caller would.
+  const claimedRef = useRef<Record<WorkerId, OutboxMutation[]>>({ "worker-a": [], "worker-b": [] });
+  const [, setRev] = useState(0);
+  const bump = () => setRev((r) => r + 1);
+
+  const addLog = (msg: string) => {
+    logRef.current = [{ id: ++logSeq.current, text: `[t+${Math.round((clockRef.current - CLOCK_START) / 1000)}s] ${msg}` }, ...logRef.current].slice(0, 40);
+  };
+
+  const [model] = useState(() => {
+    const m = new OutboxModel({
+      clock: () => clockRef.current,
+      defaultLeaseDurationMs: LEASE_MS,
+      onRollback: (mut) => {
+        addLog(`↩ Rollback callback ran for ${mut.mutation_id}`);
+      },
+      mergeResolver: mergePayload,
+    });
+    m.enqueue({ mutation_id: "mut_001", endpoint: "/api/v1/user/settings", method: "PATCH", payload: { theme: "dark" }, conflictPolicy: "merge" });
+    clockRef.current += 1;
+    m.enqueue({ mutation_id: "mut_002", endpoint: "/api/v1/orders/checkout", method: "POST", payload: { item: "item_99", qty: 1 }, conflictPolicy: "server-wins" });
+    clockRef.current += 1;
+    serverConflicts.current.add("mut_002");
+    return m;
+  });
+
   const [isOnline, setIsOnline] = useState(false);
   const [rateLimitMs, setRateLimitMs] = useState(80);
   const [batchSize, setBatchSize] = useState(2);
   const [selectedPolicy, setSelectedPolicy] = useState<ConflictPolicy>("merge");
-
-  // Mutation form state
+  const [serverNewer, setServerNewer] = useState(false);
   const [endpoint, setEndpoint] = useState("/api/v1/user/settings");
   const [method, setMethod] = useState("PATCH");
   const [payloadStr, setPayloadStr] = useState('{"theme": "dark", "syncInterval": 30}');
-
-  // Queue state
-  const [mutations, setMutations] = useState<SimulatedMutation[]>([
-    {
-      id: "mut_001",
-      endpoint: "/api/v1/user/settings",
-      method: "PATCH",
-      payload: '{"theme": "dark"}',
-      status: "pending",
-      retryCount: 0,
-      conflictPolicy: "merge",
-      createdAt: Date.now() - 15000
-    },
-    {
-      id: "mut_002",
-      endpoint: "/api/v1/orders/checkout",
-      method: "POST",
-      payload: '{"item": "item_99", "qty": 1}',
-      status: "pending",
-      retryCount: 0,
-      conflictPolicy: "server-wins",
-      createdAt: Date.now() - 10000
-    }
-  ]);
-
-  const [logs, setLogs] = useState<string[]>([]);
   const [isReplaying, setIsReplaying] = useState(false);
+  const [progress, setProgress] = useState({ sent: 0, total: 0 });
+  const [completed, setCompleted] = useState(0);
+  // Seeded mutations are mut_001 and mut_002, so new ids continue from 3.
+  const nextId = useRef(3);
 
-  const addLog = (msg: string) => {
-    setLogs((prev) => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 19)]);
+  const mutations = model.getAllMutations();
+  const now = clockRef.current;
+  const count = (s: OutboxMutation["status"]) => mutations.filter((m) => m.status === s).length;
+
+  const advance = (ms: number) => {
+    clockRef.current += ms;
+    addLog(`⏱ Virtual clock advanced ${ms / 1000}s`);
+    bump();
+  };
+
+  const countOutcome = (outcome: SettleOutcome) => {
+    if (outcome === "synced" || outcome === "rolled-back") setCompleted((c) => c + 1);
   };
 
   const handleEnqueue = () => {
-    const newMut: SimulatedMutation = {
-      id: `mut_${Math.random().toString(36).substring(2, 7)}`,
+    const id = `mut_${String(nextId.current++).padStart(3, "0")}`;
+    model.enqueue({
+      mutation_id: id,
       endpoint,
       method,
-      payload: payloadStr,
-      status: "pending",
-      retryCount: 0,
+      payload: parsePayload(payloadStr),
       conflictPolicy: selectedPolicy,
-      createdAt: Date.now()
-    };
-    setMutations((prev) => [...prev, newMut]);
-    addLog(`Enqueued mutation ${newMut.id} (${newMut.method} ${newMut.endpoint}) to offline outbox`);
+    });
+    if (serverNewer) serverConflicts.current.add(id);
+    clockRef.current += 1; // one tick per enqueue keeps created_at unique
+    addLog(`Enqueued ${id} (${method} ${endpoint}, ${selectedPolicy}) -> pending${isOnline ? "" : " while offline"}`);
+    bump();
+  };
+
+  const handleToggle = () => {
+    const next = !isOnline;
+    setIsOnline(next);
+    addLog(`Network state changed to: ${next ? "ONLINE" : "OFFLINE"}`);
+  };
+
+  const handleClaim = (worker: WorkerId) => {
+    const claimed = model.claimPendingMutations(worker, LEASE_MS, batchSize);
+    claimedRef.current[worker] = claimed;
+    addLog(`${worker} claimed ${claimed.length} mutation(s)${claimed.length ? `: ${claimed.map((m) => m.mutation_id).join(", ")}` : " (every row has a live lease or none are claimable)"}`);
+    bump();
+  };
+
+  const handleRespond = async (worker: WorkerId, status: number) => {
+    const held = claimedRef.current[worker];
+    if (held.length === 0) {
+      addLog(`${worker} has no claimed mutations to respond to (claim first)`);
+      bump();
+      return;
+    }
+    claimedRef.current[worker] = [];
+    for (const m of held) {
+      const current = model.getMutation(m.mutation_id);
+      const gone = !current;
+      const notHolder = !!current && (current.lease_owner !== worker || (current.lease_until != null && current.lease_until < clockRef.current));
+      const outcome = await model.settle(m, { status, data: status === 409 ? SERVER_DATA : undefined });
+      countOutcome(outcome);
+      const text = gone
+        ? outcome === "rolled-back"
+          ? "the row was already gone from the outbox, but the rollback ran again (the option-level fallback survives the row's removal) and the mutation still counts as successful"
+          : outcome === "synced"
+            ? "the row was already gone from the outbox; nothing was left to remove"
+            : "the row was already gone from the outbox; there was no row left to update"
+        : OUTCOME_TEXT[outcome];
+      const note = notHolder
+        ? status >= 200 && status < 300
+          ? " [this worker no longer holds a live lease, but completion is not checked against the lease owner in the current library]"
+          : outcome === "retry" || outcome === "failed"
+            ? ` [this worker no longer holds a live lease; its failure still clears ${current?.lease_owner ?? "the new holder"}'s lease and re-queues the row with its retry count raised, as the current library does]`
+            : " [this worker no longer holds a live lease, but completion is not checked against the lease owner in the current library]"
+        : "";
+      addLog(`${outcome === "synced" || outcome === "rolled-back" ? "✅ " : ""}${worker} got HTTP ${status} for ${m.mutation_id} (${m.conflictPolicy ?? "server-wins"}): ${text}${note}`);
+    }
+    bump();
   };
 
   const handleReplay = async () => {
     if (!isOnline) {
-      addLog("⚠️ Cannot replay outbox while OFFLINE! Toggle status to Online first.");
+      addLog("⚠️ Replay held while OFFLINE. Holding replay until online is a rule of this playground (and of a well-behaved caller); the core outbox has no connectivity check. Replaying offline would make every send throw, raising retry_count until the row is failed at maxRetries.");
+      bump();
       return;
     }
-    const pending = mutations.filter((m) => m.status === "pending");
-    if (pending.length === 0) {
-      addLog("ℹ️ No pending mutations in outbox queue.");
+    const claimable = model.countClaimable();
+    if (claimable === 0) {
+      addLog("ℹ️ No claimable mutations in the outbox (nothing pending, and no in_flight row with an expired lease).");
+      bump();
       return;
     }
-
+    const total = Math.min(claimable, batchSize);
     setIsReplaying(true);
-    addLog(`🚀 Starting outbox replay: ${pending.length} pending mutations, rateLimitMs: ${rateLimitMs}ms, batchSize: ${batchSize}`);
-
-    // Process in batches with rate-limiting
-    for (let i = 0; i < pending.length; i += batchSize) {
-      const batch = pending.slice(i, i + batchSize);
-
-      for (const m of batch) {
-        // Set in flight
-        setMutations((prev) =>
-          prev.map((item) => (item.id === m.id ? { ...item, status: "in_flight" } : item))
-        );
-        addLog(`⏳ In flight: ${m.id} (${m.method} ${m.endpoint})`);
-
-        // Wait rateLimitMs pacing
-        if (rateLimitMs > 0) {
-          await new Promise((res) => setTimeout(res, rateLimitMs));
+    setProgress({ sent: 0, total });
+    addLog(`🚀 Starting outbox replay as worker-a: ${total} of ${claimable} claimable, rateLimitMs: ${rateLimitMs}ms, batchSize: ${batchSize}`);
+    let sent = 0;
+    const statuses = new Map<string, number>();
+    const result = await model.replay(
+      async (m) => {
+        sent++;
+        setProgress({ sent, total });
+        addLog(`⏳ Sent ${m.mutation_id} (${m.method} ${m.endpoint})`);
+        bump();
+        const wantsConflict = serverConflicts.current.has(m.mutation_id) && !conflicted.current.has(m.mutation_id) && !m.forced;
+        if (wantsConflict) {
+          conflicted.current.add(m.mutation_id);
+          statuses.set(m.mutation_id, 409);
+          return { status: 409, data: SERVER_DATA };
         }
-
-        // Simulate random conflict on 2nd mutation to demonstrate policy
-        const isConflict = m.id === "mut_002" || m.endpoint.includes("checkout");
-        let outcome = "Synced 200 OK";
-
-        if (isConflict) {
-          if (m.conflictPolicy === "server-wins") {
-            outcome = "409 Conflict: Server-wins applied (Local mutation rolled back)";
-          } else if (m.conflictPolicy === "client-wins") {
-            outcome = "409 Conflict: Client-wins forced (Overwrote server state)";
-          } else {
-            outcome = "409 Conflict: Merge applied (Combined non-overlapping fields)";
-          }
-        }
-
-        setMutations((prev) =>
-          prev.map((item) =>
-            item.id === m.id
-              ? {
-                  ...item,
-                  status: isConflict ? "conflict" : "synced",
-                  outcome
-                }
-              : item
-          )
-        );
-        addLog(`✅ Resolved ${m.id}: ${outcome}`);
+        statuses.set(m.mutation_id, 200);
+        return { status: 200 };
+      },
+      {
+        rateLimitMs,
+        batchSize,
+        workerId: "worker-a",
+        leaseDurationMs: LEASE_MS,
+        sleep: (ms) =>
+          new Promise<void>((resolve) =>
+            setTimeout(() => {
+              clockRef.current += ms;
+              resolve();
+            }, ms)
+          ),
+        onOutcome: (m, outcome) => {
+          const done = outcome === "synced" || outcome === "rolled-back";
+          addLog(`${done ? "✅ " : ""}${m.mutation_id} (HTTP ${statuses.get(m.mutation_id) ?? "?"}, ${m.conflictPolicy ?? "server-wins"}): ${OUTCOME_TEXT[outcome]}`);
+        },
       }
-    }
-
+    );
+    setCompleted((c) => c + result.successful);
     setIsReplaying(false);
-    addLog("🏁 Replay batch complete.");
+    addLog(`🏁 Replay batch complete: processed ${result.processed}, successful ${result.successful}, failed ${result.failed}.`);
+    bump();
   };
 
-  const pendingCount = mutations.filter((m) => m.status === "pending").length;
-  const syncedCount = mutations.filter((m) => m.status === "synced" || m.status === "conflict").length;
-
   return (
-    <div className="outbox-playground space-y-6">
+    <div className="outbox-playground">
       <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
-          <div>
-            <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-main)", marginBottom: "0.25rem" }}>
-              Offline Mutation Outbox & Conflict Resolution
-            </h2>
-            <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
-              Enqueues mutations when disconnected and replays with rate-limiting pacing (rateLimitMs) and automatic conflict resolution policies.
+        <div className="ob-head">
+          <div className="ob-head-text">
+            <Title className="ob-title">Offline Mutation Outbox & Conflict Resolution</Title>
+            <p className="ob-muted">
+              Enqueues mutations when disconnected and replays them with rate-limit pacing, per-worker leases and conflict policies.
+            </p>
+            <p className="ob-muted ob-model-note">
+              This is a browser model of the outbox. Its behaviour is checked against the real SQLite-backed MutationOutbox by the parity test suite.
             </p>
           </div>
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            <button
-              onClick={() => {
-                const next = !isOnline;
-                setIsOnline(next);
-                addLog(`Network state changed to: ${next ? "ONLINE 🟢" : "OFFLINE 🔴"}`);
-              }}
-              className={`btn ${isOnline ? "btn-primary" : "btn-danger"}`}
-            >
-              {isOnline ? "🟢 Network: ONLINE" : "🔴 Network: OFFLINE"}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleToggle}
+            className={`btn ${isOnline ? "btn-primary" : "btn-danger"}`}
+          >
+            {isOnline ? "🟢 Network: ONLINE" : "🔴 Network: OFFLINE"}
+          </button>
         </div>
 
-        {/* Configuration Bar */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
+        <div className="ob-config">
           <div>
-            <label className="stat-label">Rate-Limit Pacing ({rateLimitMs} ms)</label>
-            <input
-              type="range"
-              min="0"
-              max="300"
-              step="20"
-              value={rateLimitMs}
-              onChange={(e) => setRateLimitMs(Number(e.target.value))}
-              style={{ width: "100%" }}
-            />
+            <label className="stat-label" htmlFor="ob-rate">Rate-limit pacing ({rateLimitMs} ms)</label>
+            <input id="ob-rate" className="ob-full" type="range" min="0" max="300" step="20" value={rateLimitMs} onChange={(e) => setRateLimitMs(Number(e.target.value))} />
           </div>
           <div>
-            <label className="stat-label">Batch Size</label>
-            <select
-              className="input"
-              style={{ width: "100%" }}
-              value={batchSize}
-              onChange={(e) => setBatchSize(Number(e.target.value))}
-            >
+            <label className="stat-label" htmlFor="ob-batch">Batch size</label>
+            <select id="ob-batch" className="input ob-full" value={batchSize} onChange={(e) => setBatchSize(Number(e.target.value))}>
               <option value="1">1 mutation / batch</option>
               <option value="2">2 mutations / batch</option>
               <option value="5">5 mutations / batch</option>
             </select>
           </div>
           <div>
-            <label className="stat-label">Conflict Policy</label>
-            <select
-              className="input"
-              style={{ width: "100%" }}
-              value={selectedPolicy}
-              onChange={(e) => setSelectedPolicy(e.target.value as ConflictPolicy)}
-            >
-              <option value="merge">merge (Field-level 3-way)</option>
-              <option value="server-wins">server-wins (Rollback)</option>
-              <option value="client-wins">client-wins (Force Overwrite)</option>
+            <label className="stat-label" htmlFor="ob-policy">Conflict policy</label>
+            <select id="ob-policy" className="input ob-full" value={selectedPolicy} onChange={(e) => setSelectedPolicy(e.target.value as ConflictPolicy)}>
+              <option value="merge">merge (resolver combines local and server)</option>
+              <option value="server-wins">server-wins (rollback)</option>
+              <option value="client-wins">client-wins (force overwrite)</option>
             </select>
           </div>
         </div>
 
-        {/* Enqueue Form */}
-        <div style={{ background: "var(--bg-sidebar)", padding: "1rem", borderRadius: "8px", border: "1px solid var(--border-card)", marginBottom: "1.5rem" }}>
-          <div style={{ fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.75rem" }}>
-            Create Mutation (Simulate offline user action)
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "100px 1fr 1fr auto", gap: "0.75rem", alignItems: "flex-end" }}>
+        <div className="ob-form">
+          <div className="ob-form-title">Create mutation (simulate an offline user action)</div>
+          <div className="ob-form-grid">
             <div>
-              <label className="stat-label">Method</label>
-              <select className="input" style={{ width: "100%" }} value={method} onChange={(e) => setMethod(e.target.value)}>
+              <label className="stat-label" htmlFor="ob-method">Method</label>
+              <select id="ob-method" className="input ob-full" value={method} onChange={(e) => setMethod(e.target.value)}>
                 <option value="POST">POST</option>
                 <option value="PATCH">PATCH</option>
                 <option value="PUT">PUT</option>
@@ -220,106 +295,121 @@ export function OutboxPlayground() {
               </select>
             </div>
             <div>
-              <label className="stat-label">Endpoint</label>
-              <input type="text" className="input" style={{ width: "100%" }} value={endpoint} onChange={(e) => setEndpoint(e.target.value)} />
+              <label className="stat-label" htmlFor="ob-endpoint">Endpoint</label>
+              <input id="ob-endpoint" type="text" className="input ob-full" value={endpoint} onChange={(e) => setEndpoint(e.target.value)} />
             </div>
             <div>
-              <label className="stat-label">JSON Payload</label>
-              <input type="text" className="input" style={{ width: "100%" }} value={payloadStr} onChange={(e) => setPayloadStr(e.target.value)} />
+              <label className="stat-label" htmlFor="ob-payload">JSON payload</label>
+              <input id="ob-payload" type="text" className="input ob-full" value={payloadStr} onChange={(e) => setPayloadStr(e.target.value)} />
             </div>
-            <button className="btn btn-secondary" onClick={handleEnqueue}>
-              📥 Enqueue
-            </button>
+            <label className="ob-check">
+              <input type="checkbox" checked={serverNewer} onChange={(e) => setServerNewer(e.target.checked)} />
+              Server has a newer version (first send gets HTTP 409)
+            </label>
+          </div>
+          <div className="ob-actions">
+            <button type="button" className="btn btn-secondary" onClick={handleEnqueue}>📥 Enqueue</button>
           </div>
         </div>
 
-        {/* Metric Tiles & Replay Action */}
         <div className="stat-grid">
           <div className="stat-tile">
-            <div className="stat-label">Pending Outbox Size</div>
-            <div className="stat-value" style={{ color: "var(--accent-amber)" }}>{pendingCount}</div>
+            <div className="stat-label">Pending</div>
+            <div className="stat-value ob-amber">{count("pending")}</div>
           </div>
           <div className="stat-tile">
-            <div className="stat-label">Synced Mutations</div>
-            <div className="stat-value" style={{ color: "var(--accent-emerald)" }}>{syncedCount}</div>
+            <div className="stat-label">In flight (leased)</div>
+            <div className="stat-value ob-cyan">{count("in_flight")}</div>
           </div>
           <div className="stat-tile">
-            <div className="stat-label">Pacing Rate</div>
-            <div className="stat-value" style={{ color: "var(--accent-cyan)" }}>{rateLimitMs} ms</div>
+            <div className="stat-label">Failed</div>
+            <div className="stat-value ob-rose">{count("failed")}</div>
           </div>
-          <div className="stat-tile" style={{ display: "flex", alignItems: "center" }}>
-            <button
-              className="btn btn-primary"
-              style={{ width: "100%", height: "42px" }}
-              disabled={isReplaying}
-              onClick={handleReplay}
-            >
-              {isReplaying ? "⏳ Replaying..." : "🚀 Replay Outbox"}
-            </button>
+          <div className="stat-tile">
+            <div className="stat-label">Completed</div>
+            <div className="stat-value ob-emerald">{completed}</div>
           </div>
         </div>
 
-        {/* Mutation Table */}
-        <div style={{ marginBottom: "1.5rem" }}>
-          <div className="stat-label" style={{ marginBottom: "0.5rem" }}>Active Outbox Queue</div>
-          <div style={{ overflowX: "auto", border: "1px solid var(--border-card)", borderRadius: "8px" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem", textAlign: "left" }}>
+        <div className="ob-workers">
+          {WORKERS.map((w) => (
+            <section key={w.id} className="ob-worker" aria-label={w.label}>
+              <div className="ob-form-title">{w.label} <code>{w.id}</code></div>
+              <div className="ob-actions">
+                <button type="button" className="btn btn-secondary" disabled={!isOnline || isReplaying} onClick={() => handleClaim(w.id)}>Claim as {w.label}</button>
+                {[200, 503, 409, 400].map((status) => (
+                  <button key={status} type="button" className="btn btn-secondary" disabled={!isOnline || isReplaying} onClick={() => void handleRespond(w.id, status)}>
+                    {w.label}: respond {status}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+        <p className="ob-muted">Conflict policy and the rollback / merge callbacks are held in memory by the outbox instance that enqueued the mutation, not stored in SQLite, so a worker in another process would not have them (a second instance falls back to its own option-level callbacks, and to server-wins when no policy is known); this playground's two workers share one instance.</p>
+        {!isOnline && <p className="ob-muted" role="note">This playground only lets workers claim and respond while online, and holds Replay until online; that is a rule of the playground, not of the library. The core outbox does not check connectivity: replaying offline makes each send throw, so retry_count rises and the row becomes failed after maxRetries attempts.</p>}
+
+        <div className="ob-actions ob-clock">
+          <span className="stat-label ob-clock-label">Virtual clock: t+{Math.round((now - CLOCK_START) / 1000)}s (lease length {LEASE_MS / 1000}s)</span>
+          <button type="button" className="btn btn-secondary" onClick={() => advance(10000)}>Advance clock +10s</button>
+          <button type="button" className="btn btn-secondary" onClick={() => advance(31000)}>Advance clock +31s</button>
+          <button type="button" className="btn btn-primary" disabled={isReplaying} onClick={() => void handleReplay()}>
+            {isReplaying ? "⏳ Replaying..." : "🚀 Replay Outbox"}
+          </button>
+        </div>
+
+        <div className="ob-meter">
+          <label className="stat-label" htmlFor="ob-progress">Rate-limit meter ({rateLimitMs} ms between sends)</label>
+          <progress id="ob-progress" className="ob-full" max={Math.max(progress.total, 1)} value={progress.sent} />
+          <div className="ob-muted">Sent {progress.sent} of {progress.total}</div>
+        </div>
+
+        <div className="ob-section">
+          <div className="stat-label">Active outbox queue</div>
+          <div className="ob-table-wrap" role="region" aria-label="Outbox queue (scrollable)" tabIndex={0}>
+            <table className="ob-table" aria-label="Outbox queue">
               <thead>
-                <tr style={{ background: "var(--bg-sidebar)", borderBottom: "1px solid var(--border-card)", color: "var(--text-muted)" }}>
-                  <th style={{ padding: "0.5rem 0.75rem" }}>ID</th>
-                  <th style={{ padding: "0.5rem 0.75rem" }}>Method</th>
-                  <th style={{ padding: "0.5rem 0.75rem" }}>Endpoint</th>
-                  <th style={{ padding: "0.5rem 0.75rem" }}>Payload</th>
-                  <th style={{ padding: "0.5rem 0.75rem" }}>Policy</th>
-                  <th style={{ padding: "0.5rem 0.75rem" }}>Status</th>
+                <tr>
+                  <th>ID</th>
+                  <th>Method</th>
+                  <th>Endpoint</th>
+                  <th>Payload</th>
+                  <th>Policy</th>
+                  <th>Status</th>
+                  <th>Retries</th>
+                  <th>Lease</th>
+                  <th>Flags</th>
                 </tr>
               </thead>
               <tbody>
                 {mutations.map((m) => (
-                  <tr key={m.id} style={{ borderBottom: "1px solid var(--border-card)", background: "var(--bg-card)" }}>
-                    <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--font-mono)" }}>{m.id}</td>
-                    <td style={{ padding: "0.5rem 0.75rem", fontWeight: 700 }}>{m.method}</td>
-                    <td style={{ padding: "0.5rem 0.75rem", fontFamily: "var(--font-mono)" }}>{m.endpoint}</td>
-                    <td style={{ padding: "0.5rem 0.75rem", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {m.payload}
-                    </td>
-                    <td style={{ padding: "0.5rem 0.75rem" }}>
-                      <span className="badge badge-cyan">{m.conflictPolicy}</span>
-                    </td>
-                    <td style={{ padding: "0.5rem 0.75rem" }}>
-                      <span
-                        className={`badge ${
-                          m.status === "synced"
-                            ? "badge-emerald"
-                            : m.status === "in_flight"
-                            ? "badge-amber"
-                            : m.status === "conflict"
-                            ? "badge-rose"
-                            : "badge-blue"
-                        }`}
-                      >
-                        {m.status}
-                      </span>
-                    </td>
+                  <tr key={m.mutation_id}>
+                    <td className="ob-mono">{m.mutation_id}</td>
+                    <td className="ob-strong">{m.method}</td>
+                    <td className="ob-mono">{m.endpoint}</td>
+                    <td className="ob-payload ob-mono">{JSON.stringify(m.payload)}</td>
+                    <td><span className="badge badge-cyan">{m.conflictPolicy ?? "server-wins"}</span></td>
+                    <td><span className={`badge ${STATUS_CLASS[m.status]}`}>{STATUS_GLYPH[m.status]}</span></td>
+                    <td>{m.retry_count}</td>
+                    <td>{leaseText(m, now)}</td>
+                    <td className="ob-mono">{m.forced ? "forced · X-Force-Overwrite" : "-"}{m.error ? ` · ${m.error}` : ""}</td>
                   </tr>
                 ))}
+                {mutations.length === 0 && (
+                  <tr><td colSpan={9} className="ob-muted">Outbox is empty.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Real-time Event Log */}
-        <div>
-          <div className="stat-label" style={{ marginBottom: "0.5rem" }}>Replay Activity Log</div>
-          <div style={{ background: "var(--bg-sidebar)", padding: "0.75rem", borderRadius: "8px", border: "1px solid var(--border-card)", height: "120px", overflowY: "auto", fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>
-            {logs.length > 0 ? (
-              logs.map((log, i) => (
-                <div key={i} style={{ color: log.includes("⚠️") ? "var(--accent-amber)" : log.includes("✅") ? "var(--accent-emerald)" : "var(--text-muted)" }}>
-                  {log}
-                </div>
-              ))
+        <div className="ob-section">
+          <div className="stat-label">Activity log</div>
+          <div className="ob-log" role="log" aria-live="polite" aria-label="Outbox activity log" tabIndex={0}>
+            {logRef.current.length > 0 ? (
+              logRef.current.map((log) => <div key={log.id}>{log.text}</div>)
             ) : (
-              <div style={{ color: "var(--text-muted)" }}>Logs will appear here during mutation lifecycle and replay.</div>
+              <div className="ob-muted">Logs will appear here during the mutation lifecycle and replay.</div>
             )}
           </div>
         </div>

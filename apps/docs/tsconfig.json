@@ -14,5 +14,5 @@
       "@ucsa/core": ["../../packages/core/src/index.ts"]
     }
   },
-  "include": ["src/**/*", "tests/**/*", "vite.config.ts"]
+  "include": ["src/**/*", "tests/**/*", "vite.config.ts", "vite-plugins/**/*"]
 }

@@ -85,9 +85,17 @@ slot_integration_real_datastore() {
 
 # SLOT 2 - browser smoke: click every primary control, fail on any page error
 # (console error, uncaught exception, failed request), e.g. a Playwright spec.
+# No browser runner is in scope for apps/docs: this slot runs its jsdom tests,
+# builds it, and checks the bundle exists and has no Node-only imports.
 slot_browser_smoke() {
-  # n/a: headless state engine, browser UI smoke belongs in consuming web apps
-  unfilled
+  pnpm --filter @ucsa/docs test
+  pnpm --filter @ucsa/docs build
+  test -f apps/docs/dist/index.html
+  # Quoted module specifiers only: guide pages mention these names in prose (backtick strings).
+  if grep -rEl "[\"'](better-sqlite3|node:(fs|net|crypto|path))[\"']" apps/docs/dist/assets; then
+    echo "apps/docs bundle contains Node-only imports"
+    return 1
+  fi
 }
 
 # SLOT 3 - data reconciliation: row count out == row count in; no hardcoded LIMIT.
