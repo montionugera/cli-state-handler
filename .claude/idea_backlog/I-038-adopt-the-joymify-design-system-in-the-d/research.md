@@ -31,3 +31,10 @@ Remaining for the spec once packages are published: replace the aliases with reg
 - The separate navigation commit was dropped: main's 1.8 redesign already ships hash routing. The sidebar is still main's anchor sidebar, not the Joymify Menu, despite the message of `68ad8b7`.
 - Peer's evidence: `pnpm --filter @ucsa/docs build` exit 0; docs tests 19 files / 320 passed.
 - Merge blocker: `.github/workflows/docs.yml` and `release.yml` check out only this repo, so the `../joy-design` aliases fail the Pages build and the release test run. Root `pnpm typecheck` also lacks the alias paths. Replacing the aliases with the published `@montionugera/joy-*` packages (plus `.npmrc` and a `read:packages` token in CI) resolves all three; this is in scope for I-038.
+
+## Owner decision 2026-10-09 (late): packages move to `@joymify`
+
+- The owner chose to rename the Joymify packages to `@joymify/tokens`, `@joymify/icons`, `@joymify/brand`, `@joymify/react` and publish them privately to the `joymify` GitHub organisation on GitHub Packages, with a personal token. Work: joy-design feature F-073 on its release 3.8.
+- Consequence for this spec: the registry line becomes `@joymify:registry=https://npm.pkg.github.com`, which does not touch the `@montionugera` scope. The three npmjs.com pins and the `publishConfig` scope key added by the audit (phase 1a) are no longer needed; the library release pipeline stays as it is apart from making a read token available at install.
+- CI access changes too: organisation-owned packages are read with a token stored as a repository secret (`read:packages`), not with the "Manage Actions access" grant on the old personal-account packages. That earlier grant request to the owner is void.
+- spec.md must be revised for this before planning; wait until `@joymify/*` is actually on the registry.
