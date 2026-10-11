@@ -13,6 +13,8 @@ const root = document.documentElement;
 const checked = (name: string) => screen.getByRole("radio", { name }).getAttribute("aria-checked");
 describe("theme toggle", () => {
   beforeEach(() => {
+    // Node 25+ ships its own global localStorage, which shadows jsdom's and is unusable without --localstorage-file.
+    vi.stubGlobal("localStorage", (globalThis as unknown as { jsdom: { window: Window } }).jsdom.window.localStorage);
     localStorage.clear();
     root.removeAttribute("data-theme");
   });
