@@ -17,3 +17,5 @@
 **Next step:** once phase 0 is met: execute with `subagent-driven-development`, starting at Task 1 (it stops the run if phase 0 is still unmet). Task 3 (mapping and workflows) has its own review gate; at promote time read the registry out of the publish step's log.
 
 **Read first:** "Findings that shape the plan" in `plan.md` lists sixteen places where the plan departs from, or fills a gap in, the spec. Finding 16 (2026-10-11) is the registry design and its evidence.
+
+Baseline docs tests: 328
