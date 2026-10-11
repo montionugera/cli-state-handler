@@ -21,9 +21,11 @@ limit="${PUBLISH_POLL_LIMIT:-20}"
 dest="$RUNNER_TEMP/npmjs"
 mkdir -p "$dest"
 
-# visible <name> <version>: succeeds when the registry shows the version, fails
-# when it does not yet (E404, or no output). Any other npm error exits the
+# visible <name> <version> [wait]: succeeds when the registry shows the version,
+# fails when it does not yet (E404, or no output). Any other npm error exits the
 # script: a network or registry failure must not be mistaken for "not yet".
+# With a third argument (the polling wait) a transient error is only a warning
+# and counts as "not yet", so one network blip does not end a 5-minute wait.
 visible() {
   local out rc=0
   out="$(npm view --prefer-online "$1@$2" version 2>"$dest/view.err")" || rc=$?
@@ -32,6 +34,11 @@ visible() {
     return
   fi
   if grep -q E404 "$dest/view.err"; then
+    return 1
+  fi
+  if [ -n "${3:-}" ]; then
+    echo "warning: npm view $1@$2 failed, will check again:" >&2
+    cat "$dest/view.err" >&2
     return 1
   fi
   echo "error: npm view $1@$2 failed:" >&2
@@ -61,7 +68,7 @@ for dir in packages/core apps/cli; do
   shown=0
   for ((i = 1; i <= limit; i++)); do
     sleep "$interval"
-    if visible "$name" "$version"; then
+    if visible "$name" "$version" wait; then
       shown=1
       break
     fi

@@ -37,6 +37,7 @@ case "$cmd" in
       visible) echo "$version" ;;
       404) echo "npm error code E404" >&2; echo "npm error 404 No match found for version $version" >&2; exit 1 ;;
       error) echo "npm error code ETIMEDOUT" >&2; echo "npm error network request failed" >&2; exit 1 ;;
+      empty) exit 0 ;;
       *) echo "stub npm: bad view line '$line'" >&2; exit 3 ;;
     esac ;;
   publish)
@@ -221,6 +222,25 @@ describe('publish-packages.sh', () => {
     expect(r.stderr).toContain('ETIMEDOUT');
     expect(count(r.calls, /^pnpm pack/)).toBe(0);
     expect(count(r.calls, /^npm publish/)).toBe(0);
+  });
+
+  it('treats an npm view that exits 0 with no output as not on the registry yet', () => {
+    views(core.name, ['empty', 'visible']);
+    views(cli.name, ['visible']);
+    publishFails(core.name, 1, 'npm error code E409\nnpm error 409 Conflict - Cannot publish over previously staged version');
+    const r = run();
+    expect(r.status, r.out).toBe(0);
+    expect(viewsOf(r.calls, core.name)).toBe(2);
+  });
+
+  it('survives one transient npm view error during the wait', () => {
+    views(core.name, ['404', 'error', 'visible']);
+    views(cli.name, ['visible']);
+    publishFails(core.name, 1, 'npm error code E409\nnpm error 409 Conflict - Cannot publish over previously staged version');
+    const r = run();
+    expect(r.status, r.out).toBe(0);
+    expect(r.stderr).toContain('will check again');
+    expect(viewsOf(r.calls, core.name)).toBe(3);
   });
 
   it('refuses to run without RUNNER_TEMP', () => {
