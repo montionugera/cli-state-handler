@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, act, cleanup, waitFor } from "@testing-library/react";
 import { MultiPlatformDocs } from "../src/components/MultiPlatformDocs.js";
 import { App } from "../src/App.js";
 
@@ -18,29 +18,51 @@ describe("MultiPlatformDocs Component", () => {
     expect(screen.getByText("QueryEngine & SWR Lifecycle (TypeScript)")).toBeDefined();
   });
 
-  it("switches language tabs to Dart and C# Unity dynamically", () => {
+  it("switches language tabs to Dart and C# Unity dynamically", async () => {
     render(<MultiPlatformDocs />);
 
     // Switch to Dart
-    const dartBtn = screen.getByText("🎯 Dart 3+ (Flutter)");
+    const dartBtn = await screen.findByText("🎯 Dart 3+ (Flutter)");
     fireEvent.click(dartBtn);
     expect(screen.getByText("QueryEngine & SWR Lifecycle (Dart / Flutter)")).toBeDefined();
 
     // Switch to C# Unity
-    const csharpBtn = screen.getByText("🎮 C# Unity (.NET)");
+    const csharpBtn = await screen.findByText("🎮 C# Unity (.NET)");
     fireEvent.click(csharpBtn);
     expect(screen.getByText("QueryEngine & SWR Lifecycle (C# Unity)")).toBeDefined();
   });
 
-  it("switches concept tabs to the WAL and UCB1 guides", () => {
+  it("switches concept tabs to the WAL and UCB1 guides", async () => {
     render(<MultiPlatformDocs />);
 
     fireEvent.click(screen.getByText("🪵 5. WAL Durability"));
     expect(screen.getByText("SQLite WAL and Checkpoints (TypeScript)")).toBeDefined();
 
     fireEvent.click(screen.getByText("🚌 6. UCB1 Event Bus"));
-    fireEvent.click(screen.getByText("🎮 C# Unity (.NET)"));
+    fireEvent.click(await screen.findByText("🎮 C# Unity (.NET)"));
     expect(screen.getByText("UCB1 Frames and Hub Record (C# Unity)")).toBeDefined();
+  });
+
+  it("offers the three platforms as Joymify tabs and highlights the TypeScript snippet", async () => {
+    const { container } = render(<MultiPlatformDocs />);
+    const tabs = await screen.findAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual([
+      "🟦 TypeScript (React / Node)",
+      "🎯 Dart 3+ (Flutter)",
+      "🎮 C# Unity (.NET)",
+    ]);
+    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
+    expect(container.querySelector('.joy-code-block [class^="joy-syntax-"]')).not.toBeNull();
+    expect(container.querySelector(".mp-code")).toBeNull();
+    fireEvent.click(tabs[2]);
+    expect(screen.getByText("QueryEngine & SWR Lifecycle (C# Unity)")).toBeDefined();
+    expect(screen.getAllByRole("tab")[2].getAttribute("aria-selected")).toBe("true");
+  });
+  it("renders three Joymify code blocks in the side-by-side view", async () => {
+    const { container } = render(<MultiPlatformDocs />);
+    fireEvent.click(screen.getByText("Side by side"));
+    await waitFor(() => expect(container.querySelectorAll(".mp-side .joy-code-block").length).toBe(3));
+    expect(screen.queryByRole("tablist")).toBeNull();
   });
 
   it("shows all three platforms at once in the side-by-side view", () => {

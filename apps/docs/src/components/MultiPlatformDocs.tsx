@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Badge, Button } from "@montionugera/joy-react";
 import { guides, guideIds, platforms, type GuideId, type PlatformId, type Snippet } from "../content/guides/index.js";
+import { Code, CodeTabs } from "./rich.js";
 import "./multiplatform.css";
 
 const PLATFORM_LABEL: Record<PlatformId, string> = {
@@ -13,7 +14,7 @@ const CONCEPT_ICON: Record<GuideId, string> = { swr: "⚡", timing: "⏱️", ou
 
 type View = "tabs" | "side";
 
-function SnippetView({ snippet }: { snippet: Snippet }) {
+function SnippetView({ snippet, children }: { snippet: Snippet; children?: React.ReactNode }) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mounted = useRef(false);
@@ -50,13 +51,13 @@ function SnippetView({ snippet }: { snippet: Snippet }) {
           </Button>
         )}
       </header>
-      {snippet.available ? (
+      {children ?? (snippet.available ? (
         <div className="mp-scroll" role="region" aria-label={`${snippet.title} code, scrollable`} tabIndex={0}>
-          <pre className="mp-code"><code>{snippet.code}</code></pre>
+          <Code code={snippet.code} language={snippet.lang} allowCopy={false} />
         </div>
       ) : (
         <p className="mp-unavailable"><strong>Not available on this platform.</strong></p>
-      )}
+      ))}
       <ul className="mp-notes">
         {snippet.notes.map((note) => (
           <li key={note}>{note}</li>
@@ -76,6 +77,9 @@ export function MultiPlatformDocs() {
   const [concept, setConcept] = useState<GuideId>("swr");
   const [view, setView] = useState<View>("tabs");
   const guide = guides[concept];
+  // Tabs need a snippet on every platform; a guide with a gap keeps the plain buttons.
+  const allAvailable = platforms.every((p) => guide[p].available);
+  const isPlatform = (key: string): key is PlatformId => (platforms as readonly string[]).includes(key);
 
   return (
     <div className="multiplatform-docs mp">
@@ -105,7 +109,7 @@ export function MultiPlatformDocs() {
         </div>
 
         <div className="mp-row mp-row--split">
-          {view === "tabs" ? (
+          {view === "tabs" && !allAvailable ? (
             <div className="mp-row" role="group" aria-label="Platform">
               {platforms.map((p) => (
                 <Button
@@ -131,14 +135,26 @@ export function MultiPlatformDocs() {
           </div>
         </div>
 
-        {view === "tabs" ? (
-          <SnippetView snippet={guide[platform]} />
-        ) : (
+        {view === "side" ? (
           <div className="mp-side">
             {platforms.map((p) => (
               <SnippetView key={p} snippet={guide[p]} />
             ))}
           </div>
+        ) : allAvailable ? (
+          <SnippetView snippet={guide[platform]}>
+            <CodeTabs
+              aria-label="Platform code"
+              items={platforms.map((p) => ({ key: p, language: guide[p].lang, label: PLATFORM_LABEL[p], code: guide[p].code }))}
+              activeKey={platform}
+              onChange={(key) => {
+                if (isPlatform(key)) setPlatform(key);
+              }}
+              allowCopy={false}
+            />
+          </SnippetView>
+        ) : (
+          <SnippetView snippet={guide[platform]} />
         )}
       </div>
     </div>
