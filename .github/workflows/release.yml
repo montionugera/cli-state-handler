@@ -32,7 +32,7 @@ jobs:
     steps:
       # ref: main, not the commit that started the run: a queued or re-run job
       # must see bumps and tags that earlier runs already pushed.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
@@ -40,11 +40,11 @@ jobs:
           # build and test; only the commit/tag/push step gets the token.
           persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
