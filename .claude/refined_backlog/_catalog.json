@@ -626,8 +626,9 @@
     "title": "Bump pinned GitHub Actions off Node 20 and confirm Ubuntu 26 readiness",
     "from_idea": "I-046",
     "created_at": "2026-10-11T00:50:52.277257+00:00",
-    "claimed_by": null,
-    "status": "open",
-    "release_version": null
+    "claimed_by": "claude-a6c35399",
+    "status": "claimed",
+    "release_version": null,
+    "claimed_at": "2026-10-11T00:50:56.339017+00:00"
   }
 ]
