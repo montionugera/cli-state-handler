@@ -21,7 +21,7 @@ describe("theme assets", () => {
   it("forces a colour scheme only through data-theme", () => {
     const hits = files
       .filter((f) => f.endsWith(".css") && path.basename(f) !== "index.css")
-      .filter((f) => /color-scheme\s*:/.test(read(f)))
+      .filter((f) => /(?<![-\w])color-scheme\s*:/.test(read(f)))
       .map((f) => path.basename(f));
     expect(hits).toEqual([]);
     const index = read(path.join(src, "index.css"));

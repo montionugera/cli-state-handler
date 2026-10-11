@@ -57,10 +57,13 @@ describe("theme toggle", () => {
   it("keeps working when storage throws", () => {
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new Error("blocked"); });
     expect(runInlineScript).not.toThrow();
     render(<ThemeToggle />);
     expect(checked("System")).toBe("true");
     fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
     expect(root.getAttribute("data-theme")).toBe("dark");
+    fireEvent.click(screen.getByRole("radio", { name: "System" }));
+    expect(root.hasAttribute("data-theme")).toBe(false);
   });
 });
