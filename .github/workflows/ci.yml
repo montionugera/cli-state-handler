@@ -1,8 +1,9 @@
 name: CI
 
 # Runs on every pull request to main, so a release PR gets a real check before
-# it is merged. Read-only: one secret (JOYMIFY_PACKAGES_READ_TOKEN, read-only
-# for packages, given to the install step only), no id-token, no environment,
+# it is merged. Read-only: one secret (JOYMIFY_PACKAGES_READ_TOKEN, which
+# must be a classic token whose only scope is read:packages; given to the
+# install step only, with --ignore-scripts), no id-token, no environment,
 # no Pages.
 # This is a separate file from release.yml on purpose; npm trusted publishing
 # is bound to release.yml, so nothing here can publish.
@@ -65,9 +66,14 @@ jobs:
             echo "::error::JOYMIFY_PACKAGES_READ_TOKEN is empty: the secret is missing, or this run gets no secrets (a pull request from a fork or from Dependabot). The private @montionugera/joy-* packages cannot be installed."
             exit 1
           fi
-          pnpm install --frozen-lockfile
+          pnpm install --frozen-lockfile --ignore-scripts
         env:
           JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}
+
+      # Dependency build scripts (better-sqlite3, esbuild) run here, in a step
+      # whose environment has no token. No workspace prepare/postinstall exists.
+      - name: Build native dependencies (no token)
+        run: pnpm rebuild
 
       - name: Gate 1 (precheck)
         run: bash scripts/precheck.sh

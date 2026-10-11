@@ -1600,7 +1600,7 @@ export JOYMIFY_PACKAGES_READ_TOKEN=$(gh auth token)
 
 If you prefer not to export a variable in every shell, store the token itself instead: `npm config set //npm.pkg.github.com/:_authToken <token>`. That writes it to `~/.npmrc` in clear text.
 
-**CI.** Both workflows (`ci.yml`, `release.yml`) read the packages with the Actions secret `JOYMIFY_PACKAGES_READ_TOKEN`, a classic personal access token with the single scope `read:packages`, given to the install step only. **It has no expiry date** (GitHub reports no expiration), so nothing lapses on a schedule; if it is ever revoked or rotated, installs turn red on the next pull request and on the next merge, which also blocks the library release. The fix is a new token in the same secret, then a re-run of the failed workflow.
+**CI.** Both workflows (`ci.yml`, `release.yml`) read the packages with the Actions secret `JOYMIFY_PACKAGES_READ_TOKEN`, which must be a classic personal access token whose only scope is `read:packages`, given to the install step only (installed with `--ignore-scripts`; a separate token-free `pnpm rebuild` step then runs the dependency build scripts). **The current token has no expiry date** (GitHub reports no expiration), so nothing lapses on a schedule; if it is ever revoked or rotated, installs turn red on the next pull request and on the next merge, which also blocks the library release. The fix is a new token in the same secret, then a re-run of the failed workflow.
 
 **Themes.** The sidebar has a System / Light / Dark control. The choice is saved in `localStorage` under `ucsa-docs-theme`; System follows the operating system. Fonts (Inter, JetBrains Mono) are bundled into `apps/docs/dist/assets`, so the built site makes no request to another origin.
 

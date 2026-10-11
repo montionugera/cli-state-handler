@@ -67,9 +67,14 @@ jobs:
             echo "::error::JOYMIFY_PACKAGES_READ_TOKEN is empty: the secret is missing, or this run gets no secrets (a pull request from a fork or from Dependabot). The private @montionugera/joy-* packages cannot be installed."
             exit 1
           fi
-          pnpm install --frozen-lockfile
+          pnpm install --frozen-lockfile --ignore-scripts
         env:
           JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}
+
+      # Dependency build scripts (better-sqlite3, esbuild) run here, in a step
+      # whose environment has no token. No workspace prepare/postinstall exists.
+      - name: Build native dependencies (no token)
+        run: pnpm rebuild
 
       - name: Decide release
         id: decide
