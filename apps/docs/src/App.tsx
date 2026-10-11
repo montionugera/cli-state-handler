@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Badge } from "@joymify/react";
+import { Badge } from "@montionugera/joy-react";
 import { groups, routes } from "./routes.js";
 import { useHashRoute } from "./router.js";
 import { NotFound } from "./pages/NotFound.js";

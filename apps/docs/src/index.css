@@ -1,4 +1,4 @@
-/* Colours, spacing, radii and fonts come from the Joymify design tokens (@joymify/tokens/theme.css, loaded in main.tsx). */
+/* Colours, spacing, radii and fonts come from the Joymify design tokens (@montionugera/joy-tokens/theme.css, loaded in main.tsx). */
 :root {
   --bg-main: var(--joy-surface-canvas);
   --bg-sidebar: var(--joy-surface-sunken);

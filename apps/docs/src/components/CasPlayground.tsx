@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Badge, Button, Input } from "@joymify/react";
+import { Badge, Button, Input } from "@montionugera/joy-react";
 import { CasModel, type CasEntry } from "../models/cas-model.js";
 import "./CasPlayground.css";
 

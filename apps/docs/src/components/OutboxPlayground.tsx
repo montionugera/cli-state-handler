@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Badge, Button, Input } from "@joymify/react";
+import { Badge, Button, Input } from "@montionugera/joy-react";
 import type { ConflictPolicy } from "@montionugera/ucsa-core";
 import { OutboxModel } from "../models/outbox-model.js";
 import type { OutboxMutation, SettleOutcome } from "../models/outbox-model.js";

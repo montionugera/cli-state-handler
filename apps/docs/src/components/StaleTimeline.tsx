@@ -1,5 +1,5 @@
 import React, { useId, useState } from "react";
-import { Button } from "@joymify/react";
+import { Button } from "@montionugera/joy-react";
 import { phaseAt } from "../models/stale-timeline.js";
 import type { TimelineState } from "../models/stale-timeline.js";
 import "./StaleTimeline.css";

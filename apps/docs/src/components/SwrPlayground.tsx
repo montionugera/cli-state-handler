@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useSyncExternalStore } from "react";
-import { Badge, Button, MetricTile, Input } from "@joymify/react";
+import { Badge, Button, MetricTile, Input } from "@montionugera/joy-react";
 import { QueryEngine, hashQueryKey, replaceEqualDeep } from "@montionugera/ucsa-core";
 import type { QueryState } from "@montionugera/ucsa-core";
 import { LifecycleGraph } from "./LifecycleGraph.js";

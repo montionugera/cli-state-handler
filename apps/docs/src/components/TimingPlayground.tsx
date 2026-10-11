@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Badge, Button, MetricTile, Input } from "@joymify/react";
+import { Badge, Button, MetricTile, Input } from "@montionugera/joy-react";
 import { QueryEngine, debounceQuery } from "@montionugera/ucsa-core";
 
 export function TimingPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "h1" | "h2" } = {}) {

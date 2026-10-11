@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Button } from "@joymify/react";
+import { Button } from "@montionugera/joy-react";
 import { useHashRoute } from "../router.js";
 import { transpile } from "../sandbox/transpile.js";
 import { buildSandboxProgram, buildSrcdoc, RUN_LIMIT_MS } from "../sandbox/program.js";

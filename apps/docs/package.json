@@ -10,6 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@montionugera/joy-react": "^0.2.0",
+    "@montionugera/joy-tokens": "^0.2.0",
     "@montionugera/ucsa-core": "workspace:*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

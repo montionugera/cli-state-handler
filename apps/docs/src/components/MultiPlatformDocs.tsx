@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Badge, Button } from "@joymify/react";
+import { Badge, Button } from "@montionugera/joy-react";
 import { guides, guideIds, platforms, type GuideId, type PlatformId, type Snippet } from "../content/guides/index.js";
 import "./multiplatform.css";
 
