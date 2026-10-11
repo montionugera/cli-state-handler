@@ -2699,7 +2699,7 @@ Merging to `main` is the release. `.github/workflows/release.yml` runs on every 
    - housekeeping-only merges (`chore`, `docs`, `ci`, `test`) release nothing;
    - a breaking change (`!` or a `BREAKING CHANGE:` footer) bumps the major version, or the minor version while below 1.0.
 2. Bumps `@montionugera/ucsa-core` and `@montionugera/ucsa-cli` to the same version, adds the entry to `CHANGELOG.md`, commits that to `main` and tags `v<version>`.
-3. Publishes both packages to npmjs.com through trusted publishing. No token is stored.
+3. Publishes both packages to npmjs.com through trusted publishing (`scripts/release/publish-packages.sh`, core before cli). No token is stored. A version already on the registry is skipped. Two pushes seconds apart (a merge and its cleanup commit) start overlapping runs; if the second run's upload fails with E409 "previously staged" or E403 "cannot publish over the previously published versions", the script checks `npm view` every 15 s for up to 5 minutes and skips once the version shows. If it never shows, the run fails with a message that the version may be staged and awaiting approval on npmjs.com. Any other publish error fails at once. Tests: `pnpm exec vitest run scripts/release/publish-packages.test.mjs` (stub `npm`, nothing is published).
 4. Builds the docs, attaches them to a GitHub Release as `docs-site.tgz`, and starts the developer portal's deploy.
 
 Check what the next merge would do, without changing anything: `node scripts/release/next-release.mjs`.

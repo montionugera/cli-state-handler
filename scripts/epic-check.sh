@@ -25,7 +25,7 @@ if [ "$EPIC" = "E-009" ]; then
   run 2 "script names the features of release 1.8 at its merge commit" node scripts/release/history-check.mjs
   run 3 "release.yml: runs on push to main, no environment, docs built after publish" bash -c "
     grep -q 'branches: \[main\]' $W && ! grep -qE '^\s*environment:' $W && ! grep -q 'tags:' $W &&
-    [ \"\$(grep -n 'npm publish' $W | head -n 1 | cut -d: -f1)\" -lt \"\$(grep -n '@ucsa/docs build' $W | head -n 1 | cut -d: -f1)\" ]"
+    [ \"\$(grep -n 'publish-packages.sh' $W | head -n 1 | cut -d: -f1)\" -lt \"\$(grep -n '@ucsa/docs build' $W | head -n 1 | cut -d: -f1)\" ]"
   run 4 "no workflow targets GitHub Pages" bash -c "! grep -rlE 'deploy-pages|upload-pages-artifact|configure-pages' .github/workflows"
   run 5 "docs build has a release notes page and version.json" bash -c "
     pnpm --filter @montionugera/ucsa-core build >/dev/null && pnpm --filter @ucsa/docs build >/dev/null &&
