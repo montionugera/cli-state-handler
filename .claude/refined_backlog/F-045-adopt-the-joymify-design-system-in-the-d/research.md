@@ -38,3 +38,8 @@ Remaining for the spec once packages are published: replace the aliases with reg
 - Consequence for this spec: the registry line becomes `@joymify:registry=https://npm.pkg.github.com`, which does not touch the `@montionugera` scope. The three npmjs.com pins and the `publishConfig` scope key added by the audit (phase 1a) are no longer needed; the library release pipeline stays as it is apart from making a read token available at install.
 - CI access changes too: organisation-owned packages are read with a token stored as a repository secret (`read:packages`), not with the "Manage Actions access" grant on the old personal-account packages. That earlier grant request to the owner is void.
 - spec.md must be revised for this before planning; wait until `@joymify/*` is actually on the registry.
+
+## Correction 2026-10-11: the `@joymify` names were never published
+
+- The section above did not happen. Checked with `gh api /users/montionugera/packages...`: no `@joymify/*` package and no `joymify` owner exist on GitHub Packages. The packages are published as `@montionugera/joy-tokens` 0.2.0, `@montionugera/joy-icons` 0.3.0, `@montionugera/joy-brand` 0.2.0 and `@montionugera/joy-react` 0.2.0 (private, repository `montionugera/joy-design`), and the owner has decided they stay that way.
+- Consequence: the scope clash with `@montionugera/ucsa-*` is back. `spec.md` ("Scope clash, and how it is designed out") and `plan.md` (finding 16) keep the mapping in `pnpm-workspace.yaml`, where npm does not read it, instead of a root `.npmrc`.
