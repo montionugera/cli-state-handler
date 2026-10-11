@@ -321,5 +321,11 @@
     "title": "Make release.yml publish loop tolerate overlapping runs (skip on staged/409, wait for npm to show version)",
     "created_at": "2026-10-11T05:54:01.907425+00:00",
     "promoted_to": "F-047"
+  },
+  {
+    "id": "I-048",
+    "title": "Tell the developer portal which docs version to fetch",
+    "created_at": "2026-10-11T05:59:10.101345+00:00",
+    "promoted_to": null
   }
 ]
