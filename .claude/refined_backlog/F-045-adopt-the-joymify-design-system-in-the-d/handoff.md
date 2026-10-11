@@ -19,3 +19,11 @@
 **Read first:** "Findings that shape the plan" in `plan.md` lists sixteen places where the plan departs from, or fills a gap in, the spec. Finding 16 (2026-10-11) is the registry design and its evidence.
 
 Baseline docs tests: 328
+
+## Upstream to file (joy-design)
+
+1. `renderMermaidToSvg` draws unsupported diagram types as a flowchart instead of returning `success: false`.
+2. The highlighter has no Dart or C# grammar.
+3. The tokens stylesheet sets no `color-scheme`, so each consumer adds it.
+4. `PolyglotCodeTabs` arrow keys change the selected tab but leave focus on the old one.
+5. `.joy-syntax-keyword`, `.joy-syntax-number`, `.joy-syntax-macro` and the active `.joy-polyglot-tabs__tab` use `--joy-accent-default` as a text colour: about 2.2:1 on the light code surface (this repo overrides it with `--joy-accent-text` in `apps/docs/src/index.css`).
