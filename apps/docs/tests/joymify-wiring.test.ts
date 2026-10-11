@@ -33,7 +33,7 @@ describe("Joymify packages come from the registry", () => {
     expect(existsSync(path.join(root, ".npmrc"))).toBe(false);
   });
   it("exports the components the portal uses", () => {
-    const names = ["Button", "Badge", "CodeBlock", "PolyglotCodeTabs", "MermaidViewer", "MarkdownViewer", "Segmented", "Alert"] as const;
+    const names = ["Button", "Badge", "Input", "MetricTile", "CodeBlock", "PolyglotCodeTabs", "MermaidViewer", "MarkdownViewer", "Segmented", "Alert"] as const;
     for (const name of names) expect(joy[name], name).toBeDefined();
   });
 });
