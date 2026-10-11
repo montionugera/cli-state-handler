@@ -104,18 +104,10 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/npmjs"
           # pnpm pack rewrites workspace:* to the real version; npm uploads
-          # (the OIDC exchange lives in the npm CLI). Core before cli.
-          for dir in packages/core apps/cli; do
-            name="$(node -p "require('./$dir/package.json').name")"
-            version="$(node -p "require('./$dir/package.json').version")"
-            if npm view "$name@$version" version >/dev/null 2>&1; then
-              echo "skip: $name@$version is already on the registry"
-              continue
-            fi
-            rm -f "$RUNNER_TEMP"/npmjs/*.tgz
-            (cd "$dir" && pnpm pack --pack-destination "$RUNNER_TEMP/npmjs")
-            npm publish "$RUNNER_TEMP"/npmjs/*.tgz --access public
-          done
+          # (the OIDC exchange lives in the npm CLI). Core before cli. A
+          # version an overlapping run already uploaded is skipped once npm
+          # shows it; see the script.
+          bash scripts/release/publish-packages.sh
 
       # The release must attach to the tag made by the commit step (or an
       # earlier run), never to a tag gh would create at the tip implicitly.
@@ -152,12 +144,13 @@ jobs:
           fi
 
       - name: Signal the developer portal
-        if: steps.docs.outputs.needed == 'true'
+        if: steps.docs.outputs.needed == 'true' && steps.tag.outputs.exists == 'true'
         env:
           GH_TOKEN: ${{ secrets.PORTAL_DISPATCH_TOKEN }}
+          CLI_DOCS_TAG: v${{ steps.decide.outputs.version }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
             echo "::warning::PORTAL_DISPATCH_TOKEN is not set; the developer portal was not signalled"
             exit 0
           fi
-          gh workflow run ci.yml -R montionugera/joy-design --ref main
+          gh workflow run ci.yml -R montionugera/joy-design --ref main -f cli_docs_tag="$CLI_DOCS_TAG"
