@@ -36,4 +36,16 @@ describe("theme assets", () => {
     expect(index).toMatch(/--joy-font-family-sans:\s*"Inter Variable"/);
     expect(index).toMatch(/--joy-font-family-mono:\s*"JetBrains Mono Variable"/);
   });
+  it("colours syntax keywords, numbers and the active tab with the AA-safe accent text token", () => {
+    const index = read(path.join(src, "index.css"));
+    const block = index.match(/\.joy-syntax-keyword,[^{]*\{([^}]*)\}/);
+    expect(block?.[0]).toContain(".joy-syntax-number");
+    expect(block?.[0]).toContain('.joy-polyglot-tabs__tab[aria-selected="true"]');
+    expect(block?.[1]).toContain("color: var(--joy-accent-text);");
+  });
+  it("does not draw a second border around the code block inside a platform snippet", () => {
+    const css = read(path.join(src, "components", "multiplatform.css"));
+    const rule = css.match(/\.mp-snippet \.mp-scroll\s*\{([^}]*)\}/);
+    expect(rule?.[1]).toMatch(/border:\s*none/);
+  });
 });

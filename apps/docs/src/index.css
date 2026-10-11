@@ -108,3 +108,13 @@ code, pre {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* Upstream colours keyword/number tokens and the active tab with the accent
+   fill (gold), about 2.2:1 on the light code surface. Use the accent text
+   token, which is the AA-safe gold in both themes. */
+.joy-syntax-keyword,
+.joy-syntax-number,
+.joy-syntax-macro,
+.joy-polyglot-tabs__tab[aria-selected="true"] {
+  color: var(--joy-accent-text);
+}
