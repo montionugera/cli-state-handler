@@ -1313,7 +1313,7 @@ git status --short | head -n 5
 ```
 Expected: `0`; build exit 0; at least `2`; nothing; precheck exit 0; a clean tree apart from `README.md` and `handoff.md`.
 
-- [ ] **Step 4: File the off-goal findings, do not fix them.** Record three upstream ideas for `joy-design` in `handoff.md` under "Upstream to file": (1) `renderMermaidToSvg` draws unsupported diagram types as a flowchart instead of returning `success: false`; (2) the highlighter has no Dart or C# grammar; (3) the tokens stylesheet sets no `color-scheme`, so each consumer adds it; (4) `PolyglotCodeTabs` arrow keys change the selected tab but leave focus on the old one; (5) the four package manifests name `montionugera/joy-design` as `repository` while they publish to the organisation `joymify`.
+- [ ] **Step 4: File the off-goal findings, do not fix them.** Record three upstream ideas for `joy-design` in `handoff.md` under "Upstream to file": (1) `renderMermaidToSvg` draws unsupported diagram types as a flowchart instead of returning `success: false`; (2) the highlighter has no Dart or C# grammar; (3) the tokens stylesheet sets no `color-scheme`, so each consumer adds it; (4) `PolyglotCodeTabs` arrow keys change the selected tab but leave focus on the old one. (A fifth idea, about the manifests' `repository` field not matching an organisation `joymify`, was dropped on 2026-10-11: the packages are published from `montionugera/joy-design` under the account `montionugera`, so the field is right.)
 
 - [ ] **Step 5: Commit**
 ```bash
