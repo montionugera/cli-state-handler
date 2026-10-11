@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 const src = path.resolve(import.meta.dirname, "../src");
 const files = (readdirSync(src, { recursive: true }) as string[]).map((f) => path.join(src, f));
 const read = (file: string) => readFileSync(file, "utf8");
@@ -38,10 +39,18 @@ describe("theme assets", () => {
   });
   it("colours syntax keywords, numbers and the active tab with the AA-safe accent text token", () => {
     const index = read(path.join(src, "index.css"));
-    const block = index.match(/\.joy-syntax-keyword,[^{]*\{([^}]*)\}/);
-    expect(block?.[0]).toContain(".joy-syntax-number");
-    expect(block?.[0]).toContain('.joy-polyglot-tabs__tab[aria-selected="true"]');
+    const block = index.match(/:root \.joy-syntax-keyword,[^{]*\{([^}]*)\}/);
+    expect(block?.[0]).toMatch(/:root \.joy-syntax-number,/);
+    expect(block?.[0]).toContain(':root .joy-polyglot-tabs__tab[aria-selected="true"]');
     expect(block?.[1]).toContain("color: var(--joy-accent-text);");
+    const tab = index.match(/\}\s*:root \.joy-polyglot-tabs__tab\[aria-selected="true"\]\s*\{([^}]*)\}/);
+    expect(tab?.[1]).toContain("border-bottom-color: var(--joy-accent-text);");
+  });
+  it("still finds the upstream classes the contrast override targets", () => {
+    const themeCss = read(createRequire(import.meta.url).resolve("@montionugera/joy-tokens/theme.css"));
+    for (const cls of ["joy-syntax-keyword", "joy-syntax-number", "joy-syntax-macro", "joy-polyglot-tabs__tab"]) {
+      expect(themeCss, `upstream theme.css lost .${cls}`).toMatch(new RegExp(`\\.${cls}(?![\\w-])`));
+    }
   });
   it("does not draw a second border around the code block inside a platform snippet", () => {
     const css = read(path.join(src, "components", "multiplatform.css"));
