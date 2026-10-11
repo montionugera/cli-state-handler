@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Epic verification: implements E-008 (assertions 1-10) and E-009 (pre-merge assertions 1-5).
+# Epic verification: implements E-008 (assertions 1-10) and E-009 (pre-merge checks 1-6).
 # Usage: scripts/epic-check.sh <epic-id>   (id from $1 or PSRW_EPIC_ID)
 # Any other epic id exits 0 immediately (nothing to check).
 # Assertion 11 (Chrome at 360px/1280px) is manual and is NOT checked here.
@@ -8,8 +8,10 @@ cd "$(dirname "$0")/.."
 
 EPIC="${1:-${PSRW_EPIC_ID:-}}"
 if [ "$EPIC" = "E-009" ]; then
-  # Pre-merge assertions 1-5 of E-009's verification.md. Assertions 6-10 only
-  # become true after a real release and are checked by hand.
+  # Checks 1-5 are pre-merge assertions 1-5 of E-009's verification.md; check 6
+  # (the portal signal passes cli_docs_tag) is extra and is not that file's
+  # assertion 6. Its assertions 6-10 only become true after a real release and
+  # are checked by hand.
   rc=0
   # The gate runs in a fresh snapshot worktree with no node_modules.
   [ -d node_modules ] || pnpm install --frozen-lockfile >/dev/null 2>&1 || { echo "FAIL  pnpm install"; exit 1; }

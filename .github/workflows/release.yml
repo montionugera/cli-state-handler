@@ -152,7 +152,7 @@ jobs:
           fi
 
       - name: Signal the developer portal
-        if: steps.docs.outputs.needed == 'true'
+        if: steps.docs.outputs.needed == 'true' && steps.tag.outputs.exists == 'true'
         env:
           GH_TOKEN: ${{ secrets.PORTAL_DISPATCH_TOKEN }}
           CLI_DOCS_TAG: v${{ steps.decide.outputs.version }}
