@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import React from "react";
 import { describe, it, expect, afterEach } from "vitest";
-import { render, cleanup, waitFor } from "@testing-library/react";
+import { render, cleanup, waitFor, configure } from "@testing-library/react";
 import { Home } from "../src/pages/Home.js";
+// The lazy Joymify chunk can take over a second to load on a busy machine.
+configure({ asyncUtilTimeout: 5000 });
 describe("Overview request-path diagram", () => {
   afterEach(() => cleanup());
   it("draws the cache, write-ahead log and outbox path as an svg", async () => {

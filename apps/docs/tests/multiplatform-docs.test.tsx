@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import React from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, act, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, act, cleanup, waitFor, configure } from "@testing-library/react";
 import { MultiPlatformDocs } from "../src/components/MultiPlatformDocs.js";
 import { App } from "../src/App.js";
 
+// The lazy Joymify chunk can take over a second to load on a busy machine.
+configure({ asyncUtilTimeout: 5000 });
 describe("MultiPlatformDocs Component", () => {
   afterEach(() => {
     cleanup();

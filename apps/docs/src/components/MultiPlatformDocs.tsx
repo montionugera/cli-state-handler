@@ -14,6 +14,8 @@ const CONCEPT_ICON: Record<GuideId, string> = { swr: "⚡", timing: "⏱️", ou
 
 type View = "tabs" | "side";
 
+const isPlatform = (key: string): key is PlatformId => (platforms as readonly string[]).includes(key);
+
 function SnippetView({ snippet, children }: { snippet: Snippet; children?: React.ReactNode }) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -79,7 +81,6 @@ export function MultiPlatformDocs() {
   const guide = guides[concept];
   // Tabs need a snippet on every platform; a guide with a gap keeps the plain buttons.
   const allAvailable = platforms.every((p) => guide[p].available);
-  const isPlatform = (key: string): key is PlatformId => (platforms as readonly string[]).includes(key);
 
   return (
     <div className="multiplatform-docs mp">

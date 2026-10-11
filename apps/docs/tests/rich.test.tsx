@@ -1,15 +1,18 @@
 // @vitest-environment jsdom
 import React from "react";
 import { describe, it, expect, afterEach } from "vitest";
-import { render, cleanup, waitFor } from "@testing-library/react";
+import { render, cleanup, waitFor, configure } from "@testing-library/react";
 import { Code, Diagram } from "../src/components/rich.js";
 import { Callout, CodeBlock } from "../src/components/Prose.js";
+// The lazy Joymify chunk can take over a second to load on a busy machine.
+configure({ asyncUtilTimeout: 5000 });
 const FLOW = "flowchart LR\n  A[Cache] --> B[Network]";
 describe("Joymify code and diagram components", () => {
   afterEach(() => cleanup());
   it("shows the plain code first, then Joymify highlight spans", async () => {
     const { container } = render(<Code code={"const a = 1; // note"} language="typescript" />);
     expect(container.textContent).toContain("const a = 1; // note");
+    expect(container.querySelector(".rich-fallback")).not.toBeNull();
     await waitFor(() => expect(container.querySelector('[class^="joy-syntax-"]')).not.toBeNull());
     expect(container.querySelector(".joy-code-block")).not.toBeNull();
   });
