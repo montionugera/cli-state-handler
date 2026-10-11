@@ -1,0 +1,1557 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Adopt the Joymify design system in the docs portal</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07090d;
+      --surface: #10141b;
+      --surface-2: #161b24;
+      --surface-3: #1b212c;
+      --border: #2a3340;
+      --border-soft: #1c232e;
+      --ink: #d6dde7;
+      --ink-bright: #f6f8fb;
+      --ink-dim: #8392a3;
+      --accent: #4ee39b;
+      --accent-dim: #2f8f63;
+      --amber: #ffc746;
+      --amber-dim: #a37a1a;
+      --blue: #74b0ff;
+      --blue-dim: #3a5d8a;
+      --red: #ff6b6b;
+      --red-dim: #a14242;
+      --purple: #b288ff;
+      --purple-dim: #7a4dc5;
+      --teal: #4ed2c8;
+      --teal-dim: #347e7a;
+      --serif-display: "Fraunces", Georgia, serif;
+      --serif-body: "Spectral", Georgia, serif;
+      --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: var(--serif-body);
+      font-size: 19.5px;
+      line-height: 1.66;
+      color: var(--ink);
+      background: var(--bg);
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 64px 30px 160px;
+      counter-reset: sec;
+      animation: riseIn .55s cubic-bezier(.2,.7,.2,1) both;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body::before {
+      content: "";
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(900px 500px at 80% -10%, rgba(78,227,155,.10), transparent 62%),
+        radial-gradient(720px 520px at -4% 110%, rgba(255,199,70,.055), transparent 60%),
+        linear-gradient(rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 100% 30px,
+        linear-gradient(90deg, rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 30px 100%;
+    }
+
+    @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    /* ---------- headings ---------- */
+    h1, h2, h3, h4 { font-family: var(--serif-display); color: var(--ink-bright); line-height: 1.16; letter-spacing: -.012em; font-weight: 600; }
+    h1 {
+      font-size: 3.2rem; font-weight: 700; margin: 0 0 .25em; letter-spacing: -.028em;
+      background: linear-gradient(180deg, #ffffff, #afb9c5);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    h2 {
+      counter-increment: sec;
+      font-size: 2rem; margin: 2.8em 0 .7em; padding-top: .65em;
+      border-top: 1px solid var(--border-soft);
+      display: flex; align-items: baseline; gap: .55em; flex-wrap: wrap;
+      font-weight: 700;
+    }
+    h2::before {
+      content: "§" counter(sec, decimal-leading-zero);
+      font-family: var(--mono); font-size: .74rem; font-weight: 600;
+      color: var(--accent); letter-spacing: .04em;
+      border: 1px solid var(--accent-dim); border-radius: 6px;
+      padding: .3em .55em; transform: translateY(-.22em);
+      background: rgba(78,227,155,.06);
+    }
+    h3 { font-size: 1.42rem; margin: 2.1em 0 .55em; color: var(--ink-bright); font-weight: 600; }
+    h3 code { font-size: .88em; }
+    h4 { font-size: 1.1rem; margin: 1.5em 0 .4em; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-family: var(--mono); font-weight: 600; }
+
+    p { margin: .95em 0; }
+    strong { color: var(--ink-bright); font-weight: 600; }
+    em { color: #d4dce6; }
+
+    mark {
+      background: linear-gradient(180deg, rgba(255,199,70,.0) 60%, rgba(255,199,70,.32) 60%);
+      color: var(--ink-bright); padding: 0 .2em; border-radius: 3px;
+    }
+
+    /* ---------- links ---------- */
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(78,227,155,.32); transition: border-color .15s, color .15s; }
+    a:hover { color: #8af0c2; border-bottom-color: var(--accent); }
+
+    /* ---------- inline code & code blocks ---------- */
+    code { font-family: var(--mono); font-size: .85em; background: var(--surface-2); color: #e0ecf6; padding: .14em .45em; border-radius: 5px; border: 1px solid var(--border-soft); }
+    pre {
+      position: relative; font-size: .82rem; line-height: 1.62;
+      background: linear-gradient(180deg, #0e1219, #0a0d13);
+      border: 1px solid var(--border); border-radius: 11px;
+      padding: 20px 20px 18px; margin: 1.4em 0; overflow-x: auto;
+      box-shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 18px 44px -28px rgba(0,0,0,.9);
+    }
+    pre::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--accent), transparent); border-radius: 11px 0 0 11px; opacity: .6; }
+    pre code { background: none; border: none; padding: 0; color: #d3e4f3; font-size: 1em; }
+
+    kbd { font-family: var(--mono); font-size: .82em; background: var(--surface-2); border: 1px solid var(--border); border-bottom-width: 2px; padding: 2px 8px; border-radius: 6px; color: var(--ink-bright); box-shadow: 0 1px 0 var(--border-soft); }
+
+    /* ---------- tables ---------- */
+    table { border-collapse: collapse; width: 100%; margin: 1.4em 0; font-size: .87rem; font-family: var(--mono); }
+    th, td { border: 1px solid var(--border); padding: 11px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--surface); color: var(--ink-bright); font-weight: 600; border-bottom: 2px solid var(--accent-dim); text-transform: uppercase; font-size: .76rem; letter-spacing: .08em; }
+    tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+    tr:hover td { background: rgba(78,227,155,.04); }
+    td code { font-size: .94em; }
+    td strong { color: var(--amber); }
+
+    /* ---------- lists ---------- */
+    ul, ol { padding-left: 1.5em; margin: .9em 0; }
+    li { margin: .4em 0; }
+    li::marker { color: var(--accent-dim); font-weight: 600; }
+    ul ul, ol ol, ul ol, ol ul { margin: .3em 0; }
+
+    /* ---------- blockquote (used by pandoc) ---------- */
+    blockquote { border-left: 3px solid var(--accent-dim); margin: 1.2em 0; padding: .2em 0 .2em 18px; color: var(--ink-dim); font-style: italic; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 2.6em 0; }
+
+    /* ---------- masthead (h1 + first p) ---------- */
+    h1 + p { font-family: var(--mono); font-size: .82rem; color: var(--ink-dim); line-height: 2; letter-spacing: .02em; border-bottom: 1px solid var(--border-soft); padding-bottom: 1.2em; }
+    h1 + p strong { color: var(--amber); font-weight: 500; }
+
+    /* ---------- TOC ---------- */
+    #TOC {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 22px; margin: 1.8em 0 2.4em; font-family: var(--mono); font-size: .78rem;
+    }
+    #TOC::before { content: "CONTENTS"; display: block; color: var(--accent); letter-spacing: .22em; font-size: .7rem; margin-bottom: .7em; font-weight: 600; }
+    #TOC ul { list-style: none; padding-left: 0; margin: 0; }
+    #TOC > ul > li { margin: .22em 0; }
+    #TOC ul ul { padding-left: 1.1em; border-left: 1px solid var(--border-soft); margin: .25em 0 .5em; }
+    #TOC a { color: var(--ink); border: none; }
+    #TOC a:hover { color: var(--accent); }
+
+    @media (min-width: 1320px) {
+      #TOC {
+        position: fixed; top: 0; left: 0; bottom: 0; width: 300px; margin: 0;
+        border-radius: 0; border: none; border-right: 1px solid var(--border);
+        padding: 64px 28px; overflow-y: auto;
+        background: linear-gradient(180deg, rgba(13,17,23,.92), rgba(8,10,14,.92));
+        backdrop-filter: blur(6px);
+      }
+      body { max-width: 1320px; padding-left: 360px; }
+    }
+
+    /* ============================================================
+       CALLOUTS — info / warn / success / danger / idea / metric
+       Use via:
+         ::: callout-warn
+         **Heading**
+         body text
+         :::
+       or raw <div class="callout warn"> ... </div>
+       ============================================================ */
+    /* Robust layout: icon is absolutely positioned and the content is padded.
+       (An earlier `display:grid` + `.callout > * { grid-column: 2 }` approach broke
+       when pandoc emitted loose prose as bare text nodes — those became anonymous
+       grid items that fell into the icon column and wrapped one word per line.
+       Absolute icon + padding flows ANY content structure correctly: loose text,
+       multiple inline elements, nested lists.) */
+    .callout {
+      position: relative;
+      margin: 1.7em 0;
+      padding: 18px 22px 16px 58px;
+      border-radius: 13px;
+      border: 1px solid var(--callout-border, var(--border));
+      border-left-width: 4px;
+      background: var(--callout-bg, var(--surface));
+    }
+    .callout::before {
+      content: var(--callout-icon, "·");
+      position: absolute;
+      left: 14px; top: 16px;
+      width: 30px; text-align: center;
+      font-size: 28px; line-height: 1.1;
+      color: var(--callout-accent, var(--accent));
+    }
+    .callout > * { min-width: 0; margin-top: 0; }
+    .callout > * + * { margin-top: .55em; }
+    .callout > p:first-child strong:first-child {
+      display: block;
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--callout-accent, var(--ink-bright));
+      letter-spacing: -.01em;
+      margin-bottom: .35em;
+    }
+    .callout p { line-height: 1.55; }
+    .callout code { background: rgba(0,0,0,.28); border-color: rgba(255,255,255,.06); }
+
+    .callout.info,    .callout-info    { --callout-border: var(--blue-dim);   --callout-bg: rgba(116,176,255,.08);   --callout-accent: var(--blue);   --callout-icon: "ℹ"; }
+    .callout.warn,    .callout-warn    { --callout-border: var(--amber-dim);  --callout-bg: rgba(255,199,70,.09);    --callout-accent: var(--amber);  --callout-icon: "⚠"; }
+    .callout.success, .callout-success { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.08);    --callout-accent: var(--accent); --callout-icon: "✓"; }
+    .callout.danger,  .callout-danger  { --callout-border: var(--red-dim);    --callout-bg: rgba(255,107,107,.09);   --callout-accent: var(--red);    --callout-icon: "✕"; }
+    .callout.idea,    .callout-idea    { --callout-border: var(--purple-dim); --callout-bg: rgba(178,136,255,.08);   --callout-accent: var(--purple); --callout-icon: "✦"; }
+    .callout.metric,  .callout-metric  { --callout-border: var(--teal-dim);   --callout-bg: rgba(78,210,200,.08);    --callout-accent: var(--teal);   --callout-icon: "Σ"; }
+    .callout.action,  .callout-action  { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.04);    --callout-accent: var(--accent); --callout-icon: "▸"; }
+
+    /* ============================================================
+       METRIC TILES — grid of big-number cards
+       Use via raw HTML:
+         <div class="metric-grid">
+           <div class="metric-tile alarm">
+             <div class="label">Pass all gates</div>
+             <div class="value">21%</div>
+             <div class="delta">39 / 187 results</div>
+           </div>
+         </div>
+       Variants: .alarm (red), .win (green), .info (blue), .warn (amber)
+       ============================================================ */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin: 1.5em 0;
+    }
+    .metric-tile {
+      background: linear-gradient(180deg, var(--surface), var(--bg));
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--tile-accent, var(--accent));
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .metric-tile .label {
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .14em;
+      color: var(--ink-dim);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .metric-tile .value {
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 2.55rem;
+      color: var(--tile-accent, var(--ink-bright));
+      line-height: 1;
+      letter-spacing: -.025em;
+    }
+    .metric-tile .delta {
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--ink-dim);
+    }
+    .metric-tile.alarm { --tile-accent: var(--red); }
+    .metric-tile.win   { --tile-accent: var(--accent); }
+    .metric-tile.info  { --tile-accent: var(--blue); }
+    .metric-tile.warn  { --tile-accent: var(--amber); }
+    .metric-tile.teal  { --tile-accent: var(--teal); }
+    .metric-tile.dim .value { color: var(--ink-bright); }
+
+    /* ============================================================
+       TOPIC CHIP — colored pill that can appear next to H2 text
+       ============================================================ */
+    .topic-chip {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .16em;
+      color: var(--bg);
+      background: var(--accent);
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-weight: 700;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+    .topic-chip.warn   { background: var(--amber); }
+    .topic-chip.danger { background: var(--red);   color: #fff; }
+    .topic-chip.info   { background: var(--blue);  color: var(--bg); }
+    .topic-chip.idea   { background: var(--purple); color: #fff; }
+    .topic-chip.teal   { background: var(--teal);  color: var(--bg); }
+
+    /* ============================================================
+       PULL QUOTE
+       ============================================================ */
+    .pullquote {
+      font-family: var(--serif-display);
+      font-size: 1.55rem;
+      font-weight: 500;
+      line-height: 1.38;
+      color: var(--ink-bright);
+      border-left: 4px solid var(--accent);
+      padding: 4px 0 4px 22px;
+      margin: 1.8em 0;
+      letter-spacing: -.012em;
+    }
+
+    /* ============================================================
+       SCHEMATIC — ASCII box-drawing diagrams, monospace canvas
+       Use via:
+         <div class="schematic">
+         ┌─────────┐    ┌─────────┐
+         │ Phase 0 │ ─→ │ Phase 1 │
+         └─────────┘    └─────────┘
+         </div>
+       ============================================================ */
+    .schematic {
+      font-family: var(--mono);
+      font-size: .86rem;
+      line-height: 1.4;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 28px;
+      margin: 1.6em 0;
+      color: #cfdcec;
+      white-space: pre;
+      overflow-x: auto;
+      position: relative;
+    }
+    .schematic::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--teal), transparent); border-radius: 12px 0 0 12px; opacity: .6; }
+
+    /* ============================================================
+       RAW SVG / inline diagrams
+       ============================================================ */
+    .diagram, svg.diagram, .figure {
+      display: block; margin: 1.6em auto; max-width: 100%;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 22px 14px;
+    }
+    .figure-caption {
+      text-align: center; font-family: var(--mono); font-size: .76rem;
+      color: var(--ink-dim); margin-top: -.6em; margin-bottom: 1.6em;
+      letter-spacing: .04em;
+    }
+
+    /* ============================================================
+       MERMAID block — bigger frame, softer glow
+       ============================================================ */
+    .mermaid {
+      margin: 1.6em 0; text-align: center;
+      background: linear-gradient(180deg, #0e1320, #0a0d13);
+      border: 1px solid var(--border); border-radius: 13px;
+      padding: 24px 14px;
+      box-shadow: 0 18px 50px -36px rgba(78,227,155,.55) inset;
+    }
+    .mermaid svg { max-width: 100%; height: auto; }
+
+    /* Hide pandoc's title-block if present */
+    #title-block-header { display: none; }
+
+    /* ============================================================
+       UTILITY ROW — two-up / three-up adjacent blocks
+       ============================================================ */
+    .row {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1fr;
+      margin: 1.5em 0;
+    }
+    .row.two { grid-template-columns: 1fr 1fr; }
+    .row.three { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 760px) {
+      .row.two, .row.three { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    const render = () => {
+      const blocks = new Set();
+      document.querySelectorAll('pre.mermaid, pre.sourceCode.mermaid').forEach((p) => blocks.add(p));
+      document.querySelectorAll('code.mermaid, code.language-mermaid').forEach((c) => {
+        const pre = c.closest('pre'); if (pre) blocks.add(pre);
+      });
+      blocks.forEach((pre) => {
+        const div = document.createElement('div');
+        div.className = 'mermaid';
+        div.textContent = pre.textContent.trim();
+        pre.replaceWith(div);
+      });
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        securityLevel: 'loose',
+        fontFamily: 'IBM Plex Mono, monospace',
+        themeVariables: {
+          background: '#0a0d13',
+          primaryColor: '#1a212c',
+          primaryTextColor: '#f0f3f7',
+          primaryBorderColor: '#4ee39b',
+          lineColor: '#6c7a8b',
+          secondaryColor: '#191e28',
+          tertiaryColor: '#11161e',
+          tertiaryBorderColor: '#2a3340',
+          clusterBkg: 'rgba(78,227,155,.05)',
+          clusterBorder: '#2f8f63',
+          titleColor: '#4ee39b',
+          actorBkg: '#1a212c',
+          actorBorder: '#4ee39b',
+          actorTextColor: '#f0f3f7',
+          signalColor: '#9aa7b6',
+          signalTextColor: '#d3dbe5',
+          noteBkgColor: 'rgba(255,199,70,.14)',
+          noteBorderColor: '#ffc746',
+          noteTextColor: '#f6f8fb',
+          fontSize: '14px'
+        }
+      });
+      mermaid.run();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
+    else render();
+  </script>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">Adopt the Joymify design system in the docs
+portal</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#adopt-the-joymify-design-system-in-the-docs-portal"
+id="toc-adopt-the-joymify-design-system-in-the-docs-portal">Adopt the
+Joymify design system in the docs portal</a>
+<ul>
+<li><a href="#goal" id="toc-goal">Goal</a></li>
+<li><a href="#scope-and-non-goals" id="toc-scope-and-non-goals">Scope
+and non-goals</a></li>
+<li><a href="#current-state" id="toc-current-state">Current
+state</a></li>
+<li><a href="#design" id="toc-design">Design</a></li>
+<li><a href="#testing" id="toc-testing">Testing</a></li>
+<li><a href="#risks-and-open-questions"
+id="toc-risks-and-open-questions">Risks and open questions</a></li>
+<li><a href="#rollout" id="toc-rollout">Rollout</a></li>
+<li><a href="#acceptance-criteria"
+id="toc-acceptance-criteria">Acceptance criteria</a></li>
+<li><a href="#appendix-audit-trail"
+id="toc-appendix-audit-trail">Appendix: audit trail</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="adopt-the-joymify-design-system-in-the-docs-portal">Adopt the
+Joymify design system in the docs portal</h1>
+<h2 id="goal">Goal</h2>
+<p>Owner’s words: “using its design system for build doc not move into
+that repo”.</p>
+<p>The docs portal in this repository (<code>apps/docs</code>, package
+<code>@ucsa/docs</code>, React 19 + Vite, hash routes) is built with the
+Joymify design system, installed as the published
+<code>@joymify/*</code> packages from GitHub Packages (organisation
+<code>joymify</code>). The portal stays in
+<code>cli-state-handler</code>. It gets a light and a dark theme with a
+toggle, renders markdown through the Joymify markdown component, and
+renders Mermaid diagrams.</p>
+<h2 id="scope-and-non-goals">Scope and non-goals</h2>
+<p>In scope:</p>
+<ul>
+<li>Replace the sibling-checkout aliases with registry dependencies on
+<code>@joymify/react</code> 0.2.0 and <code>@joymify/tokens</code> 0.2.0
+(which pull in <code>@joymify/icons</code> 0.3.0 and
+<code>@joymify/brand</code> 0.2.0). All four are to be published; see
+“Packages” under “Current state”.</li>
+<li>A repository <code>.npmrc</code> that maps only the
+<code>@joymify</code> scope, and package access for the two GitHub
+Actions workflows (<code>ci.yml</code>, <code>release.yml</code>)
+through one read-only token stored as an Actions secret.</li>
+<li>One regression check that the library release still targets
+npmjs.com. No change to the release script, the publish commands or the
+library manifests (see “No scope clash”).</li>
+<li>Light and dark themes, a toggle that remembers the choice, no flash
+of the wrong theme on load.</li>
+<li>Self-hosted fonts (Inter, JetBrains Mono) inside the build output.
+No font CDN.</li>
+<li>Code samples, platform snippet tabs, markdown content and Mermaid
+diagrams rendered by Joymify components.</li>
+<li>README update for the new install requirement.</li>
+</ul>
+<p>Non-goals:</p>
+<ul>
+<li>Moving the portal into the <code>joy-design</code> repository,
+vendoring Joymify source, or linking a sibling checkout.</li>
+<li>Changing routes, page content, the playground models, or the
+sandbox.</li>
+<li>Changing where or how <code>@montionugera/ucsa-core</code> and
+<code>@montionugera/ucsa-cli</code> are published (npmjs.com, trusted
+publishing, <code>release.yml</code> not renamed, no
+<code>environment:</code>). The libraries keep the
+<code>@montionugera</code> scope.</li>
+<li>Bumping the pinned versions of the workflow actions. Another session
+owns that (idea I-046); this spec edits steps, not action versions.</li>
+<li>Adding the full <code>mermaid</code> npm library, or a general
+markdown library, inside this repository. Gaps in the Joymify components
+are fixed upstream in <code>joy-design</code> (platform rule: enhance
+upstream, never shim in the consumer).</li>
+<li>A markdown editor in the portal. <code>MarkdownEditor</code> is
+exported upstream but nothing in the portal is edited by readers.</li>
+</ul>
+<h2 id="current-state">Current state</h2>
+<p>Verified by reading the code on 2026-10-09, not taken from
+reports.</p>
+<p><strong>Base branch.</strong> <code>fix/docs-design-nav</code>
+(worktree <code>../cli-state-handler-fix-docs-design</code>) holds two
+commits, <code>68ad8b7</code> and <code>69f8c42</code>, on top of an
+older main <code>407ca76</code>. Main is now <code>3f6a81c</code>;
+release branch <code>release/1.10</code> starts from it. Since
+<code>407ca76</code>, main changed nine files under
+<code>apps/docs</code> (a Release notes page, a
+<code>version-json</code> Vite plugin,
+<code>MultiPlatformDocs.tsx</code>, <code>routes.ts</code>, two new test
+files).</p>
+<p><strong>How the base branch reaches Joymify.</strong>
+<code>apps/docs/joy-alias.ts</code> maps the names
+<code>@joymify/react</code>, <code>@joymify/icons/react</code>,
+<code>@joymify/brand</code>, <code>@joymify/tokens/theme.css</code> to
+<code>../../../joy-design/packages/...</code>. The aliases are spread
+into <code>vite.config.ts</code> and <code>vitest.config.ts</code>, and
+repeated as <code>paths</code> in <code>apps/docs/tsconfig.json</code>
+(plus two <code>react</code> type paths that exist only to stop
+duplicate React types from the sibling checkout). Nine source files
+import from <code>@joymify/react</code>; <code>main.tsx</code> imports
+<code>@joymify/tokens/theme.css</code>. The import names are already the
+names the packages will be published under, so the source files need no
+rename. What is broken is only the route: the aliases point at a sibling
+checkout that does not exist in CI.</p>
+<p><strong>Theme.</strong> <code>apps/docs/index.html</code> hard-codes
+<code>&lt;html data-theme="dark"&gt;</code>. <code>src/index.css</code>
+maps the portal’s own variables (<code>--bg-main</code>,
+<code>--text-main</code>, …) onto <code>--joy-*</code> tokens, so most
+colours already follow the theme. Leftovers: 54 inline
+<code>style={{...}}</code> props in components and one hard-coded colour
+(<code>--scrim: rgba(0, 0, 0, 0.6)</code>).</p>
+<p><strong>Fonts.</strong> The tokens stylesheet names
+<code>Inter</code> and <code>JetBrains Mono</code> but ships no
+<code>@font-face</code>. Nothing loads the font files today, so the
+portal falls back to system fonts.</p>
+<p><strong>Markdown, code, diagrams.</strong> There is no markdown
+rendering today. Tutorial pages are hand-written TSX wrapped in
+<code>Prose</code> (<code>src/components/Prose.tsx</code>, which also
+defines a plain <code>Callout</code> and an unhighlighted
+<code>CodeBlock</code>). Platform snippets are plain
+<code>&lt;pre class="mp-code"&gt;</code> blocks in
+<code>MultiPlatformDocs.tsx</code>. Release notes parse the repo-root
+<code>CHANGELOG.md</code> with a small hand-written parser
+(<code>src/models/changelog.ts</code>). No file under
+<code>apps/docs/src</code> mentions Mermaid.</p>
+<p><strong>Sidebar.</strong> Still main’s anchor sidebar in
+<code>App.tsx</code>: real <code>&lt;a href="#/..."&gt;</code> links
+with <code>aria-current="page"</code>, a phone drawer with focus
+handling, <code>inert</code>, Escape to close.</p>
+<p><strong>CI.</strong> There is no <code>docs.yml</code> any more; main
+deleted it. Two workflows remain:</p>
+<ul>
+<li><code>ci.yml</code> runs on every pull request to main,
+<code>permissions: contents: read</code>, and its header comment states
+“no secrets”. It runs <code>pnpm install --frozen-lockfile</code> then
+<code>scripts/precheck.sh</code> (the pre-ship build, typecheck and test
+check, which includes <code>apps/docs</code>).</li>
+<li><code>release.yml</code> runs on every merge to main. It runs
+<code>pnpm install --frozen-lockfile</code> for the whole workspace,
+publishes the two libraries to npmjs.com through trusted publishing (no
+stored token), then builds the docs archive <code>docs-site.tgz</code>
+that the Joymify developer portal copies.</li>
+</ul>
+<p>The repository has no Actions secrets at all
+(<code>gh secret list</code> is empty).</p>
+<p><strong>Registry calls in the release pipeline (three).</strong> All
+run with the repository root as working directory, so all read a root
+<code>.npmrc</code>. All three are for <code>@montionugera/ucsa-*</code>
+names:</p>
+<ol type="1">
+<li><code>scripts/release/next-release.mjs</code> line 41,
+<code>npm view &lt;name&gt;@&lt;version&gt; version</code>, in the
+“Decide release” step. It runs on <strong>every</strong> merge to main.
+Only an <code>E404</code> counts as “not published”; any other failure
+throws and stops the run.</li>
+<li><code>release.yml</code>, “Publish to npmjs.com” step:
+<code>npm view "$name@$version" version</code> (any failure is read as
+“not published”).</li>
+<li>Same step:
+<code>npm publish "$RUNNER_TEMP"/npmjs/*.tgz --access public</code>.</li>
+</ol>
+<p><code>packages/core/package.json</code> and
+<code>apps/cli/package.json</code> already carry
+<code>publishConfig: { "access": "public", "registry": "https://registry.npmjs.org" }</code>.
+The README (around line 2672) also documents a manual
+<code>npm publish</code> recipe run from the repository root. Nothing in
+the repository installs <code>@montionugera/ucsa-*</code> from a
+registry: <code>apps/cli</code> and <code>apps/docs</code> use
+<code>workspace:*</code>, and there are no examples or smoke tests that
+install the published libraries.</p>
+<p><strong>Other install sites.</strong> Besides the two workflows,
+<code>scripts/precheck.sh</code> line 67 and
+<code>scripts/epic-check.sh</code> line 15 run <code>pnpm install</code>
+locally. Root <code>pnpm test</code> (used by <code>release.yml</code>
+“Unit tests” and by <code>precheck.sh</code>) runs the
+<code>apps/docs</code> tests too, so the docs dependencies are needed
+wherever tests run.</p>
+<p><strong>Tool versions.</strong> Both workflows pin
+<code>pnpm/action-setup</code> to <code>version: 10</code> (major only,
+so the runner gets the newest pnpm 10); the root
+<code>package.json</code> has no <code>packageManager</code> field; the
+local machine has pnpm 10.13.1. <code>release.yml</code> installs
+<code>npm@^11.5.1</code> for publishing. <code>actions/setup-node</code>
+in <code>release.yml</code> is given <code>registry-url</code>, which
+makes it write a user-level npm config file and export its path as
+<code>NPM_CONFIG_USERCONFIG</code>; in <code>ci.yml</code> it is not, so
+the user-level file there is <code>~/.npmrc</code>.</p>
+<p><strong>Packages (to be published; not a fact yet).</strong> The
+owner decided on 2026-10-09 to rename the Joymify packages and republish
+them as <code>@joymify/tokens</code> 0.2.0, <code>@joymify/icons</code>
+0.3.0, <code>@joymify/brand</code> 0.2.0 and <code>@joymify/react</code>
+0.2.0, private, on GitHub Packages under the organisation
+<code>joymify</code>. The work is <code>joy-design</code> feature F-073,
+shipped into that repository’s release 3.8. As reported on 2026-10-09 it
+is <strong>not yet on <code>joy-design</code> main and not yet
+published</strong>. This spec therefore treats “the four packages
+resolve from the registry” as a precondition with its own acceptance
+checks, not as current state. The earlier packages
+<code>@montionugera/joy-*</code> (one version <code>0.2.0</code>,
+private, under the personal account) are superseded and are not used.
+<code>cli-state-handler</code> is private.</p>
+<p><strong>What <code>@joymify/react</code> 0.2.0 is expected to
+export.</strong> The table was read from <code>joy-design</code> main
+<code>02b1dfc8</code>, <code>packages/react/src/index.ts</code>, which
+is the source the superseded <code>@montionugera/joy-react</code> 0.2.0
+was built from: single entry point <code>"."</code>,
+<code>sideEffects: false</code>, peers <code>react</code> and
+<code>react-dom</code> <code>^19.0.0</code>. F-073 is a rename, so the
+exports are assumed unchanged; that assumption is <strong>not
+verified</strong> and phase 1a checks it against the installed
+package.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Need</th>
+<th>Export</th>
+<th>Notes from the source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Markdown</td>
+<td><code>MarkdownViewer</code> (<code>content</code>,
+<code>allowCopy</code>)</td>
+<td>Hand-written line parser: headings 1-3, paragraphs, block quotes,
+tables, rules, fenced code, inline code, bold, italic. A
+<code>mermaid</code> fence is passed to <code>MermaidViewer</code>.
+<strong>No lists, no links, no images.</strong></td>
+</tr>
+<tr>
+<td>Diagrams</td>
+<td><code>MermaidViewer</code> (<code>code</code>, <code>title</code>,
+<code>initialView</code>, <code>allowToggle</code>,
+<code>allowCopy</code>), <code>renderMermaidToSvg</code></td>
+<td>Zero-dependency renderer written in-house. <strong>Flowcharts and
+sequence diagrams only.</strong></td>
+</tr>
+<tr>
+<td>Code</td>
+<td><code>CodeBlock</code> (<code>code</code>, <code>language</code>,
+<code>title</code>, <code>showLineNumbers</code>,
+<code>allowCopy</code>), <code>PolyglotCodeTabs</code>
+(<code>items</code>, <code>activeKey</code>, <code>onChange</code>),
+<code>highlightCodeToHtml</code>, <code>tokenizeCode</code>,
+<code>normalizeLanguage</code></td>
+<td>Built-in highlighter, no external library.</td>
+</tr>
+<tr>
+<td>Theme control</td>
+<td>none</td>
+<td>No provider or hook. Theming is pure CSS in
+<code>@joymify/tokens/theme.css</code>. <code>Segmented</code> and
+<code>Switch</code> are available for the control itself.</td>
+</tr>
+<tr>
+<td>Navigation</td>
+<td><code>Menu</code>, <code>Anchor</code>, <code>Breadcrumb</code></td>
+<td><code>Menu</code> renders <code>role="menuitem"</code> list items
+with an <code>onSelect</code> callback, not links.</td>
+</tr>
+</tbody>
+</table>
+<p>No <code>@joymify/*</code> tarball exists to open yet; the table is
+source, not a published artefact.</p>
+<h2 id="design">Design</h2>
+<h3 id="dependencies-and-.npmrc">Dependencies and
+<code>.npmrc</code></h3>
+<p>Add to <code>apps/docs/package.json</code> dependencies:
+<code>@joymify/react</code> <code>^0.2.0</code> and
+<code>@joymify/tokens</code> <code>^0.2.0</code> (the stylesheet import
+needs tokens as a direct dependency under pnpm’s strict layout).
+<code>@joymify/icons</code> and <code>@joymify/brand</code> arrive as
+dependencies of <code>@joymify/react</code>. If any file under
+<code>apps/docs/src</code> imports <code>@joymify/icons</code> or
+<code>@joymify/brand</code> directly (the alias file maps both), that
+package becomes a direct dependency too, for the same reason.</p>
+<p>Add a repository-root <code>.npmrc</code> with the scope mapping
+only:</p>
+<pre><code>@joymify:registry=https://npm.pkg.github.com</code></pre>
+<p>The token line does <strong>not</strong> go in the committed file. It
+goes in the user-level npm config, as the literal text:</p>
+<pre><code>//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}</code></pre>
+<p>“User-level” means <code>~/.npmrc</code> on a developer machine, and
+on a runner the file named by <code>NPM_CONFIG_USERCONFIG</code> when
+that variable is set, otherwise <code>~/.npmrc</code>. The token itself
+is never written to disk; it is present only where the environment
+variable <code>JOYMIFY_PACKAGES_READ_TOKEN</code> is exported. The
+variable is deliberately not called <code>GITHUB_TOKEN</code>, so the
+workflow’s own job token is never the one handed to the installer.</p>
+<div class="callout warn">
+<p><strong>Why not a token line in the repository
+<code>.npmrc</code>.</strong> pnpm no longer expands <code><span
+class="math inline"><em>N</em><em>A</em><em>M</em><em>E</em> &lt; /<em>c</em><em>o</em><em>d</em><em>e</em> &gt; <em>i</em><em>n</em><em>a</em><em>p</em><em>r</em><em>o</em><em>j</em><em>e</em><em>c</em><em>t</em> − <em>l</em><em>e</em><em>v</em><em>e</em><em>l</em> &lt; <em>c</em><em>o</em><em>d</em><em>e</em> &gt; .<em>n</em><em>p</em><em>m</em><em>r</em><em>c</em> &lt; /<em>c</em><em>o</em><em>d</em><em>e</em> &gt; <em>f</em><em>o</em><em>r</em><em>r</em><em>e</em><em>g</em><em>i</em><em>s</em><em>t</em><em>r</em><em>y</em><em>U</em><em>R</em><em>L</em><em>s</em>, <em>U</em><em>R</em><em>L</em> − <em>s</em><em>c</em><em>o</em><em>p</em><em>e</em><em>d</em><em>k</em><em>e</em><em>y</em><em>s</em><em>a</em><em>n</em><em>d</em><em>c</em><em>r</em><em>e</em><em>d</em><em>e</em><em>n</em><em>t</em><em>i</em><em>a</em><em>l</em><em>v</em><em>a</em><em>l</em><em>u</em><em>e</em><em>s</em> : <em>s</em><em>u</em><em>c</em><em>h</em><em>a</em><em>l</em><em>i</em><em>n</em><em>e</em><em>i</em><em>s</em><em>i</em><em>g</em><em>n</em><em>o</em><em>r</em><em>e</em><em>d</em><em>w</em><em>i</em><em>t</em><em>h</em><em>a</em><em>w</em><em>a</em><em>r</em><em>n</em><em>i</em><em>n</em><em>g</em>.<em>T</em><em>h</em><em>e</em><em>p</em><em>n</em><em>p</em><em>m</em>11<em>d</em><em>o</em><em>c</em><em>u</em><em>m</em><em>e</em><em>n</em><em>t</em><em>a</em><em>t</em><em>i</em><em>o</em><em>n</em><em>d</em><em>a</em><em>t</em><em>e</em><em>s</em><em>t</em><em>h</em><em>i</em><em>s</em><em>t</em><em>o</em><em>v</em>11.5.3; <em>t</em><em>h</em><em>e</em><em>p</em><em>n</em><em>p</em><em>m</em>10<em>d</em><em>o</em><em>c</em><em>u</em><em>m</em><em>e</em><em>n</em><em>t</em><em>a</em><em>t</em><em>i</em><em>o</em><em>n</em><em>d</em><em>a</em><em>t</em><em>e</em><em>s</em><em>t</em><em>h</em><em>e</em><em>s</em><em>a</em><em>m</em><em>e</em><em>r</em><em>e</em><em>s</em><em>t</em><em>r</em><em>i</em><em>c</em><em>t</em><em>i</em><em>o</em><em>n</em><em>t</em><em>o</em><em>v</em>10.34.2(<em>s</em><em>e</em><em>c</em><em>u</em><em>r</em><em>i</em><em>t</em><em>y</em><em>a</em><em>d</em><em>v</em><em>i</em><em>s</em><em>o</em><em>r</em><em>y</em><em>G</em><em>H</em><em>S</em><em>A</em> − 3<em>q</em><em>h</em><em>v</em> − 2<em>r</em><em>g</em><em>h</em> − <em>x</em>77<em>r</em>; <em>s</em><em>o</em><em>u</em><em>r</em><em>c</em><em>e</em><em>s</em> : <em>p</em><em>n</em><em>p</em><em>m</em>.<em>i</em><em>o</em>/<em>n</em><em>p</em><em>m</em><em>r</em><em>c</em><em>a</em><em>n</em><em>d</em><em>p</em><em>n</em><em>p</em><em>m</em>.<em>i</em><em>o</em>/10.<em>x</em>/<em>n</em><em>p</em><em>m</em><em>r</em><em>c</em>, <em>r</em><em>e</em><em>a</em><em>d</em>2026 − 10 − 09).<em>C</em><em>I</em><em>p</em><em>i</em><em>n</em><em>s</em><em>p</em><em>n</em><em>p</em><em>m</em><em>t</em><em>o</em><em>m</em><em>a</em><em>j</em><em>o</em><em>r</em>10<em>o</em><em>n</em><em>l</em><em>y</em>, <em>s</em><em>o</em><em>t</em><em>h</em><em>e</em><em>r</em><em>u</em><em>n</em><em>n</em><em>e</em><em>r</em><em>i</em><em>s</em><em>a</em><em>l</em><em>r</em><em>e</em><em>a</em><em>d</em><em>y</em><em>o</em><em>n</em><em>a</em><em>p</em><em>n</em><em>p</em><em>m</em>10<em>t</em><em>h</em><em>a</em><em>t</em><em>i</em><em>g</em><em>n</em><em>o</em><em>r</em><em>e</em><em>s</em><em>s</em><em>u</em><em>c</em><em>h</em><em>a</em><em>l</em><em>i</em><em>n</em><em>e</em> : <em>a</em><em>c</em><em>o</em><em>m</em><em>m</em><em>i</em><em>t</em><em>t</em><em>e</em><em>d</em> &lt; <em>c</em><em>o</em><em>d</em><em>e</em>&gt;<sub><em>a</em></sub><em>u</em><em>t</em><em>h</em><em>T</em><em>o</em><em>k</em><em>e</em><em>n</em>=</span>{…}</code>
+line would answer 401 today, not only after a move to pnpm 11. Both
+documentation sets state that placeholders are still expanded in the
+user-level <code>.npmrc</code>, and that pnpm honours
+<code>NPM_CONFIG_USERCONFIG</code>. The scope mapping line has no
+placeholder, so it is unaffected.</p>
+</div>
+<p>Two limits of what was checked: the behaviour above is taken from the
+pnpm documentation, not from a run; and both documentation sets list
+<code>~/.npmrc</code> as a fallback behind pnpm’s own auth file, which
+is fine here because nothing else sets a token for
+<code>npm.pkg.github.com</code>. The green install in
+<code>ci.yml</code> (pnpm 10) is the empirical proof for pnpm 10. No
+pnpm 11 run exists in this repository, so pnpm 11 stays
+<strong>documented, not exercised</strong>.</p>
+<h3 id="no-scope-clash">No scope clash</h3>
+<div class="callout success">
+<p><strong>The release pipeline is left alone.</strong> A registry
+mapping is per scope. The new line maps <code><span class="citation"
+data-cites="joymify">@joymify</span></code> only. This repository’s own
+libraries are <code><span class="citation"
+data-cites="montionugera/ucsa-core">@montionugera/ucsa-core</span></code>
+and <code><span class="citation"
+data-cites="montionugera/ucsa-cli">@montionugera/ucsa-cli</span></code>;
+no line mentions <code><span class="citation"
+data-cites="montionugera">@montionugera</span></code>, so npm keeps
+resolving that scope the way it does today, through the plain
+<code>registry</code> setting, which is npmjs.com (default,
+<code>publishConfig.registry</code> in both manifests, and
+<code>registry-url</code> in <code>release.yml</code>).</p>
+</div>
+<p>An earlier revision of this spec had the Joymify packages under
+<code>@montionugera</code>, the same scope as the libraries, and so
+needed a mitigation: an explicit npmjs.com flag on the three registry
+calls (the <code>npm view</code> in
+<code>scripts/release/next-release.mjs</code> line 41, and the
+<code>npm view</code> and <code>npm publish</code> lines in
+<code>release.yml</code>) and a <code>"@montionugera:registry"</code>
+key in the <code>publishConfig</code> of both library manifests. With
+the packages under <code>@joymify</code> there is nothing to defend
+against, so <strong>all of that is removed from the design</strong>:
+<code>next-release.mjs</code>, the publish step,
+<code>packages/core/package.json</code> and
+<code>apps/cli/package.json</code> are not edited.</p>
+<p>What stays is one cheap regression check, so that a later edit which
+adds a <code>@montionugera</code> mapping (or a blanket
+<code>registry=</code> line) to the root <code>.npmrc</code> is caught
+before it reaches a release: from the repository root,
+<code>npm config get @montionugera:registry</code> prints
+<code>undefined</code>, and
+<code>node scripts/release/next-release.mjs</code> (no
+<code>--apply</code>, no token in the environment) exits 0, which
+exercises the real <code>npm view</code> against npmjs.com. Both are in
+the phase 1a acceptance criteria.</p>
+<p><code>pnpm install</code> of the workspace does not fetch the
+libraries at all: <code>workspace:*</code> never touches a registry, and
+no script installs the published libraries.</p>
+<h3 id="alias-removal">Alias removal</h3>
+<p>Simpler than first specified, because the base branch already imports
+the final names (nine files import <code>@joymify/react</code>;
+<code>main.tsx</code> imports <code>@joymify/tokens/theme.css</code>).
+<strong>No import statement changes.</strong> Only the route to the
+packages changes, from alias to <code>node_modules</code>:</p>
+<ul>
+<li>Delete <code>apps/docs/joy-alias.ts</code>; remove it from
+<code>vite.config.ts</code> and <code>vitest.config.ts</code>, along
+with <code>resolve.dedupe</code> (one React copy once the sibling
+checkout is gone).</li>
+<li>Remove the four <code>@joymify/*</code> paths and the two
+<code>react</code> paths from <code>apps/docs/tsconfig.json</code>,
+returning it to main’s single <code>@montionugera/ucsa-core</code>
+path.</li>
+<li>Root <code>pnpm typecheck</code> then resolves the packages through
+<code>apps/docs/node_modules</code> with no extra configuration.</li>
+</ul>
+<h3 id="ci-package-access">CI package access</h3>
+<pre class="mermaid"><code>flowchart LR
+  PR[Pull request] --&gt; CI[ci.yml install]
+  MERGE[Merge to main] --&gt; REL[release.yml install]
+  SECRET[Read token secret] --&gt; CI
+  SECRET --&gt; REL
+  CI --&gt; GHP[GitHub Packages org joymify]
+  REL --&gt; GHP
+  REL --&gt; NPMJS[npmjs.com publish]
+  GHP --&gt; JOY[joymify packages private]</code></pre>
+<p>Both workflows install the whole workspace, so both need read access
+to four private packages owned by the organisation <code>joymify</code>.
+The job’s own token cannot read them (they belong to another owner), so
+access is a stored token:</p>
+<ul>
+<li><strong>The secret.</strong> An Actions secret in
+<code>cli-state-handler</code> named
+<code>JOYMIFY_PACKAGES_READ_TOKEN</code>. Its value is a classic
+personal access token with the single scope <code>read:packages</code>,
+created by an account that can read the four packages, and authorised
+for the <code>joymify</code> organisation where the organisation
+requires it. Classic, because GitHub Packages does not accept
+fine-grained tokens (GitHub documentation, not re-read in this
+revision). The token expires; rotation is an owner task and its expiry
+date belongs in the README.</li>
+<li><strong>The workflow change, same in both files.</strong> One step
+before <code>pnpm install</code> appends the literal token line shown
+above (placeholder intact, quoted so the shell does not expand it) to
+<code>"${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"</code>. The install step
+gets
+<code>env: JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}</code>.
+In <code>release.yml</code> the user-level file is the one
+<code>actions/setup-node</code> already wrote for npmjs.com; the line is
+appended, nothing in it is replaced.</li>
+<li><strong>No <code>permissions</code> change.</strong>
+<code>packages: read</code> is not added: it governs the job token,
+which is not used for this.</li>
+<li><strong>Action versions are not touched</strong> (owned by
+I-046).</li>
+<li><strong><code>ci.yml</code> no longer “no secrets”.</strong> Its
+header comment says so today and must be corrected in the same change.
+The secret is read-only for packages and is exposed to the install step
+only.</li>
+</ul>
+<p>Coverage: the only two jobs that run <code>pnpm install</code> are
+<code>precheck</code> in <code>ci.yml</code> and <code>publish</code> in
+<code>release.yml</code>; both are covered. No later step fetches
+(<code>pnpm pack</code>, <code>pnpm --filter ... build</code> and
+<code>pnpm test</code> do not). <code>scripts/precheck.sh</code> re-runs
+<code>pnpm install</code> inside the CI job after the install step, with
+the store already filled and without the variable. Whether pnpm then
+only warns about the unresolved placeholder or fails is <strong>not
+verified</strong>; if it fails, the same <code>env</code> goes on the
+precheck step as well, and the green <code>ci.yml</code> run is what
+settles it.</p>
+<p>Pull requests that do not receive Actions secrets (forks, Dependabot)
+would fail at install. The repository is private and has no Dependabot
+configuration today, so this is recorded rather than designed for.</p>
+<p>Two consequences the owner should know about:</p>
+<ul>
+<li><strong><code>release.yml</code> installs the whole workspace, so
+its install step needs the read token too.</strong> The write-capable
+job token (<code>contents: write</code>, <code>id-token: write</code>)
+is still kept out of install, build and test, as the workflow’s own
+comment intends: the installer sees only the read-only package token.
+That is an improvement on the earlier design, which passed the job token
+to install.</li>
+<li><strong>Library publishing now depends on GitHub Packages.</strong>
+The whole-workspace install runs before publish, and root
+<code>pnpm test</code> includes the docs tests, so an expired or revoked
+token, a missing secret or a GitHub Packages outage blocks an npm
+release, against the workflow’s stated intent that a docs break must not
+block one. Recovery is the existing manual re-run of the Release
+workflow once access is back. Decoupling (installing only the libraries
+before publish and the docs afterwards) would need the release test
+scope split and is left as a separate idea.</li>
+</ul>
+<h3 id="theme-tokens-and-toggle">Theme tokens and toggle</h3>
+<p>The tokens stylesheet already does the work:
+<code>[data-theme="dark"]</code> forces dark,
+<code>[data-theme="light"]</code> forces light, and with no attribute it
+follows the system setting.</p>
+<pre class="mermaid"><code>flowchart TD
+  LOAD[Page load] --&gt; READ[Read saved choice]
+  READ --&gt; SAVED{Choice saved}
+  SAVED --&gt;|light or dark| SET[Set data-theme]
+  SAVED --&gt;|none| SYS[No attribute follow system]
+  SET --&gt; PAINT[First paint]
+  SYS --&gt; PAINT
+  PAINT --&gt; TOGGLE[Reader uses toggle]
+  TOGGLE --&gt; READ2[Save and apply]</code></pre>
+<ul>
+<li>Remove the hard-coded <code>data-theme="dark"</code> from
+<code>index.html</code>. Add a small inline script in
+<code>&lt;head&gt;</code>, before any stylesheet, that reads
+<code>localStorage["ucsa-docs-theme"]</code> inside
+<code>try/catch</code> and sets <code>data-theme</code> when the value
+is <code>light</code> or <code>dark</code>. Running before first paint
+is what prevents the flash.</li>
+<li>Toggle: a Joymify <code>Segmented</code> control with three options,
+System, Light, Dark, in the sidebar brand block and reachable in the
+phone drawer. System removes the attribute and the saved key.</li>
+<li>Move the 54 inline styles that carry colours, and the
+<code>--scrim</code> colour, onto <code>--joy-*</code> tokens so both
+themes are legible.</li>
+</ul>
+<h3 id="fonts">Fonts</h3>
+<p>Add <code>@fontsource-variable/inter</code> and
+<code>@fontsource-variable/jetbrains-mono</code> (npmjs.com) and import
+them in <code>main.tsx</code>. Vite copies the font files into
+<code>apps/docs/dist/assets</code>, so the archive stays self-contained
+and no request leaves the origin.</p>
+<h3 id="component-mapping">Component mapping</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Today</th>
+<th>Becomes</th>
+<th>Phase</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Button</code>, <code>Badge</code>, <code>Input</code>,
+<code>MetricTile</code> via <code>@joymify/react</code> through the
+alias</td>
+<td>same components, same import, from the installed
+<code>@joymify/react</code></td>
+<td>1a</td>
+</tr>
+<tr>
+<td><code>CodeBlock</code> in <code>Prose.tsx</code> (plain
+<code>&lt;pre&gt;</code>)</td>
+<td>Joymify <code>CodeBlock</code> with highlighting and copy</td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>&lt;pre class="mp-code"&gt;</code> per platform in
+<code>MultiPlatformDocs.tsx</code></td>
+<td>Joymify <code>PolyglotCodeTabs</code> (TypeScript, Dart, C#) where a
+guide shows all three; <code>CodeBlock</code> for single snippets</td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>Callout</code> in <code>Prose.tsx</code></td>
+<td>Joymify <code>Alert</code></td>
+<td>2</td>
+</tr>
+<tr>
+<td>No diagrams</td>
+<td><code>MermaidViewer</code>, directly or through a
+<code>mermaid</code> fence in markdown</td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>ReleaseNotes</code> hand parser over
+<code>CHANGELOG.md</code></td>
+<td><code>MarkdownViewer</code> with the raw changelog</td>
+<td>3</td>
+</tr>
+<tr>
+<td>Tutorial prose in TSX inside <code>Prose</code></td>
+<td>markdown segments (<code>.md</code> imported with <code>?raw</code>)
+rendered by <code>MarkdownViewer</code> between the live
+playgrounds</td>
+<td>3</td>
+</tr>
+</tbody>
+</table>
+<p>Phase 3 is gated: <code>CHANGELOG.md</code> is all bullet lists and
+the tutorial prose uses lists and links, which
+<code>MarkdownViewer</code> 0.2.0 does not render. Lists and links are
+added upstream in <code>joy-design</code> (React and Svelte twins) and
+released first; until then <code>ReleaseNotes</code> and
+<code>Prose</code> stay as they are. Phases 1 and 2 do not wait for
+it.</p>
+<p>To satisfy “Mermaid must render” in phase 2 without waiting, the
+Overview page gains one flowchart of the request path (cache,
+write-ahead log, outbox) through <code>MermaidViewer</code>.</p>
+<h3 id="sidebar-decision">Sidebar decision</h3>
+<p>Keep the existing anchor sidebar, styled with tokens. The Joymify
+<code>Menu</code> renders menu items with a callback, not links:
+adopting it would lose open-in-new-tab,
+<code>aria-current="page"</code>, and the tested drawer focus handling.
+If a link-based navigation component is wanted, that is an upstream
+request, filed separately.</p>
+<h3 id="bundle-size">Bundle size</h3>
+<ul>
+<li>No Mermaid library is added: the upstream renderer is in-house code
+(about 740 lines), so the cost is small.</li>
+<li><code>@joymify/react</code> has one entry point and
+<code>sideEffects: false</code>; Vite drops unused components.</li>
+<li>The markdown, code and diagram components are loaded with
+<code>React.lazy</code> from a single wrapper module, so the first page
+does not pay for them.</li>
+<li>The tokens stylesheet is about 240 kB before compression and covers
+every Joymify component. It is accepted as is; the gzip size is recorded
+in the pull request.</li>
+</ul>
+<h2 id="testing">Testing</h2>
+<ul>
+<li><strong>Baseline.</strong> Record the passing docs test count on the
+rebased branch before any change (320 on the old base, plus main’s two
+new test files). That number never drops. A test may be edited only
+where it asserts markup a Joymify component replaced; none is
+deleted.</li>
+<li><strong>New unit tests (Vitest + jsdom):</strong> the toggle sets
+and clears <code>data-theme</code> and the saved key; the saved choice
+is applied on load; storage that throws does not break render;
+<code>CodeBlock</code> output contains highlight spans; a flowchart
+source produces an <code>&lt;svg&gt;</code>; an unsupported diagram type
+shows its source and does not throw.</li>
+<li><strong>Release safety check:</strong> with the root
+<code>.npmrc</code> in place and no token in the environment,
+<code>npm config get @montionugera:registry</code> prints
+<code>undefined</code> and
+<code>node scripts/release/next-release.mjs</code> exits 0. No new unit
+test and no change to the release script: the earlier scope flag, and
+the test asserting it, are gone with the scope clash.</li>
+<li><strong>Browser check:</strong> every route in
+<code>src/routes.ts</code> at 360px and 1280px, in light and in dark: no
+horizontal page scroll, drawer opens and closes at 360px, no console
+errors, text legible on every surface.</li>
+</ul>
+<h2 id="risks-and-open-questions">Risks and open questions</h2>
+<ul>
+<li><strong>Packages not published yet (blocks everything).</strong>
+F-073 is not on <code>joy-design</code> main and nothing is on the
+registry. No phase starts until the four packages resolve (rollout step
+0). If the published versions differ from 0.2.0 / 0.3.0, the ranges in
+this spec are corrected first.</li>
+<li><strong>CI package access (highest risk once published).</strong>
+The secret <code>JOYMIFY_PACKAGES_READ_TOKEN</code> is created by the
+owner in GitHub settings; its value cannot be checked from a local
+machine, only its presence (<code>gh secret list</code>). If it is
+missing, wrong or expired, <code>release.yml</code> fails at install,
+which <strong>blocks library publishing</strong>, not just the docs.
+Mitigation: the same install runs in <code>ci.yml</code> on the pull
+request, so a red check appears before merge. Do not merge on a red or
+skipped install.</li>
+<li><strong>Token expiry.</strong> A classic token expires. An expiry
+between releases shows up as a red install on the next pull request or
+merge. Mitigation: expiry date in the README, and the fix is a new token
+in the same secret, then a re-run.</li>
+<li><strong>Release pipeline regression.</strong> The
+<code>.npmrc</code> does not map <code>@montionugera</code>, so no clash
+exists. The regression check in phase 1a guards against a later edit
+introducing one.</li>
+<li><strong>First merge is still watched.</strong> Trusted publishing
+cannot be exercised before merge. The first merge to main after phase 1a
+must be watched: install green, “Decide release” green, and a publish
+(if one is due) landing on npmjs.com. Undo is a revert of the phase 1a
+commit, which removes the <code>.npmrc</code> and the workflow
+steps.</li>
+<li><strong>pnpm versions.</strong> A committed token line is already
+ignored by current pnpm 10 and by pnpm 11; the design avoids it by
+keeping the token line in user-level config. pnpm 11 behaviour is from
+documentation only.</li>
+<li><strong>Tarball contents.</strong> <code>@joymify/react</code>
+source declares its siblings as <code>workspace:*</code>. The published
+0.2.0 must list real <code>@joymify/*</code> versions; if it does not,
+install fails and the fix is upstream.</li>
+<li><strong>Local installs now need a token.</strong>
+<code>pnpm install</code> fails with 401 unless the user-level
+<code>~/.npmrc</code> has the token line and
+<code>JOYMIFY_PACKAGES_READ_TOKEN</code> is exported with a token that
+has <code>read:packages</code> and can read the <code>joymify</code>
+organisation’s packages (for example
+<code>export JOYMIFY_PACKAGES_READ_TOKEN=$(gh auth token)</code> once
+the <code>gh</code> login has that scope, added with
+<code>gh auth refresh -s read:packages</code>). This affects every
+contributor and every agent worktree, including work unrelated to docs,
+and the local gates <code>scripts/precheck.sh</code> and
+<code>scripts/epic-check.sh</code>. In shells where the variable is not
+exported, npm and pnpm meet an unresolved placeholder in
+<code>~/.npmrc</code>; whether that is silent, a warning or an error in
+other projects is <strong>not verified</strong>. The fallback is to
+store the token itself with
+<code>npm config set //npm.pkg.github.com/:_authToken &lt;token&gt;</code>,
+which writes it to <code>~/.npmrc</code> in clear text. The README must
+give the one-time setup and both forms.</li>
+<li><strong>Markdown and Mermaid coverage.</strong> No lists, links or
+images; flowcharts and sequence diagrams only. Phase 3 depends on an
+upstream release.</li>
+<li><strong>Rebase conflicts.</strong> <code>vite.config.ts</code>,
+<code>MultiPlatformDocs.tsx</code> and <code>routes.ts</code> changed on
+both sides.</li>
+<li><strong>Worktree ownership.</strong> The base worktree is owned by
+another session; the feature claim must take it over rather than edit
+beside it.</li>
+<li><strong>No open question on access.</strong> The owner chose the
+stored read-only token. The earlier “Manage Actions access” grant on the
+personal-account packages is void and is not requested.</li>
+</ul>
+<h2 id="rollout">Rollout</h2>
+<p>Each phase is shippable alone: after it, <code>main</code> builds,
+tests pass, and the release pipeline still publishes to npmjs.com.</p>
+<ol start="0" type="1">
+<li>Preconditions, not code changes, both owner actions. (a)
+<code>joy-design</code> F-073 reaches main and the four
+<code>@joymify/*</code> packages are published. (b) The secret
+<code>JOYMIFY_PACKAGES_READ_TOKEN</code> exists in
+<code>cli-state-handler</code>. Nothing merges before both, because the
+install in <code>ci.yml</code> cannot go green without them.</li>
+<li>Rebase <code>fix/docs-design-nav</code> onto
+<code>release/1.10</code>; resolve conflicts; record the test
+baseline.</li>
+<li><strong>Phase 1a, wiring.</strong> Registry dependencies,
+<code>.npmrc</code>, alias removal, the token step and <code>env</code>
+in both workflows, the <code>ci.yml</code> header comment, README. No
+change to the release script, the publish commands or the library
+manifests. Open a draft pull request first to prove the install in
+<code>ci.yml</code>. The portal looks as it does on the base branch
+(dark only). Ships alone.</li>
+<li><strong>Phase 1b, themes.</strong> Toggle, no-flash script, fonts,
+inline styles onto tokens. Depends on 1a only.</li>
+<li><strong>Phase 2, code and diagrams.</strong> <code>CodeBlock</code>,
+<code>PolyglotCodeTabs</code>, <code>Alert</code>, the Overview diagram,
+lazy loading. Depends on 1a only.</li>
+<li><strong>Phase 3</strong>, a separate feature after the upstream
+release: markdown for release notes and tutorial prose. It gets its own
+acceptance criteria when it is specified; none below belong to it.</li>
+</ol>
+<p>Each phase ends with verify, independent review, refactor, re-verify.
+Undo is a revert of the phase’s commits; nothing is published or
+migrated.</p>
+<h2 id="acceptance-criteria">Acceptance criteria</h2>
+<p>Phase 0, preconditions (owner actions, checked before any code
+change):</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />With a token that has
+<code>read:packages</code> exported as
+<code>JOYMIFY_PACKAGES_READ_TOKEN</code> and the user-level token line
+in place, each of <code>npm view @joymify/tokens@0.2.0 version</code>,
+<code>npm view @joymify/icons@0.3.0 version</code>,
+<code>npm view @joymify/brand@0.2.0 version</code> and
+<code>npm view @joymify/react@0.2.0 version</code>, run with
+<code>--@joymify:registry=https://npm.pkg.github.com</code>, prints that
+version.</label></li>
+<li><label><input
+type="checkbox" /><code>npm view @joymify/react@0.2.0 dependencies --@joymify:registry=https://npm.pkg.github.com</code>
+lists <code>@joymify/*</code> names with version ranges, none starting
+with <code>workspace:</code>.</label></li>
+<li><label><input type="checkbox" /><code>gh secret list</code> in
+<code>cli-state-handler</code> shows
+<code>JOYMIFY_PACKAGES_READ_TOKEN</code>.</label></li>
+</ul>
+<p>Phase 1a, wiring:</p>
+<ul class="task-list">
+<li><label><input
+type="checkbox" /><code>test ! -e apps/docs/joy-alias.ts</code>
+succeeds, and
+<code>grep -rn -E "joy-design/packages|joy-alias|@montionugera/joy-" apps/docs --include='*.ts' --include='*.tsx' --include='*.json' --exclude-dir=node_modules</code>
+prints nothing.</label></li>
+<li><label><input
+type="checkbox" /><code>grep -n "@joymify/" apps/docs/package.json</code>
+shows <code>@joymify/react</code> and <code>@joymify/tokens</code> with
+version ranges, not <code>workspace:</code> or <code>link:</code>, and
+<code>grep -c "@joymify/" apps/docs/tsconfig.json</code> prints
+0.</label></li>
+<li><label><input
+type="checkbox" /><code>grep -rl -E "from ['\"]@joymify/react['\"]" apps/docs/src | wc -l</code>
+prints at least 9 (the importing files keep their imports; nothing was
+renamed), and
+<code>grep -c "@joymify/tokens/theme.css" apps/docs/src/main.tsx</code>
+prints 1.</label></li>
+<li><label><input type="checkbox" /><code>cat .npmrc</code> shows
+exactly one registry line,
+<code>@joymify:registry=https://npm.pkg.github.com</code>;
+<code>grep -c '_authToken' .npmrc</code> prints 0 and
+<code>grep -c 'montionugera' .npmrc</code> prints 0.</label></li>
+<li><label><input type="checkbox" />With the user-level token line and
+<code>JOYMIFY_PACKAGES_READ_TOKEN</code> set,
+<code>pnpm install --frozen-lockfile</code> exits 0 on a fresh clone
+that has no sibling <code>joy-design</code> directory, and
+<code>node -p "require('./apps/docs/node_modules/@joymify/react/package.json').version"</code>
+prints <code>0.2.0</code>.</label></li>
+<li><label><input
+type="checkbox" /><code>grep -c -E "MarkdownViewer|MermaidViewer|CodeBlock|PolyglotCodeTabs|Segmented|Alert" apps/docs/node_modules/@joymify/react/dist/index.d.ts</code>
+is at least 6 (adjust the path to the package’s declared
+<code>types</code> entry), confirming the exports table against the
+published package.</label></li>
+<li><label><input type="checkbox" /><code>pnpm typecheck</code> at the
+repository root exits 0.</label></li>
+<li><label><input
+type="checkbox" /><code>bash scripts/precheck.sh</code> exits
+0.</label></li>
+<li><label><input
+type="checkbox" /><code>pnpm --filter @ucsa/docs test</code> exits 0
+with a passing count no lower than the baseline recorded after the
+rebase.</label></li>
+<li><label><input
+type="checkbox" /><code>pnpm --filter @ucsa/docs build</code> exits
+0.</label></li>
+<li><label><input type="checkbox" />The pull request’s
+<code>ci.yml</code> run is green (the runner has no cache and no sibling
+checkout, so a green install proves the registry fetch and the token
+mechanism on pnpm 10), and
+<code>grep -c "npm.pkg.github.com" .github/workflows/ci.yml .github/workflows/release.yml</code>
+is at least 1 in each file.</label></li>
+<li><label><input
+type="checkbox" /><code>grep -n "JOYMIFY_PACKAGES_READ_TOKEN" .github/workflows/ci.yml .github/workflows/release.yml</code>
+shows, in each file, the placeholder line written to the user-level
+config and the secret passed as <code>env</code> on the install step
+(plus the precheck step in <code>ci.yml</code> only if that proved
+necessary);
+<code>grep -c "packages: read" .github/workflows/ci.yml .github/workflows/release.yml</code>
+prints 0 for both;
+<code>grep -n "no secrets" .github/workflows/ci.yml</code> prints
+nothing.</label></li>
+<li><label><input
+type="checkbox" /><code>git diff &lt;rebased base&gt;..HEAD -- .github/workflows | grep -E '^[+-] *- uses:|^[+-] *uses:'</code>
+prints nothing (no action version touched).</label></li>
+<li><label><input type="checkbox" />Release regression check:
+<code>git diff --stat &lt;rebased base&gt;..HEAD -- scripts/release packages/core/package.json apps/cli/package.json</code>
+prints nothing; from the repository root with the new
+<code>.npmrc</code> present and no token in the environment,
+<code>npm config get @montionugera:registry</code> prints
+<code>undefined</code> and
+<code>node scripts/release/next-release.mjs</code> (no
+<code>--apply</code>) exits 0.</label></li>
+<li><label><input
+type="checkbox" /><code>bash scripts/epic-check.sh E-009</code> still
+passes its release-workflow assertions.</label></li>
+<li><label><input type="checkbox" />After the merge to main, the Release
+workflow run is green through install and “Decide release”, and
+<code>npm view @montionugera/ucsa-core version --registry=https://registry.npmjs.org/</code>
+run outside the repository still prints the latest released
+version.</label></li>
+<li><label><input
+type="checkbox" /><code>grep -n -E "JOYMIFY_PACKAGES_READ_TOKEN|read:packages" README.md</code>
+shows the install instructions and the token’s expiry date.</label></li>
+</ul>
+<p>Phase 1b, themes:</p>
+<ul class="task-list">
+<li><label><input
+type="checkbox" /><code>grep -c 'data-theme="dark"' apps/docs/index.html</code>
+prints 0.</label></li>
+<li><label><input type="checkbox" />New tests named for the theme toggle
+pass: choosing Dark sets <code>data-theme="dark"</code> and saves it;
+choosing System removes both; a saved choice is applied on
+load.</label></li>
+<li><label><input type="checkbox" />In a browser with the system set to
+dark and a saved choice of Light, a hard reload never shows a dark frame
+(checked with a throttled reload).</label></li>
+<li><label><input
+type="checkbox" /><code>ls apps/docs/dist/assets | grep -c -E "\.woff2$"</code>
+prints at least 2, and
+<code>grep -rn -E "fonts\.googleapis|fonts\.gstatic" apps/docs/dist</code>
+prints nothing.</label></li>
+<li><label><input type="checkbox" />Every route in
+<code>apps/docs/src/routes.ts</code>, at 360px and at 1280px, in light
+and in dark:
+<code>document.documentElement.scrollWidth &lt;= window.innerWidth</code>
+and the console shows no errors.</label></li>
+</ul>
+<p>Phase 2, code and diagrams:</p>
+<ul class="task-list">
+<li><label><input type="checkbox" />New tests pass: Joymify
+<code>CodeBlock</code> output contains at least one
+<code>joy-syntax-</code> span; <code>MermaidViewer</code> with a
+flowchart source renders an <code>svg</code> element.</label></li>
+<li><label><input type="checkbox" />The Overview route shows a rendered
+diagram (an <code>svg</code>, not raw text) in both themes.</label></li>
+<li><label><input
+type="checkbox" /><code>grep -l "joy-mermaid" apps/docs/dist/assets/*.js</code>
+lists a file that is not the entry chunk named in
+<code>apps/docs/dist/index.html</code>.</label></li>
+<li><label><input type="checkbox" />The route check above (360px and
+1280px, light and dark, no horizontal scroll, no console errors) is
+repeated and passes.</label></li>
+</ul>
+<h2 id="appendix-audit-trail">Appendix: audit trail</h2>
+<ul>
+<li>2026-10-09 self-grill-audit (independent, read against the source
+tree): verdict <strong>safe with fixes</strong>. Corrected:
+<ul>
+<li>CRITICAL: the spec pinned two registry calls; there are three.
+<code>scripts/release/next-release.mjs</code> runs <code>npm view</code>
+on every merge to main and throws on anything but <code>E404</code>, so
+the scope mapping would have turned the release workflow red on every
+merge. Added to current state, design and acceptance criteria.</li>
+<li>HIGH: the committed token line
+<code>_authToken=${GITHUB_TOKEN}</code> relies on placeholder expansion
+that pnpm removed from project-level <code>.npmrc</code> in v11.5.3
+(pnpm.io/npmrc). Moved the token line to user-level config; the
+committed file keeps only the scope mapping.</li>
+<li>HIGH: the manifests already had <code>publishConfig.registry</code>
+and it does not override a scope mapping (npm-registry-fetch
+<code>pickRegistry</code>). Added the
+<code>@montionugera:registry</code> key to <code>publishConfig</code> as
+a second layer, so manual publishes are covered too.</li>
+<li>HIGH: the release safety check had no <code>npm view</code> check,
+no negative control and no post-merge check. Added.</li>
+<li>HIGH: acceptance criterion “install log shows packages fetched from
+npm.pkg.github.com” is not observable (pnpm does not log registry
+hosts). Replaced with a green uncached run plus the installed
+version.</li>
+<li>HIGH: two rollout steps were both “Phase 1” and the criteria were
+not tied to phases. Split into 1a and 1b, stated what each depends on,
+grouped the criteria by phase.</li>
+<li>Recorded, not changed: the write-capable job token reaches the
+install step of <code>release.yml</code>; library publishing now depends
+on GitHub Packages. Both are owner decisions under option A.</li>
+<li>LOW: nine files import <code>@joymify/react</code>, not eight. The
+count of 54 inline styles is all inline styles on the base branch, not
+only those carrying colours.</li>
+<li>Confirmed without change: every named export exists in
+<code>joy-design</code> <code>packages/react/src/index.ts</code> at
+<code>02b1dfc8</code>; <code>MarkdownViewer</code> has no lists, links
+or images; the diagram renderer handles flowchart or graph and sequence
+diagrams only; both jobs that run <code>pnpm install</code> are covered;
+nothing installs <code>@montionugera/ucsa-*</code> from a registry.</li>
+<li>Not verified: a local <code>npm publish --dry-run</code> probe was
+not permitted in the audit session, so the precedence facts rest on npm
+and pnpm source and docs; the phase 1a criteria prove them. Whether pnpm
+keeps <code>publishConfig</code> in a packed tarball, and the GitHub
+“Manage Actions access” grant, are likewise proved only by those
+criteria.</li>
+<li>Open: option A versus a stored read-only token (see “Risks and open
+questions”).</li>
+</ul></li>
+<li>2026-10-09 (late) revision for a changed owner decision, recorded in
+<code>research.md</code> (“packages move to <code>@joymify</code>”). Not
+a new audit; the earlier findings stand except where listed.
+<ul>
+<li>Renamed throughout: the dependencies are
+<code>@joymify/tokens</code> 0.2.0, <code>@joymify/icons</code> 0.3.0,
+<code>@joymify/brand</code> 0.2.0 and <code>@joymify/react</code> 0.2.0,
+private, organisation <code>joymify</code> on GitHub Packages
+(<code>joy-design</code> F-073, release 3.8). Stated as <strong>to be
+published</strong>; resolving from the registry is now rollout step 0
+with its own acceptance checks.</li>
+<li>Removed: the scope-clash mitigation from the first audit (CRITICAL
+and two HIGH items above). The registry line is
+<code>@joymify:registry=...</code> and does not touch
+<code>@montionugera</code>, so the three explicit npmjs.com flags
+(<code>release.yml</code> <code>npm view</code> and
+<code>npm publish</code>,
+<code>scripts/release/next-release.mjs:41</code>), the
+<code>"@montionugera:registry"</code> key in <code>publishConfig</code>,
+the negative-control publish dry runs and the unit test for the flag are
+all dropped. Replaced by one regression check
+(<code>npm config get @montionugera:registry</code> is
+<code>undefined</code>, and the release script’s dry run exits 0).</li>
+<li>Changed: CI access is a classic <code>read:packages</code> token in
+the Actions secret <code>JOYMIFY_PACKAGES_READ_TOKEN</code>. The “Manage
+Actions access” grant route, <code>packages: read</code>, and the option
+A / option B question are removed. Side effect: the write-capable job
+token no longer reaches the install step of
+<code>release.yml</code>.</li>
+<li>Kept and tightened: the token line stays out of the committed
+<code>.npmrc</code>. Re-read of the pnpm documentation found the
+placeholder restriction also applies to pnpm 10 from v10.34.2 (not only
+pnpm 11 from v11.5.3), so a committed line would already fail on the CI
+runner. The user-level placeholder line is documented to work on
+both.</li>
+<li>Simplified: alias removal no longer renames imports; the base branch
+already imports <code>@joymify/react</code> in nine files.</li>
+<li>Kept without change: phases each shippable alone, the exports table
+and the limits of <code>MarkdownViewer</code> and
+<code>MermaidViewer</code>, fonts, the sidebar decision, the 360px
+checks, the coupling of library releases to GitHub Packages. Workflow
+action versions are left to I-046.</li>
+<li>Not verified in this revision: that F-073 keeps the exports of
+<code>02b1dfc8</code> (checked in phase 1a); pnpm 10 and 11 placeholder
+behaviour beyond the documentation (pnpm 10 proved by the green
+<code>ci.yml</code> run, pnpm 11 not exercised); how npm and pnpm treat
+the unresolved placeholder when the variable is not exported; that
+GitHub Packages still rejects fine-grained tokens; the
+<code>types</code> path used in the exports check.</li>
+</ul></li>
+</ul>
+</body>
+</html>
