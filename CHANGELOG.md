@@ -2,6 +2,10 @@
 
 Release notes for `@montionugera/ucsa-core` and `@montionugera/ucsa-cli`. Both packages always share one version. Entries are written by the release workflow.
 
+## 0.3.0 - 2026-10-11
+
+- Bump pinned GitHub Actions off Node 20 and confirm Ubuntu 26 readiness (F-046)
+
 ## 0.2.0 - 2026-10-09
 
 - Version and release-notes script (F-038)
