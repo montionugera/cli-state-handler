@@ -2,6 +2,11 @@
 
 Release notes for `@montionugera/ucsa-core` and `@montionugera/ucsa-cli`. Both packages always share one version. Entries are written by the release workflow.
 
+## 0.4.0 - 2026-10-11
+
+- Make release.yml publish loop tolerate overlapping runs (skip on staged/409, wait for npm to show version) (F-047)
+- Tell the developer portal which docs version to fetch (F-048)
+
 ## 0.3.0 - 2026-10-11
 
 - Bump pinned GitHub Actions off Node 20 and confirm Ubuntu 26 readiness (F-046)
