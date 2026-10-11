@@ -28,6 +28,12 @@ if [ "$EPIC" = "E-009" ]; then
   run 5 "docs build has a release notes page and version.json" bash -c "
     pnpm --filter @montionugera/ucsa-core build >/dev/null && pnpm --filter @ucsa/docs build >/dev/null &&
     test -f apps/docs/dist/version.json && grep -rqF 'Release notes' apps/docs/dist"
+  run 6 "release.yml signal step passes cli_docs_tag from env, no \${{ in its run script" bash -c "
+    step=\$(awk '/- name: Signal the developer portal/{f=1;next} f&&/^      - name:/{exit} f' $W) &&
+    run=\$(printf '%s\n' \"\$step\" | awk '/^        run:/{r=1;next} r') &&
+    printf '%s\n' \"\$step\" | grep -qE '^          CLI_DOCS_TAG: v\\$\{\{ steps.decide.outputs.version \}\}' &&
+    printf '%s\n' \"\$run\" | grep -qF -- '-f cli_docs_tag=\"\$CLI_DOCS_TAG\"' &&
+    ! printf '%s\n' \"\$run\" | grep -qF '\${{'"
   exit $rc
 fi
 if [ "$EPIC" != "E-008" ]; then
