@@ -314,6 +314,6 @@
     "id": "I-046",
     "title": "Bump pinned GitHub Actions off Node 20 and confirm Ubuntu 26 readiness",
     "created_at": "2026-10-09T12:46:11.539439+00:00",
-    "promoted_to": null
+    "promoted_to": "F-046"
   }
 ]

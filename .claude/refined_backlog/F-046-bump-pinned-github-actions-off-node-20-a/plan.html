@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>render-spec-h4bl9U</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,800&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #07090d;
+      --surface: #10141b;
+      --surface-2: #161b24;
+      --surface-3: #1b212c;
+      --border: #2a3340;
+      --border-soft: #1c232e;
+      --ink: #d6dde7;
+      --ink-bright: #f6f8fb;
+      --ink-dim: #8392a3;
+      --accent: #4ee39b;
+      --accent-dim: #2f8f63;
+      --amber: #ffc746;
+      --amber-dim: #a37a1a;
+      --blue: #74b0ff;
+      --blue-dim: #3a5d8a;
+      --red: #ff6b6b;
+      --red-dim: #a14242;
+      --purple: #b288ff;
+      --purple-dim: #7a4dc5;
+      --teal: #4ed2c8;
+      --teal-dim: #347e7a;
+      --serif-display: "Fraunces", Georgia, serif;
+      --serif-body: "Spectral", Georgia, serif;
+      --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: var(--serif-body);
+      font-size: 19.5px;
+      line-height: 1.66;
+      color: var(--ink);
+      background: var(--bg);
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 64px 30px 160px;
+      counter-reset: sec;
+      animation: riseIn .55s cubic-bezier(.2,.7,.2,1) both;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body::before {
+      content: "";
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background:
+        radial-gradient(900px 500px at 80% -10%, rgba(78,227,155,.10), transparent 62%),
+        radial-gradient(720px 520px at -4% 110%, rgba(255,199,70,.055), transparent 60%),
+        linear-gradient(rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 100% 30px,
+        linear-gradient(90deg, rgba(255,255,255,.020) 1px, transparent 1px) 0 0 / 30px 100%;
+    }
+
+    @keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    /* ---------- headings ---------- */
+    h1, h2, h3, h4 { font-family: var(--serif-display); color: var(--ink-bright); line-height: 1.16; letter-spacing: -.012em; font-weight: 600; }
+    h1 {
+      font-size: 3.2rem; font-weight: 700; margin: 0 0 .25em; letter-spacing: -.028em;
+      background: linear-gradient(180deg, #ffffff, #afb9c5);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    h2 {
+      counter-increment: sec;
+      font-size: 2rem; margin: 2.8em 0 .7em; padding-top: .65em;
+      border-top: 1px solid var(--border-soft);
+      display: flex; align-items: baseline; gap: .55em; flex-wrap: wrap;
+      font-weight: 700;
+    }
+    h2::before {
+      content: "§" counter(sec, decimal-leading-zero);
+      font-family: var(--mono); font-size: .74rem; font-weight: 600;
+      color: var(--accent); letter-spacing: .04em;
+      border: 1px solid var(--accent-dim); border-radius: 6px;
+      padding: .3em .55em; transform: translateY(-.22em);
+      background: rgba(78,227,155,.06);
+    }
+    h3 { font-size: 1.42rem; margin: 2.1em 0 .55em; color: var(--ink-bright); font-weight: 600; }
+    h3 code { font-size: .88em; }
+    h4 { font-size: 1.1rem; margin: 1.5em 0 .4em; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; font-family: var(--mono); font-weight: 600; }
+
+    p { margin: .95em 0; }
+    strong { color: var(--ink-bright); font-weight: 600; }
+    em { color: #d4dce6; }
+
+    mark {
+      background: linear-gradient(180deg, rgba(255,199,70,.0) 60%, rgba(255,199,70,.32) 60%);
+      color: var(--ink-bright); padding: 0 .2em; border-radius: 3px;
+    }
+
+    /* ---------- links ---------- */
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(78,227,155,.32); transition: border-color .15s, color .15s; }
+    a:hover { color: #8af0c2; border-bottom-color: var(--accent); }
+
+    /* ---------- inline code & code blocks ---------- */
+    code { font-family: var(--mono); font-size: .85em; background: var(--surface-2); color: #e0ecf6; padding: .14em .45em; border-radius: 5px; border: 1px solid var(--border-soft); }
+    pre {
+      position: relative; font-size: .82rem; line-height: 1.62;
+      background: linear-gradient(180deg, #0e1219, #0a0d13);
+      border: 1px solid var(--border); border-radius: 11px;
+      padding: 20px 20px 18px; margin: 1.4em 0; overflow-x: auto;
+      box-shadow: 0 1px 0 rgba(255,255,255,.02) inset, 0 18px 44px -28px rgba(0,0,0,.9);
+    }
+    pre::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--accent), transparent); border-radius: 11px 0 0 11px; opacity: .6; }
+    pre code { background: none; border: none; padding: 0; color: #d3e4f3; font-size: 1em; }
+
+    kbd { font-family: var(--mono); font-size: .82em; background: var(--surface-2); border: 1px solid var(--border); border-bottom-width: 2px; padding: 2px 8px; border-radius: 6px; color: var(--ink-bright); box-shadow: 0 1px 0 var(--border-soft); }
+
+    /* ---------- tables ---------- */
+    table { border-collapse: collapse; width: 100%; margin: 1.4em 0; font-size: .87rem; font-family: var(--mono); }
+    th, td { border: 1px solid var(--border); padding: 11px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--surface); color: var(--ink-bright); font-weight: 600; border-bottom: 2px solid var(--accent-dim); text-transform: uppercase; font-size: .76rem; letter-spacing: .08em; }
+    tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+    tr:hover td { background: rgba(78,227,155,.04); }
+    td code { font-size: .94em; }
+    td strong { color: var(--amber); }
+
+    /* ---------- lists ---------- */
+    ul, ol { padding-left: 1.5em; margin: .9em 0; }
+    li { margin: .4em 0; }
+    li::marker { color: var(--accent-dim); font-weight: 600; }
+    ul ul, ol ol, ul ol, ol ul { margin: .3em 0; }
+
+    /* ---------- blockquote (used by pandoc) ---------- */
+    blockquote { border-left: 3px solid var(--accent-dim); margin: 1.2em 0; padding: .2em 0 .2em 18px; color: var(--ink-dim); font-style: italic; }
+
+    hr { border: none; border-top: 1px solid var(--border); margin: 2.6em 0; }
+
+    /* ---------- masthead (h1 + first p) ---------- */
+    h1 + p { font-family: var(--mono); font-size: .82rem; color: var(--ink-dim); line-height: 2; letter-spacing: .02em; border-bottom: 1px solid var(--border-soft); padding-bottom: 1.2em; }
+    h1 + p strong { color: var(--amber); font-weight: 500; }
+
+    /* ---------- TOC ---------- */
+    #TOC {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 18px 22px; margin: 1.8em 0 2.4em; font-family: var(--mono); font-size: .78rem;
+    }
+    #TOC::before { content: "CONTENTS"; display: block; color: var(--accent); letter-spacing: .22em; font-size: .7rem; margin-bottom: .7em; font-weight: 600; }
+    #TOC ul { list-style: none; padding-left: 0; margin: 0; }
+    #TOC > ul > li { margin: .22em 0; }
+    #TOC ul ul { padding-left: 1.1em; border-left: 1px solid var(--border-soft); margin: .25em 0 .5em; }
+    #TOC a { color: var(--ink); border: none; }
+    #TOC a:hover { color: var(--accent); }
+
+    @media (min-width: 1320px) {
+      #TOC {
+        position: fixed; top: 0; left: 0; bottom: 0; width: 300px; margin: 0;
+        border-radius: 0; border: none; border-right: 1px solid var(--border);
+        padding: 64px 28px; overflow-y: auto;
+        background: linear-gradient(180deg, rgba(13,17,23,.92), rgba(8,10,14,.92));
+        backdrop-filter: blur(6px);
+      }
+      body { max-width: 1320px; padding-left: 360px; }
+    }
+
+    /* ============================================================
+       CALLOUTS — info / warn / success / danger / idea / metric
+       Use via:
+         ::: callout-warn
+         **Heading**
+         body text
+         :::
+       or raw <div class="callout warn"> ... </div>
+       ============================================================ */
+    /* Robust layout: icon is absolutely positioned and the content is padded.
+       (An earlier `display:grid` + `.callout > * { grid-column: 2 }` approach broke
+       when pandoc emitted loose prose as bare text nodes — those became anonymous
+       grid items that fell into the icon column and wrapped one word per line.
+       Absolute icon + padding flows ANY content structure correctly: loose text,
+       multiple inline elements, nested lists.) */
+    .callout {
+      position: relative;
+      margin: 1.7em 0;
+      padding: 18px 22px 16px 58px;
+      border-radius: 13px;
+      border: 1px solid var(--callout-border, var(--border));
+      border-left-width: 4px;
+      background: var(--callout-bg, var(--surface));
+    }
+    .callout::before {
+      content: var(--callout-icon, "·");
+      position: absolute;
+      left: 14px; top: 16px;
+      width: 30px; text-align: center;
+      font-size: 28px; line-height: 1.1;
+      color: var(--callout-accent, var(--accent));
+    }
+    .callout > * { min-width: 0; margin-top: 0; }
+    .callout > * + * { margin-top: .55em; }
+    .callout > p:first-child strong:first-child {
+      display: block;
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--callout-accent, var(--ink-bright));
+      letter-spacing: -.01em;
+      margin-bottom: .35em;
+    }
+    .callout p { line-height: 1.55; }
+    .callout code { background: rgba(0,0,0,.28); border-color: rgba(255,255,255,.06); }
+
+    .callout.info,    .callout-info    { --callout-border: var(--blue-dim);   --callout-bg: rgba(116,176,255,.08);   --callout-accent: var(--blue);   --callout-icon: "ℹ"; }
+    .callout.warn,    .callout-warn    { --callout-border: var(--amber-dim);  --callout-bg: rgba(255,199,70,.09);    --callout-accent: var(--amber);  --callout-icon: "⚠"; }
+    .callout.success, .callout-success { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.08);    --callout-accent: var(--accent); --callout-icon: "✓"; }
+    .callout.danger,  .callout-danger  { --callout-border: var(--red-dim);    --callout-bg: rgba(255,107,107,.09);   --callout-accent: var(--red);    --callout-icon: "✕"; }
+    .callout.idea,    .callout-idea    { --callout-border: var(--purple-dim); --callout-bg: rgba(178,136,255,.08);   --callout-accent: var(--purple); --callout-icon: "✦"; }
+    .callout.metric,  .callout-metric  { --callout-border: var(--teal-dim);   --callout-bg: rgba(78,210,200,.08);    --callout-accent: var(--teal);   --callout-icon: "Σ"; }
+    .callout.action,  .callout-action  { --callout-border: var(--accent-dim); --callout-bg: rgba(78,227,155,.04);    --callout-accent: var(--accent); --callout-icon: "▸"; }
+
+    /* ============================================================
+       METRIC TILES — grid of big-number cards
+       Use via raw HTML:
+         <div class="metric-grid">
+           <div class="metric-tile alarm">
+             <div class="label">Pass all gates</div>
+             <div class="value">21%</div>
+             <div class="delta">39 / 187 results</div>
+           </div>
+         </div>
+       Variants: .alarm (red), .win (green), .info (blue), .warn (amber)
+       ============================================================ */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin: 1.5em 0;
+    }
+    .metric-tile {
+      background: linear-gradient(180deg, var(--surface), var(--bg));
+      border: 1px solid var(--border);
+      border-top: 3px solid var(--tile-accent, var(--accent));
+      border-radius: 12px;
+      padding: 18px 18px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .metric-tile .label {
+      font-family: var(--mono);
+      font-size: .72rem;
+      letter-spacing: .14em;
+      color: var(--ink-dim);
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .metric-tile .value {
+      font-family: var(--serif-display);
+      font-weight: 700;
+      font-size: 2.55rem;
+      color: var(--tile-accent, var(--ink-bright));
+      line-height: 1;
+      letter-spacing: -.025em;
+    }
+    .metric-tile .delta {
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--ink-dim);
+    }
+    .metric-tile.alarm { --tile-accent: var(--red); }
+    .metric-tile.win   { --tile-accent: var(--accent); }
+    .metric-tile.info  { --tile-accent: var(--blue); }
+    .metric-tile.warn  { --tile-accent: var(--amber); }
+    .metric-tile.teal  { --tile-accent: var(--teal); }
+    .metric-tile.dim .value { color: var(--ink-bright); }
+
+    /* ============================================================
+       TOPIC CHIP — colored pill that can appear next to H2 text
+       ============================================================ */
+    .topic-chip {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: .68rem;
+      letter-spacing: .16em;
+      color: var(--bg);
+      background: var(--accent);
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-weight: 700;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+    .topic-chip.warn   { background: var(--amber); }
+    .topic-chip.danger { background: var(--red);   color: #fff; }
+    .topic-chip.info   { background: var(--blue);  color: var(--bg); }
+    .topic-chip.idea   { background: var(--purple); color: #fff; }
+    .topic-chip.teal   { background: var(--teal);  color: var(--bg); }
+
+    /* ============================================================
+       PULL QUOTE
+       ============================================================ */
+    .pullquote {
+      font-family: var(--serif-display);
+      font-size: 1.55rem;
+      font-weight: 500;
+      line-height: 1.38;
+      color: var(--ink-bright);
+      border-left: 4px solid var(--accent);
+      padding: 4px 0 4px 22px;
+      margin: 1.8em 0;
+      letter-spacing: -.012em;
+    }
+
+    /* ============================================================
+       SCHEMATIC — ASCII box-drawing diagrams, monospace canvas
+       Use via:
+         <div class="schematic">
+         ┌─────────┐    ┌─────────┐
+         │ Phase 0 │ ─→ │ Phase 1 │
+         └─────────┘    └─────────┘
+         </div>
+       ============================================================ */
+    .schematic {
+      font-family: var(--mono);
+      font-size: .86rem;
+      line-height: 1.4;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 28px;
+      margin: 1.6em 0;
+      color: #cfdcec;
+      white-space: pre;
+      overflow-x: auto;
+      position: relative;
+    }
+    .schematic::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: linear-gradient(var(--teal), transparent); border-radius: 12px 0 0 12px; opacity: .6; }
+
+    /* ============================================================
+       RAW SVG / inline diagrams
+       ============================================================ */
+    .diagram, svg.diagram, .figure {
+      display: block; margin: 1.6em auto; max-width: 100%;
+      background: linear-gradient(180deg, #0d1117, #0a0d13);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 22px 14px;
+    }
+    .figure-caption {
+      text-align: center; font-family: var(--mono); font-size: .76rem;
+      color: var(--ink-dim); margin-top: -.6em; margin-bottom: 1.6em;
+      letter-spacing: .04em;
+    }
+
+    /* ============================================================
+       MERMAID block — bigger frame, softer glow
+       ============================================================ */
+    .mermaid {
+      margin: 1.6em 0; text-align: center;
+      background: linear-gradient(180deg, #0e1320, #0a0d13);
+      border: 1px solid var(--border); border-radius: 13px;
+      padding: 24px 14px;
+      box-shadow: 0 18px 50px -36px rgba(78,227,155,.55) inset;
+    }
+    .mermaid svg { max-width: 100%; height: auto; }
+
+    /* Hide pandoc's title-block if present */
+    #title-block-header { display: none; }
+
+    /* ============================================================
+       UTILITY ROW — two-up / three-up adjacent blocks
+       ============================================================ */
+    .row {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 1fr;
+      margin: 1.5em 0;
+    }
+    .row.two { grid-template-columns: 1fr 1fr; }
+    .row.three { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 760px) {
+      .row.two, .row.three { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    const render = () => {
+      const blocks = new Set();
+      document.querySelectorAll('pre.mermaid, pre.sourceCode.mermaid').forEach((p) => blocks.add(p));
+      document.querySelectorAll('code.mermaid, code.language-mermaid').forEach((c) => {
+        const pre = c.closest('pre'); if (pre) blocks.add(pre);
+      });
+      blocks.forEach((pre) => {
+        const div = document.createElement('div');
+        div.className = 'mermaid';
+        div.textContent = pre.textContent.trim();
+        pre.replaceWith(div);
+      });
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        securityLevel: 'loose',
+        fontFamily: 'IBM Plex Mono, monospace',
+        themeVariables: {
+          background: '#0a0d13',
+          primaryColor: '#1a212c',
+          primaryTextColor: '#f0f3f7',
+          primaryBorderColor: '#4ee39b',
+          lineColor: '#6c7a8b',
+          secondaryColor: '#191e28',
+          tertiaryColor: '#11161e',
+          tertiaryBorderColor: '#2a3340',
+          clusterBkg: 'rgba(78,227,155,.05)',
+          clusterBorder: '#2f8f63',
+          titleColor: '#4ee39b',
+          actorBkg: '#1a212c',
+          actorBorder: '#4ee39b',
+          actorTextColor: '#f0f3f7',
+          signalColor: '#9aa7b6',
+          signalTextColor: '#d3dbe5',
+          noteBkgColor: 'rgba(255,199,70,.14)',
+          noteBorderColor: '#ffc746',
+          noteTextColor: '#f6f8fb',
+          fontSize: '14px'
+        }
+      });
+      mermaid.run();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
+    else render();
+  </script>
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a
+href="#bump-pinned-github-actions-off-node-20-idea-i-046-implementation-plan"
+id="toc-bump-pinned-github-actions-off-node-20-idea-i-046-implementation-plan">Bump
+pinned GitHub Actions off Node 20 (idea I-046) Implementation Plan</a>
+<ul>
+<li><a href="#global-constraints" id="toc-global-constraints">Global
+Constraints</a></li>
+<li><a href="#phase-a-the-six-line-change"
+id="toc-phase-a-the-six-line-change">Phase A: the six-line
+change</a></li>
+<li><a href="#phase-b-rehearsals-nothing-here-may-publish"
+id="toc-phase-b-rehearsals-nothing-here-may-publish">Phase B: rehearsals
+(nothing here may publish)</a></li>
+<li><a href="#phase-c-ship-and-what-only-the-real-release-can-prove"
+id="toc-phase-c-ship-and-what-only-the-real-release-can-prove">Phase C:
+ship, and what only the real release can prove</a></li>
+<li><a href="#if-it-goes-wrong" id="toc-if-it-goes-wrong">If it goes
+wrong</a></li>
+<li><a href="#audit-trail" id="toc-audit-trail">Audit trail</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1
+id="bump-pinned-github-actions-off-node-20-idea-i-046-implementation-plan">Bump
+pinned GitHub Actions off Node 20 (idea I-046) Implementation Plan</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use
+subagent-driven-development to implement this plan task-by-task. Steps
+use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> Swap six action version pins in the two GitHub
+workflow files to their Node.js 24 majors and prove, without publishing
+anything, that the pull-request check and the release workflow still
+work, including on Ubuntu 26.</p>
+<p><strong>Architecture:</strong> One six-line commit on a feature
+branch, then three rehearsals in increasing risk: a draft pull request
+(runs <code>ci.yml</code>), a temporary Ubuntu 26 trial on that pull
+request, and two hand-started runs of <code>release.yml</code> from a
+throwaway branch whose publish powers have been removed. Only then is
+the feature merged into the release branch.</p>
+<p><strong>Tech Stack:</strong> GitHub Actions
+(<code>actions/checkout</code>, <code>pnpm/action-setup</code>,
+<code>actions/setup-node</code>), <code>gh</code> CLI,
+<code>actionlint</code>, <code>psrw</code> (the ps-release-workflow
+command that manages the release branch and feature worktrees), pnpm 10,
+Node.js.</p>
+<p><strong>Spec:</strong>
+<code>.claude/idea_backlog/I-046-bump-pinned-github-actions-off-node-20-a/spec.md</code>
+(after Task 1 it is copied to
+<code>.claude/refined_backlog/&lt;F-NNN&gt;/spec.md</code>). Read it
+before starting; this plan argues from it.</p>
+<h2 id="global-constraints">Global Constraints</h2>
+<ul>
+<li>The pin table, verbatim: <code>actions/checkout@v4</code> to
+<code>@v7</code>, <code>pnpm/action-setup@v4</code> to <code>@v6</code>,
+<code>actions/setup-node@v4</code> to <code>@v7</code>. Exactly six
+lines change, three in <code>.github/workflows/ci.yml</code> and three
+in <code>.github/workflows/release.yml</code>.
+<code>runs-on: ubuntu-latest</code> stays.</li>
+<li>Never rename <code>.github/workflows/release.yml</code>, move its
+publish step, or add <code>environment:</code> to its job. npmjs.com
+trusts exactly that file name with a blank environment; any of the three
+breaks publishing.</li>
+<li>Never start <code>release.yml</code> from the feature branch. Only
+from the disarmed throwaway branch <code>rehearsal/i-046</code> (Task
+3).</li>
+<li><strong>A line starting <code>STOP — needs the owner's yes:</code>
+is irreversible or leaves this machine. Stop, ask the owner (the human
+who owns this repository), and wait. A yes covers that one line only.
+Never assume it.</strong></li>
+<li>Work only in the feature worktree created in Task 1; the main
+checkout blocks edits. Never <code>git commit --amend</code>; one new
+commit per logical unit. Commit subjects must start with
+<code>ci:</code> (a subject or body line starting <code>feat</code>,
+<code>fix</code> or <code>perf</code> would make the release script
+publish).</li>
+<li>Run local commands with the default Node.js (26); do not switch
+versions. The local <code>better-sqlite3</code> binary is x86_64; do not
+rebuild it for another architecture.</li>
+<li>Repository: <code>montionugera/cli-state-handler</code>.
+<code>&lt;run&gt;</code> always means the run id captured in the step
+just before.</li>
+<li>Evidence file:
+<code>EVID="$(git rev-parse --path-format=absolute --git-common-dir)/i-046-evidence.txt"</code>.
+It lives in the repository’s shared git directory, so it never appears
+in a diff and survives <code>psrw ship</code> (which deletes the feature
+worktree together with that worktree’s own git directory). Append every
+run id and command output named below to it.</li>
+<li>Shell variables do not survive between tool calls. State file:
+<code>ST="$(git rev-parse --path-format=absolute --git-common-dir)/i-046-state.sh"</code>.
+Whenever a step sets a variable (<code>SHA</code>, <code>BASE</code>,
+<code>BR</code>, <code>PIN</code>, <code>PR</code>, <code>TRIAL</code>,
+<code>RUN</code>, <code>EVID</code>), also append it:
+<code>echo "NAME='value'" &gt;&gt; "$ST"</code>. Start every new shell
+with <code>. "$ST"</code> and, before any command that uses a variable,
+confirm it is not empty (<code>test -n "$BR"</code>). An empty variable
+is a stop, never a reason to type a value from memory.</li>
+<li>Finding a run id: always by commit, never “the latest run”.
+<code>RUN=$(gh run list --workflow &lt;file&gt; --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId -q '.[0].databaseId'); test -n "$RUN" &amp;&amp; echo "$RUN"</code>.
+Empty means GitHub has not registered the run yet: repeat the command
+until it prints an id. A lookup without <code>--commit</code> can return
+the previous run and make a check pass on the wrong run.</li>
+</ul>
+<p><strong>README and docs:</strong> no update is needed. The action
+versions are documented nowhere except the two workflow files:
+<code>grep -rnE 'checkout@|setup-node@|action-setup@' --include='*.md' --include='*.mdx' . --exclude-dir=node_modules --exclude-dir=graft</code>
+matches only this idea’s folder and one archived plan under
+<code>.claude/epic_backlog/_archive/1.9/</code> (history, not edited).
+Task 1 re-runs that grep to confirm it is still true after I-038.</p>
+<hr />
+<h2 id="phase-a-the-six-line-change">Phase A: the six-line change</h2>
+<h3 id="task-0-prove-idea-i-038-has-landed">Task 0: Prove idea I-038 has
+landed</h3>
+<p>I-038 (adopting the Joymify design-system packages in the docs site)
+is owned by another session, edits the same two workflow files, and must
+already be merged into the release branch <code>release/1.10</code>.</p>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 1: Run the
+check</strong> from the release worktree
+<code>/Users/pasitnusso/workspace/repos/cli-state-handler/.claude/worktrees/_release</code>:</label></li>
+</ul>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="va">SHA</span><span class="op">=</span><span class="va">$(</span><span class="ex">jq</span> <span class="at">-r</span> <span class="st">&#39;.[] | select(.from_idea==&quot;I-038&quot; and .shipped_sha!=null) | .shipped_sha&#39;</span> .claude/refined_backlog/_catalog.json<span class="va">)</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="bu">test</span> <span class="at">-n</span> <span class="st">&quot;</span><span class="va">$SHA</span><span class="st">&quot;</span> <span class="kw">&amp;&amp;</span> <span class="fu">git</span> merge-base <span class="at">--is-ancestor</span> <span class="st">&quot;</span><span class="va">$SHA</span><span class="st">&quot;</span> release/1.10 <span class="kw">&amp;&amp;</span> <span class="bu">echo</span> <span class="st">&quot;I-038 landed at </span><span class="va">$SHA</span><span class="st">&quot;</span></span></code></pre></div>
+<p>Expected: one line
+<code>I-038 landed at &lt;40-character hash&gt;</code> (save
+<code>SHA</code> to the state file). If it prints nothing (it prints
+nothing on 2026-10-09; I-038 is not yet refined), stop the whole plan
+and report “blocked on I-038”. Do not continue.</p>
+<h3 id="task-1-claim-the-feature-and-bump-the-pins">Task 1: Claim the
+feature and bump the pins</h3>
+<p><strong>Files:</strong> Modify <code>.github/workflows/ci.yml</code>
+(three <code>uses:</code> lines),
+<code>.github/workflows/release.yml</code> (three <code>uses:</code>
+lines).</p>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 1: Create the
+worktree.</strong> <code>psrw refine</code> commits with
+<code>git add -A</code>, so it sweeps up every uncommitted file in the
+release worktree, including another session’s. First run
+<code>git status --short</code> there: every line must be under
+<code>.claude/idea_backlog/I-046-bump-pinned-github-actions-off-node-20-a/</code>.
+Any other line (on 2026-10-09 there is one: a modified
+<code>spec.html</code> in I-038’s folder) belongs to someone else: stop
+and report; do not stash, revert or commit it. Then run
+<code>psrw refine I-046</code> (turns the idea into a feature and prints
+its id, <code>F-NNN</code>), then <code>psrw claim F-NNN</code> (creates
+the feature worktree on branch <code>feat/F-NNN</code> and prints its
+path). <code>cd</code> into that path. Both commands are local only
+(checked in the psrw source on 2026-10-09: neither contains a push or a
+fetch); if either ever asks to push, stop and ask the
+owner.</label></li>
+<li><label><input type="checkbox" /><strong>Step 2: Record the base and
+confirm I-038 is underneath.</strong>
+<code>BASE=$(git rev-parse HEAD); BR=$(git branch --show-current); echo "base=$BASE branch=$BR" &gt;&gt; "$EVID"</code>,
+then
+<code>git merge-base --is-ancestor "$SHA" HEAD &amp;&amp; echo ok</code>
+(expected <code>ok</code>).</label></li>
+<li><label><input type="checkbox" /><strong>Step 3: Confirm the starting
+pins.</strong>
+<code>grep -ohE '(actions|pnpm)/[a-z-]+@v[0-9]+' .github/workflows/ci.yml .github/workflows/release.yml | sort | uniq -c</code>.
+Expected exactly <code>2 actions/checkout@v4</code>,
+<code>2 actions/setup-node@v4</code>,
+<code>2 pnpm/action-setup@v4</code>. Any other line or count means I-038
+changed the picture: stop and report, because the spec’s six-line scope
+no longer holds.</label></li>
+<li><label><input type="checkbox" /><strong>Step 4:
+Implement.</strong></label></li>
+</ul>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">sed</span> <span class="at">-i</span> <span class="st">&#39;&#39;</span> <span class="at">-E</span> <span class="st">&#39;s#actions/checkout@v4#actions/checkout@v7#; s#pnpm/action-setup@v4#pnpm/action-setup@v6#; s#actions/setup-node@v4#actions/setup-node@v7#&#39;</span> .github/workflows/ci.yml .github/workflows/release.yml</span></code></pre></div>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 5: Verify.</strong> Run
+each; all must match.</label>
+<ul>
+<li><code>git diff --numstat</code> prints exactly
+<code>3 3 .github/workflows/ci.yml</code> and
+<code>3 3 .github/workflows/release.yml</code>.</li>
+<li>The grep from Step 3 now prints <code>2 actions/checkout@v7</code>,
+<code>2 actions/setup-node@v7</code>,
+<code>2 pnpm/action-setup@v6</code>.</li>
+<li><code>grep -cE '^\s+environment:' .github/workflows/release.yml</code>
+prints <code>0</code>;
+<code>grep -c 'npm publish' .github/workflows/release.yml</code> prints
+<code>1</code>.</li>
+<li><code>actionlint .github/workflows/ci.yml .github/workflows/release.yml; echo exit=$?</code>
+prints <code>exit=0</code>.</li>
+<li>The docs grep from “README and docs” above still matches only
+<code>.claude/</code> backlog files.</li>
+<li>Gate 1 (the repository’s fast local check):
+<code>pnpm install --frozen-lockfile | tail -n 5</code>, then
+<code>bash -c './scripts/precheck.sh 2&gt;&amp;1 | tail -n 15; echo exit=${PIPESTATUS[0]}'</code>
+prints <code>exit=0</code>.</li>
+</ul></li>
+<li><label><input type="checkbox" /><strong>Step 6: Commit.</strong>
+<code>git add .github/workflows/ci.yml .github/workflows/release.yml &amp;&amp; git commit -m "ci: bump pinned GitHub Actions to Node 24 majors"</code>
+(add the <code>Co-Authored-By</code> trailer the session specifies).
+Record <code>PIN=$(git rev-parse HEAD)</code> in <code>$EVID</code>;
+rollback needs it.</label></li>
+<li><label><input type="checkbox" /><strong>Step 7: Phase gate,
+review.</strong> Dispatch a <code>code-reviewer</code> subagent
+(<code>model: sonnet</code>) with <code>git show $PIN</code> and the
+Global Constraints. It must confirm: six lines only, correct targets, no
+other line touched, trust constraints intact.</label></li>
+<li><label><input type="checkbox" /><strong>Step 8: Phase gate,
+refactor.</strong> Apply any finding as a new <code>ci:</code> commit.
+If there are none, record “no findings” in
+<code>$EVID</code>.</label></li>
+<li><label><input type="checkbox" /><strong>Step 9: Phase gate,
+re-verify.</strong> Re-run Step 5 with
+<code>git diff --numstat $BASE..HEAD</code> in place of
+<code>git diff --numstat</code>. Same expected output.</label></li>
+</ul>
+<h2 id="phase-b-rehearsals-nothing-here-may-publish">Phase B: rehearsals
+(nothing here may publish)</h2>
+<p>Tasks 2 and 3 share one quality gate. Task 2 leaves no net diff, so
+the gate’s independent review is Task 3 Step 3 (the disarm diff,
+reviewed before any run), its refactor is the fix-up in that same step,
+and its re-verify is Task 3 Step 16.</p>
+<h3 id="task-2-pull-request-check-and-ubuntu-26-trial">Task 2:
+Pull-request check and Ubuntu 26 trial</h3>
+<p><code>ci.yml</code> runs only for pull requests into
+<code>main</code>, so a draft pull request is the only way to exercise
+it. It is never merged: merging would put release 1.10’s
+<code>feat</code> commits on <code>main</code> and publish.</p>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 1:</strong> STOP —
+needs the owner’s yes: <code>git push -u origin "$BR"</code> (creates
+the feature branch on the remote).</label></li>
+<li><label><input type="checkbox" /><strong>Step 2:</strong> STOP —
+needs the owner’s yes:
+<code>gh pr create --draft --base main --head "$BR" --title "ci: bump pinned GitHub Actions to Node 24 majors (REHEARSAL, NEVER MERGE)" --body "Draft only, to run ci.yml. Closed after the checks. Do not merge."</code>
+Record the pull request number as <code>PR</code>.</label></li>
+<li><label><input type="checkbox" /><strong>Step 3: Verify the
+pull-request run.</strong> Find <code>RUN</code> for <code>ci.yml</code>
+by commit (Global Constraints),
+<code>gh run watch "$RUN" --exit-status | tail -n 5</code>,
+then:</label>
+<ul>
+<li><code>gh pr checks "$PR"</code> shows <code>precheck</code> as
+<code>pass</code>.</li>
+<li><code>gh run view "$RUN" --log | grep -oE 'using pnpm v[0-9]+' | sort -u</code>
+prints <code>using pnpm v10</code>. This settles the spec’s unverified
+item “pnpm/action-setup v6 resolves <code>version: 10</code> to pnpm
+10”. If it prints <code>v11</code>, stop: that is pnpm/action-setup
+issue 225; go to “If it goes wrong”.</li>
+<li><code>JOB=$(gh run view "$RUN" --json jobs -q '.jobs[0].databaseId'); gh api "repos/montionugera/cli-state-handler/check-runs/$JOB/annotations" -q '.[].message' | grep -c 'Node.js 20'</code>
+prints <code>0</code>. Run the <code>gh api</code> call on its own first
+and confirm it exits 0: a failed call also makes the count
+<code>0</code>. (Checked on the old pins: the same command prints
+<code>1</code> for release run 37930906435, so the check can fail.)</li>
+</ul></li>
+<li><label><input type="checkbox" /><strong>Step 4: Ubuntu 26 trial
+commit.</strong> In <code>.github/workflows/ci.yml</code> change the one
+line <code>runs-on: ubuntu-latest</code> to
+<code>runs-on: ubuntu-26.04</code>.
+<code>git commit -am "ci: TEMP trial on ubuntu-26.04 (reverted in the next commit)"</code>;
+record <code>TRIAL=$(git rev-parse HEAD)</code>.</label></li>
+<li><label><input type="checkbox" /><strong>Step 5:</strong> STOP —
+needs the owner’s yes: <code>git push origin "$BR"</code> (starts the
+trial run on the draft pull request).</label></li>
+<li><label><input type="checkbox" /><strong>Step 6: Verify the
+trial.</strong> Find <code>RUN</code> by commit (it must be the run for
+<code>$TRIAL</code>) and watch as in Step 3, then
+<code>gh run view "$RUN" --log | grep -m1 'Image: '</code> ends with
+<code>Image: ubuntu-26.04</code> and
+<code>gh run view "$RUN" --json conclusion -q .conclusion</code> prints
+<code>success</code>. Also record
+<code>gh run view "$RUN" --log | grep -ciE 'node-gyp rebuild|gyp info'</code>:
+<code>0</code> means the prebuilt <code>better-sqlite3</code> binary
+loaded on Ubuntu 26 (settles the unverified system-library item); above
+<code>0</code> with <code>success</code> means the source-compile
+fallback works with Python 3.14 (settles the other half). A failure here
+blocks the plan; go to “If it goes wrong”.</label></li>
+<li><label><input type="checkbox" /><strong>Step 7: Revert the
+trial.</strong>
+<code>git revert --no-commit "$TRIAL" &amp;&amp; git commit -m "ci: revert ubuntu-26.04 trial"</code>.
+Verify <code>git diff --numstat $BASE..HEAD</code> is back to the two
+<code>3 3</code> lines and
+<code>grep -c 'ubuntu-26.04' .github/workflows/ci.yml</code> prints
+<code>0</code>.</label></li>
+<li><label><input type="checkbox" /><strong>Step 8:</strong> STOP —
+needs the owner’s yes: <code>git push origin "$BR"</code> (pushes the
+revert). Then find <code>RUN</code> by commit, watch it as in Step 3,
+and confirm
+<code>gh run view "$RUN" --json conclusion -q .conclusion</code> prints
+<code>success</code> and
+<code>gh run view "$RUN" --log | grep -m1 'Image: '</code> no longer
+ends with <code>ubuntu-26.04</code>.</label></li>
+<li><label><input type="checkbox" /><strong>Step 9:</strong> STOP —
+needs the owner’s yes: <code>gh pr close "$PR"</code> (closes the draft;
+it was never merged). Verify
+<code>gh pr view "$PR" --json state,mergedAt -q '.state + " " + (.mergedAt|tostring)'</code>
+prints <code>CLOSED null</code>.</label></li>
+</ul>
+<h3 id="task-3-release-rehearsal-from-a-disarmed-throwaway-branch">Task
+3: Release rehearsal from a disarmed throwaway branch</h3>
+<p>A hand-started run of <code>release.yml</code> uses the branch’s copy
+of the workflow but checks out <code>main</code>. <code>main</code> is
+unprotected and npmjs.com does not check which branch asked, so the
+workflow must have its powers removed before it is ever started.</p>
+<p><strong>Files:</strong> Modify
+<code>.github/workflows/release.yml</code> on branch
+<code>rehearsal/i-046</code> only. This branch is never merged and never
+opened as a pull request.</p>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 1: Implement the
+disarm.</strong> <code>git switch -c rehearsal/i-046</code> (from the
+feature branch tip). In <code>release.yml</code>: change
+<code>contents: write</code> to <code>contents: read</code>; delete the
+<code>id-token: write</code> line; leave any other permission line
+alone; replace the <code>if:</code> line of each of these four steps
+with <code>if: false</code>: “Commit version bump and tag”, “Publish to
+npmjs.com (trusted publishing)”, “GitHub Release”, “Signal the developer
+portal”.
+<code>git commit -am "ci: DISARM release.yml for rehearsal (never merge)"</code>.</label></li>
+<li><label><input type="checkbox" /><strong>Step 2: Verify the
+disarm.</strong> All must match:</label>
+<ul>
+<li><code>git show rehearsal/i-046:.github/workflows/release.yml | grep -cE 'id-token|contents: write'</code>
+prints <code>0</code>.</li>
+<li><code>git show rehearsal/i-046:.github/workflows/release.yml | grep -c 'if: false'</code>
+prints <code>4</code>.</li>
+<li><code>grep -A1 -E 'name: (Commit version bump and tag|Publish to npmjs.com \(trusted publishing\)|GitHub Release|Signal the developer portal)$' .github/workflows/release.yml | grep -c 'if: false'</code>
+prints <code>4</code> (the four are on the right steps).</li>
+<li><code>grep -cE ':[[:space:]]+write' .github/workflows/release.yml</code>
+prints <code>0</code> (no write permission of any kind is left,
+including one I-038 may have added).</li>
+<li>Every command that can leave the runner sits in a disabled step:
+<code>awk '/^      - (name|uses|run)/{step=$0} /if: false/{off[step]=1} /git .*push|npm publish|gh release (upload|create)|gh workflow run|secrets\./{print (off[step]?"DISARMED":"LIVE")}' .github/workflows/release.yml | sort | uniq -c</code>
+prints only <code>DISARMED</code> lines (exactly <code>6 DISARMED</code>
+against the 2026-10-09 file: one push, one <code>npm publish</code>, the
+release upload and create, the portal secret, the portal dispatch). Any
+<code>LIVE</code> line, which I-038 could have introduced, means a fifth
+step needs <code>if: false</code>: stop and report, because the spec
+fixes the count at four.</li>
+<li><code>actionlint -ignore 'constant expression "false" in condition' .github/workflows/release.yml; echo exit=$?</code>
+prints <code>exit=0</code>. The <code>-ignore</code> is required: plain
+<code>actionlint</code> rejects every <code>if: false</code> and exits 1
+(dry-run on 2026-10-09). Do not rewrite the condition to quiet it; the
+spec’s acceptance check counts the literal text
+<code>if: false</code>.</li>
+</ul></li>
+<li><label><input type="checkbox" /><strong>Step 3: Phase gate, review
+before anything runs.</strong> Dispatch a <code>code-reviewer</code>
+subagent (<code>model: opus</code>, this is the publish path) with
+<code>git diff "$BR"..rehearsal/i-046</code> and the spec’s
+“Verification plan” step 3. It must list every step of the file by name
+and answer one question for each: can it push, tag, upload, signal or
+publish? Fix findings as new commits and re-run Step 2. Do not go on
+with an open finding.</label></li>
+<li><label><input type="checkbox" /><strong>Step 4: Record the “before”
+state.</strong> Append to <code>$EVID</code> the output of
+<code>npm view @montionugera/ucsa-cli version</code>,
+<code>git ls-remote origin refs/heads/main 'refs/tags/v*'</code> and
+<code>gh release view v0.2.0 --json assets -q '.assets[].updatedAt'</code>.</label></li>
+<li><label><input type="checkbox" /><strong>Step 5:</strong> STOP —
+needs the owner’s yes: <code>git push -u origin rehearsal/i-046</code>
+(a branch push does not start <code>release.yml</code>).</label></li>
+<li><label><input type="checkbox" /><strong>Step 6:</strong> STOP —
+needs the owner’s yes:
+<code>gh workflow run release.yml --ref rehearsal/i-046</code> (Run A:
+new pins against today’s <code>main</code> files). Ask now, but do not
+run it in this step. The yes is spent in Step 7 and lapses if Step 7’s
+barrier fails.</label></li>
+<li><label><input type="checkbox" /><strong>Step 7: Second barrier, then
+Run A at once.</strong> Only after the yes, and with no pause between
+the barrier and the dispatch (asking after the barrier would let
+<code>main</code> move while waiting for the answer):</label>
+<ul>
+<li><code>git fetch origin --tags &amp;&amp; git switch --detach origin/main &amp;&amp; node scripts/release/next-release.mjs; git switch rehearsal/i-046</code>
+must print <code>action=none</code>.</li>
+<li><code>gh release view v0.2.0 --json assets -q '.assets[].name'</code>
+must print <code>docs-site.tgz</code>.</li>
+<li><code>gh run list --workflow release.yml --json status -q '[.[]|select(.status!="completed")]|length'</code>
+must print <code>0</code>. The workflow’s concurrency group
+<code>release</code> keeps one waiting run only, so a rehearsal started
+while real release runs are active could cancel a waiting real one.</li>
+<li>If any of the three differs, do not start; report. Otherwise run the
+approved <code>gh workflow run release.yml --ref rehearsal/i-046</code>.
+If GitHub refuses the dispatch (HTTP 403 or 422), that answers the
+spec’s unverified item “starting <code>release.yml</code> from a
+non-default branch is permitted after I-038”: stop and report; do not
+change permissions, they belong to I-038.</li>
+</ul></li>
+<li><label><input type="checkbox" /><strong>Step 8: Verify Run
+A.</strong> Find <code>RUN</code> for <code>release.yml</code> by commit
+(<code>git rev-parse rehearsal/i-046</code>; Global Constraints),
+confirm
+<code>gh run view "$RUN" --json event,headBranch -q '.event + " " + .headBranch'</code>
+prints <code>workflow_dispatch rehearsal/i-046</code>,
+<code>gh run watch "$RUN" --exit-status | tail -n 5</code>,
+then:</label>
+<ul>
+<li><code>gh run view "$RUN" --json conclusion -q .conclusion</code>
+prints <code>success</code>, and
+<code>gh run view "$RUN" --json jobs -q '.jobs[0].steps[] | select(.name=="Decide release") | .conclusion'</code>
+prints <code>success</code>. This settles three unverified items: pnpm
+only warns about the unset <code>NODE_AUTH_TOKEN</code>, npmjs.com
+accepts reads under setup-node v7, and npm tolerates the literal
+<code>${NODE_AUTH_TOKEN}</code> for reads. Record
+<code>gh run view "$RUN" --log | grep -ci 'NODE_AUTH_TOKEN'</code> as a
+note.</li>
+<li><code>gh run view "$RUN" --log | grep -oE 'action=[a-z-]+' | sort -u</code>
+prints <code>action=none</code>.</li>
+<li><code>gh run view "$RUN" --json jobs -q '.jobs[0].steps[] | select(.name|test("Commit version|Publish to npmjs|GitHub Release|Signal the developer")) | .conclusion'</code>
+prints <code>skipped</code> four times (settles “a run from a branch
+without <code>id-token: write</code> behaves as designed”).</li>
+<li>The pnpm-version and <code>Node.js 20</code> annotation commands
+from Task 2 Step 3 print <code>using pnpm v10</code> and <code>0</code>
+for this run.</li>
+<li>The three commands from Step 4 print exactly what they printed
+before.</li>
+</ul></li>
+<li><label><input type="checkbox" /><strong>Step 9: Prepare Run
+B</strong> (new pins against release 1.10’s own files, which Run A did
+not cover). In <code>release.yml</code> change <code>ref: main</code> to
+<code>ref: rehearsal/i-046</code>;
+<code>git commit -am "ci: rehearsal run B, check out the rehearsal branch (never merge)"</code>.
+Re-run Step 2; same expected output.</label></li>
+<li><label><input type="checkbox" /><strong>Step 10:</strong> STOP —
+needs the owner’s yes: <code>git push origin rehearsal/i-046</code>
+(publishes the Run B commit; starts nothing).</label></li>
+<li><label><input type="checkbox" /><strong>Step 11:</strong> STOP —
+needs the owner’s yes:
+<code>gh workflow run release.yml --ref rehearsal/i-046</code> (Run B).
+Immediately before it, re-run the third check of Step 7 (no unfinished
+<code>release.yml</code> run); expected <code>0</code>.</label></li>
+<li><label><input type="checkbox" /><strong>Step 12: Verify Run
+B.</strong> Find <code>RUN</code> by commit as in Step 8. The Step 9
+commit gives Run B a different commit from Run A, so the lookup cannot
+return Run A; confirm the id differs from Run A’s in <code>$EVID</code>.
+Then as Step 8, except the decision may be <code>action=release</code>
+(it only edits files inside the runner): conclusion
+<code>success</code>, “Decide release” <code>success</code>, four
+<code>skipped</code>, <code>using pnpm v10</code>, annotation count
+<code>0</code>, and the three Step 4 commands unchanged.</label></li>
+<li><label><input type="checkbox" /><strong>Step 13:</strong> STOP —
+needs the owner’s yes:
+<code>git push origin --delete rehearsal/i-046</code> (removes the
+throwaway branch from the remote).</label></li>
+<li><label><input type="checkbox" /><strong>Step 14:</strong> STOP —
+needs the owner’s yes: <code>git push origin --delete "$BR"</code>
+(removes the feature branch from the remote; the closed draft pull
+request stays as a record).</label></li>
+<li><label><input type="checkbox" /><strong>Step 15: Local
+clean-up.</strong>
+<code>git switch "$BR" &amp;&amp; git branch -D rehearsal/i-046</code>.
+Verify <code>git ls-remote origin refs/heads/rehearsal/i-046</code>
+prints nothing and <code>git branch --show-current</code> prints
+<code>$BR</code> (<code>psrw ship</code> must not run from the rehearsal
+branch).</label></li>
+<li><label><input type="checkbox" /><strong>Step 16: Phase gate,
+re-verify.</strong> On <code>$BR</code>:
+<code>git diff --numstat $BASE..HEAD</code> prints the two
+<code>3 3</code> lines;
+<code>git log --format=%s $BASE..HEAD | grep -cvE '^ci: '</code> prints
+<code>0</code>; <code>git status --short</code> prints
+nothing.</label></li>
+</ul>
+<h2 id="phase-c-ship-and-what-only-the-real-release-can-prove">Phase C:
+ship, and what only the real release can prove</h2>
+<h3 id="task-4-merge-into-the-release-branch-and-hand-over">Task 4:
+Merge into the release branch and hand over</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Step 1: Implement.</strong>
+From the feature worktree run <code>psrw ship</code>. Checked in the
+psrw source on 2026-10-09: it never pushes. It reads from the remote
+once (<code>git fetch origin main</code>), merges any new
+<code>main</code> commits into the local <code>release/1.10</code>, runs
+Gate 1 (<code>scripts/precheck.sh</code>), merges the feature locally,
+and then deletes the feature worktree, so <code>cd</code> to the release
+worktree straight afterwards (the evidence and state files are in the
+shared git directory and survive). This repository has no
+<code>scripts/deploy-local.sh</code>, so the post-merge local deploy
+prints “skipped”. If <code>psrw ship</code> ever asks to push, stop and
+ask the owner. If it refuses on its readiness check, report it; do not
+pass <code>--skip-readiness</code> or
+<code>--no-sync-main</code>.</label></li>
+<li><label><input type="checkbox" /><strong>Step 2: Verify.</strong> In
+the release worktree:
+<code>git merge-base --is-ancestor "$PIN" release/1.10 &amp;&amp; echo shipped</code>
+prints <code>shipped</code>; the pin grep from Task 1 Step 3 prints the
+three <code>@v7</code>/<code>@v6</code> lines;
+<code>grep -c 'ubuntu-26.04\|if: false' .github/workflows/*.yml</code>
+prints <code>0</code> for both files.</label></li>
+<li><label><input type="checkbox" /><strong>Step 3: Review.</strong>
+Dispatch a <code>code-reviewer</code> subagent
+(<code>model: sonnet</code>) with <code>$EVID</code> and the spec’s
+acceptance criteria; it ticks each criterion against the recorded output
+and names any without evidence.</label></li>
+<li><label><input type="checkbox" /><strong>Step 4: Refactor and
+re-verify.</strong> Close any gap it names by re-running the missing
+command (not by editing the evidence), then re-run Step 2.</label></li>
+<li><label><input type="checkbox" /><strong>Step 5: Report to the
+owner</strong> with <code>$EVID</code> pasted, and this sentence: “The
+tag push and the token-free npm publish have not run on the new pins;
+their first run is the release 1.10 merge.”</label></li>
+<li><label><input type="checkbox" /><strong>Step 6:</strong> STOP —
+needs the owner’s yes: the release 1.10 promote (the pull request from
+<code>release/1.10</code> to <code>main</code> and its merge). It is not
+part of this plan and is run by the release owner. Its merge subject
+<code>release 1.10 (#N)</code> always releases, so it performs a real,
+permanent npm publish through the new pins. When it happens, check the
+last two unverified items:
+<code>gh run list --workflow release.yml --branch main --limit 1</code>
+ends <code>success</code> with the steps “Commit version bump and tag”
+and “Publish to npmjs.com (trusted publishing)” both
+<code>success</code>;
+<code>npm view @montionugera/ucsa-cli version</code> prints the new
+version; the <code>Node.js 20</code> annotation count for that run is
+<code>0</code>.</label></li>
+</ul>
+<h2 id="if-it-goes-wrong">If it goes wrong</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>When</th>
+<th>What you see</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Before shipping (Tasks 1 to 3)</td>
+<td>Any verify step fails, pnpm reports v11, or the Ubuntu 26 trial
+fails</td>
+<td>Stop. <code>git revert "$PIN"</code> on the feature branch (new
+commit, subject starting <code>ci:</code>). Delete
+<code>rehearsal/i-046</code> locally. If it exists on the remote: STOP —
+needs the owner’s yes:
+<code>git push origin --delete rehearsal/i-046</code>. Report the
+failing output. An Ubuntu 26 failure with a green
+<code>ubuntu-latest</code> run is a finding for the owner, not a reason
+to change <code>runs-on</code> (out of scope).</td>
+</tr>
+<tr>
+<td>A rehearsal run shows a guarded step as anything but
+<code>skipped</code></td>
+<td>Possible outside effect</td>
+<td>Stop at once. Compare the three Step 4 “before” outputs. Report both
+to the owner before touching anything.</td>
+</tr>
+<tr>
+<td>After release 1.10 is on <code>main</code>, fully published</td>
+<td>Problem found later</td>
+<td>STOP — needs the owner’s yes: hotfix pull request to
+<code>main</code> whose only commit is the revert, subject
+<code>ci: revert action pins</code>. Its merge prints
+<code>action=none</code> and publishes nothing.</td>
+</tr>
+<tr>
+<td>Release run failed before the push (no tag, nothing published)</td>
+<td>Same hotfix</td>
+<td>STOP — needs the owner’s yes. The hotfix merge prints
+<code>action=release</code> and performs the 1.10 release on the old
+pins. This is intended.</td>
+</tr>
+<tr>
+<td>Release run failed after the push (tag exists, a package missing
+from npmjs.com)</td>
+<td>Same hotfix</td>
+<td>STOP — needs the owner’s yes. The hotfix merge prints
+<code>action=publish-only</code> and publishes the tagged version on the
+old pins, skipping a package already there.</td>
+</tr>
+<tr>
+<td>Any release failure</td>
+<td>Temptation to press “Re-run jobs”</td>
+<td>Not a rollback: it reuses the failed run’s workflow file, so it
+repeats the new pins. Use it only for a clearly transient failure. Never
+delete the tag or bump a version by hand.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="audit-trail">Audit trail</h2>
+<p>Independent audit, 2026-10-09 (self-grill-audit method, read-only):
+both workflow files, <code>scripts/release/next-release.mjs</code> and
+<code>lib.mjs</code>, the psrw source under
+<code>~/.claude/ps-release-workflow/</code>, <code>_catalog.json</code>,
+release run 37930906435, and scratch-copy dry-runs of the
+<code>sed</code>, the disarm and every <code>grep</code>. Verdict: ready
+after fixes. No CRITICAL: against today’s <code>release.yml</code> the
+disarm covers every step that can push, tag, publish, upload or dispatch
+(6 of 6 such commands sit in the four disabled steps).</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Severity</th>
+<th>Finding</th>
+<th>What changed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HIGH</td>
+<td>Task 3 Step 2 expected plain <code>actionlint</code> to exit 0 on
+the disarmed file; it exits 1 on each <code>if: false</code>. The worker
+would be stuck or rewrite the condition and break the spec’s
+<code>if: false</code> count.</td>
+<td><code>-ignore</code> flag added, with a warning not to rewrite the
+condition.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>The “immediately before” barrier ran before a STOP, so
+<code>main</code> could move while waiting for the owner’s answer.</td>
+<td>Yes is asked first (Step 6); barrier and dispatch run back to back
+(Step 7).</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>Run ids were taken as “the latest run”. Right after a dispatch that
+is empty or the previous run, so Run B could be “verified” against Run
+A.</td>
+<td>Lookup by commit everywhere, plus an event and branch check.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>Task 3 Step 10 bundled a push and the Run B dispatch under one STOP;
+Task 2 Step 8 and Task 3 Step 12 each bundled two outward actions; one
+remote delete had no STOP prefix.</td>
+<td>One STOP line per outward action.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>The evidence file lived in the feature worktree’s git directory,
+which <code>psrw ship</code> deletes before Task 4 reviews it; variables
+were assumed to survive between shells.</td>
+<td>Evidence and a state file moved to the shared git directory;
+variable rule added.</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td><code>psrw refine</code> commits with <code>git add -A</code> and
+would commit another session’s modified I-038 file in the release
+worktree.</td>
+<td>Pre-check added; stop if anything outside this idea’s folder is
+dirty.</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td>Disarm checks named only <code>contents: write</code> and
+<code>id-token</code>, and trusted the four step names; an I-038
+addition would slip through.</td>
+<td>Generic write-permission check and a per-command DISARMED/LIVE check
+added.</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td>A rehearsal dispatch could cancel a waiting real release run (shared
+concurrency group).</td>
+<td>“No unfinished release run” check before each dispatch.</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td>The annotation count prints <code>0</code> when the API call itself
+fails.</td>
+<td>Note added; check shown to print <code>1</code> on the old
+pins.</td>
+</tr>
+<tr>
+<td>INFO</td>
+<td>Whether psrw pushes was left open.</td>
+<td>Settled from source: refine, claim and ship never push; ship only
+fetches <code>main</code>.</td>
+</tr>
+<tr>
+<td>LOW (not changed)</td>
+<td>Task 0’s <code>jq</code> yields two lines if I-038 is refined into
+more than one feature; the <code>--is-ancestor</code> test would then
+error and the plan would stop (fails safe).</td>
+<td>None.</td>
+</tr>
+</tbody>
+</table>
+</body>
+</html>
