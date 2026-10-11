@@ -152,12 +152,13 @@ jobs:
           fi
 
       - name: Signal the developer portal
-        if: steps.docs.outputs.needed == 'true'
+        if: steps.docs.outputs.needed == 'true' && steps.tag.outputs.exists == 'true'
         env:
           GH_TOKEN: ${{ secrets.PORTAL_DISPATCH_TOKEN }}
+          CLI_DOCS_TAG: v${{ steps.decide.outputs.version }}
         run: |
           if [ -z "$GH_TOKEN" ]; then
             echo "::warning::PORTAL_DISPATCH_TOKEN is not set; the developer portal was not signalled"
             exit 0
           fi
-          gh workflow run ci.yml -R montionugera/joy-design --ref main
+          gh workflow run ci.yml -R montionugera/joy-design --ref main -f cli_docs_tag="$CLI_DOCS_TAG"

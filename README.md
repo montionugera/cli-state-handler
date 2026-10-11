@@ -2710,7 +2710,7 @@ Check what the next merge would do, without changing anything: `node scripts/rel
 
 **Do not** rename `release.yml`, move its publish step into another workflow, or add `environment:` to its job. npmjs.com trusts that exact file with a blank environment.
 
-**Portal signal:** needs a repository secret `PORTAL_DISPATCH_TOKEN`, a fine-grained GitHub token for `montionugera/joy-design` with the repository permission "Actions: Read and write" (inferred from GitHub's REST documentation for "Create a workflow dispatch event", not confirmed against a live token). Without it the release still succeeds and the workflow logs a warning.
+**Portal signal:** needs a repository secret `PORTAL_DISPATCH_TOKEN`, a fine-grained GitHub token for `montionugera/joy-design` with the repository permission "Actions: Read and write" (inferred from GitHub's REST documentation for "Create a workflow dispatch event", not confirmed against a live token). Without it the release still succeeds and the workflow logs a warning. The signal passes `-f cli_docs_tag=v<released version>`, so the portal fetches exactly the docs of the release that triggered it instead of "latest".
 
 After a release, `main` has a bump commit made by the workflow; run `psrw sync-main` before starting the next release.
 

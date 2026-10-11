@@ -49,7 +49,7 @@ Epic assertion 11 (built portal in Chrome at 360px and 1280px, no horizontal scr
 
 ## Deploy
 
-The docs are not deployed from this repo directly. On every release, `.github/workflows/release.yml` builds `apps/docs`, attaches the build to the GitHub Release as `docs-site.tgz`, and signals the developer portal (`dev.joymify.com/cli-state-handler/`, served from the `joy-design` repo). The base path stays `/cli-state-handler/`. See "Publishing".
+The docs are not deployed from this repo directly. On every release, `.github/workflows/release.yml` builds `apps/docs`, attaches the build to the GitHub Release as `docs-site.tgz`, and signals the developer portal (`dev.joymify.com/cli-state-handler/`, served from the `joy-design` repo) with the released tag (`cli_docs_tag=v<version>`). The base path stays `/cli-state-handler/`. See "Publishing".
 
 ## Known limits
 
