@@ -1584,7 +1584,23 @@ ucsa docs --port 6006 --dry-run   # validate the launch without starting a serve
 
 `ucsa docs` shells out to `pnpm --filter @ucsa/docs dev`, so it needs the workspace checked out with dependencies installed.
 
-The studio UI reuses the Joymify design system (`@joymify/react`, `@joymify/tokens`), which is unpublished: the `joy-design` repo must be checked out as a sibling directory of this repo (`../joy-design`, with `packages/tokens/dist/theme.css` built) for `pnpm dev:docs`, the docs build and the docs tests to resolve it.
+The studio UI is built with the Joymify design system, installed as the private packages `@montionugera/joy-react` and `@montionugera/joy-tokens` from GitHub Packages (account `montionugera`, repository `joy-design`). They share the `@montionugera` scope with the libraries this repository publishes to npmjs.com, so the scope is mapped to `https://npm.pkg.github.com` for pnpm only, in the `registries` block of `pnpm-workspace.yaml`.
+
+**Never add `@montionugera:registry=...` to a `.npmrc`, here or in your `~/.npmrc`.** npm reads those files, and the line sends `npm view` and `npm publish` for `@montionugera/ucsa-core` and `@montionugera/ucsa-cli` to GitHub Packages instead of npmjs.com; neither `--registry` nor `publishConfig.registry` overrides it. Check at any time with `npm config get @montionugera:registry`, which must print `undefined`. For the same reason the libraries are published with `npm publish`, never `pnpm publish`.
+
+**One-time setup.** `pnpm install` answers 401 for the whole workspace until npm can read those packages. This applies to every contributor and every worktree, including work that does not touch the docs, and to `scripts/precheck.sh` and `scripts/epic-check.sh`.
+
+```bash
+# 1. Add the token line to your user-level npm config. Keep the ${...} text as is.
+echo '//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' >> ~/.npmrc
+# 2. Export a token with the read:packages scope from an account that can read the private montionugera/joy-design packages.
+gh auth refresh -s read:packages
+export JOYMIFY_PACKAGES_READ_TOKEN=$(gh auth token)
+```
+
+If you prefer not to export a variable in every shell, store the token itself instead: `npm config set //npm.pkg.github.com/:_authToken <token>`. That writes it to `~/.npmrc` in clear text.
+
+**CI.** Both workflows (`ci.yml`, `release.yml`) read the packages with the Actions secret `JOYMIFY_PACKAGES_READ_TOKEN`, a classic personal access token with the single scope `read:packages`, given to the install step only. **It has no expiry date** (GitHub reports no expiration), so nothing lapses on a schedule; if it is ever revoked or rotated, installs turn red on the next pull request and on the next merge, which also blocks the library release. The fix is a new token in the same secret, then a re-run of the failed workflow.
 
 ### Simulation versus real behaviour
 
