@@ -315,5 +315,11 @@
     "title": "Bump pinned GitHub Actions off Node 20 and confirm Ubuntu 26 readiness",
     "created_at": "2026-10-09T12:46:11.539439+00:00",
     "promoted_to": "F-046"
+  },
+  {
+    "id": "I-047",
+    "title": "Make release.yml publish loop tolerate overlapping runs (skip on staged/409, wait for npm to show version)",
+    "created_at": "2026-10-11T05:54:01.907425+00:00",
+    "promoted_to": null
   }
 ]
