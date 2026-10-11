@@ -30,8 +30,16 @@
   --sidebar-width: 17.5rem;
   --ease: 150ms ease-out;
   --radius-md: 8px;
-  --scrim: rgba(0, 0, 0, 0.6);
+  /* Same recipe as the design system's own modal backdrop. */
+  --scrim: color-mix(in srgb, var(--joy-color-navy-900) 60%, transparent);
+  /* The tokens name "Inter" and "JetBrains Mono" but ship no font files. The self-hosted
+     variable fonts register under "... Variable", so those names go first. */
+  --joy-font-family-sans: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  --joy-font-family-mono: "JetBrains Mono Variable", "JetBrains Mono", Menlo, monospace;
+  color-scheme: light dark;
 }
+[data-theme="light"] { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }
 
 * {
   box-sizing: border-box;

@@ -7,7 +7,7 @@
 .st-controls input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .st-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
 .st-readout { margin: var(--space-3) 0; color: var(--text-main); }
-.st-scroll { overflow-x: auto; color-scheme: dark; scrollbar-color: var(--border-highlight) var(--bg-card-subtle); }
+.st-scroll { overflow-x: auto; scrollbar-color: var(--border-highlight) var(--bg-card-subtle); }
 /* 600px = viewBox width W, so 11px phase text and 12px labels render at scale 1 (never below 11px). */
 .st-svg { display: block; width: 100%; min-width: 600px; height: auto; }
 .st-fresh { fill: var(--accent-emerald); }
