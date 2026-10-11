@@ -2,6 +2,17 @@ packages:
   - 'packages/*'
   - 'apps/*'
 
+# Only pnpm reads this file. The private @montionugera/joy-* design-system
+# packages come from GitHub Packages. Do NOT move this mapping into a .npmrc:
+# npm reads .npmrc, and the mapping would send `npm view` and `npm publish`
+# for this repository's own @montionugera/ucsa-* libraries to GitHub Packages
+# instead of npmjs.com (--registry and publishConfig.registry do not override
+# a scope mapping). `default` must stay: without it pnpm crashes on every
+# unscoped package.
+registries:
+  default: https://registry.npmjs.org/
+  '@montionugera': https://npm.pkg.github.com/
+
 supportedArchitectures:
   os:
     - darwin

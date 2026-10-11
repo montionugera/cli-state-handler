@@ -1,7 +1,9 @@
 name: CI
 
 # Runs on every pull request to main, so a release PR gets a real check before
-# it is merged. Read-only: no secrets, no id-token, no environment, no Pages.
+# it is merged. Read-only: one secret (JOYMIFY_PACKAGES_READ_TOKEN, read-only
+# for packages, given to the install step only), no id-token, no environment,
+# no Pages.
 # This is a separate file from release.yml on purpose; npm trusted publishing
 # is bound to release.yml, so nothing here can publish.
 #
@@ -45,7 +47,27 @@ jobs:
         with:
           node-version: '22'
 
-      - run: pnpm install --frozen-lockfile
+      # The private @montionugera/joy-* packages live on GitHub Packages
+      # (account montionugera, repository joy-design). Only the token line goes
+      # here; the scope mapping is in pnpm-workspace.yaml and must never be
+      # written to an npm config file (it would redirect the library release).
+      # The line keeps its ${...} placeholder, so the token itself is never
+      # written to disk; only the install step has the variable.
+      # The leading newline matters: actions/setup-node writes its config file
+      # without a final newline, so a bare append would join its last line.
+      - name: Point npm at the Joymify package token
+        run: |
+          printf '\n%s\n' '//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+
+      - name: Install dependencies
+        run: |
+          if [ -z "$JOYMIFY_PACKAGES_READ_TOKEN" ]; then
+            echo "::error::JOYMIFY_PACKAGES_READ_TOKEN is empty: the secret is missing, or this run gets no secrets (a pull request from a fork or from Dependabot). The private @montionugera/joy-* packages cannot be installed."
+            exit 1
+          fi
+          pnpm install --frozen-lockfile
+        env:
+          JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}
 
       - name: Gate 1 (precheck)
         run: bash scripts/precheck.sh
