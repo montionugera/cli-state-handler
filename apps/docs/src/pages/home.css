@@ -29,3 +29,4 @@
 @media (max-width: 767px) {
   .home__panels { grid-template-columns: minmax(0, 1fr); }
 }
+.home__diagram { margin-top: var(--space-6); max-width: 100%; overflow-x: auto; }

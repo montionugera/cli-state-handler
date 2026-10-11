@@ -1,5 +1,15 @@
 import React from "react";
+import { Diagram } from "../components/rich.js";
 import "./home.css";
+
+// Plain arrows and bracket nodes only: that is the subset the Joymify renderer draws.
+const REQUEST_PATH = `flowchart LR
+  APP[App reads a query] --> CACHE[Memory cache]
+  CACHE --> NET[Network fetch when stale]
+  NET --> WAL[Write-ahead log on disk]
+  WAL --> CACHE
+  MUT[App writes a mutation] --> OUTBOX[Offline outbox]
+  OUTBOX --> NET`;
 
 export function Home() {
   return (
@@ -52,6 +62,9 @@ export function Home() {
             <li><strong>Outbox Rate-Limiting:</strong> Paced mutation replay preventing HTTP 429 Too Many Requests.</li>
           </ul>
         </div>
+      </div>
+      <div className="home__diagram">
+        <Diagram code={REQUEST_PATH} title="Request path: cache, write-ahead log and outbox" allowCopy={false} />
       </div>
     </div>
   );
