@@ -1,5 +1,15 @@
 import React from "react";
+import { Diagram } from "../components/rich.js";
 import "./home.css";
+
+// Plain arrows and bracket nodes only: that is the subset the Joymify renderer draws.
+const REQUEST_PATH = `flowchart LR
+  APP[App reads a query] --> CACHE[Memory cache]
+  CACHE --> NET[Network fetch when stale]
+  NET --> WAL[Write-ahead log on disk]
+  WAL --> CACHE
+  MUT[App writes a mutation] --> OUTBOX[Offline outbox]
+  OUTBOX --> NET`;
 
 export function Home() {
   return (
@@ -12,21 +22,21 @@ export function Home() {
       </p>
 
       <div className="stat-grid">
-        <div className="stat-tile">
-          <div className="stat-label">Platforms</div>
-          <div className="stat-value">3 Native</div>
+        <div className="joy-metric-tile">
+          <div className="joy-metric-tile__title">Platforms</div>
+          <div className="joy-metric-tile__value">3 Native</div>
         </div>
-        <div className="stat-tile">
-          <div className="stat-label">Cache Strategy</div>
-          <div className="stat-value">SWR + WAL</div>
+        <div className="joy-metric-tile">
+          <div className="joy-metric-tile__title">Cache Strategy</div>
+          <div className="joy-metric-tile__value">SWR + WAL</div>
         </div>
-        <div className="stat-tile">
-          <div className="stat-label">Structural Sharing</div>
-          <div className="stat-value">Zero Redraw</div>
+        <div className="joy-metric-tile">
+          <div className="joy-metric-tile__title">Structural Sharing</div>
+          <div className="joy-metric-tile__value">Zero Redraw</div>
         </div>
-        <div className="stat-tile">
-          <div className="stat-label">Test Suites</div>
-          <div className="stat-value">100% Green</div>
+        <div className="joy-metric-tile">
+          <div className="joy-metric-tile__title">Test Suites</div>
+          <div className="joy-metric-tile__value">100% Green</div>
         </div>
       </div>
 
@@ -52,6 +62,9 @@ export function Home() {
             <li><strong>Outbox Rate-Limiting:</strong> Paced mutation replay preventing HTTP 429 Too Many Requests.</li>
           </ul>
         </div>
+      </div>
+      <div className="home__diagram">
+        <Diagram code={REQUEST_PATH} title="Request path: cache, write-ahead log and outbox" allowCopy={false} />
       </div>
     </div>
   );

@@ -1584,6 +1584,28 @@ ucsa docs --port 6006 --dry-run   # validate the launch without starting a serve
 
 `ucsa docs` shells out to `pnpm --filter @ucsa/docs dev`, so it needs the workspace checked out with dependencies installed.
 
+The studio UI is built with the Joymify design system, installed as the private packages `@montionugera/joy-react` and `@montionugera/joy-tokens` from GitHub Packages (account `montionugera`, repository `joy-design`). They share the `@montionugera` scope with the libraries this repository publishes to npmjs.com, so the scope is mapped to `https://npm.pkg.github.com` for pnpm only, in the `registries` block of `pnpm-workspace.yaml`.
+
+**Never add `@montionugera:registry=...` to a `.npmrc`, here or in your `~/.npmrc`.** npm reads those files, and the line sends `npm view` and `npm publish` for `@montionugera/ucsa-core` and `@montionugera/ucsa-cli` to GitHub Packages instead of npmjs.com; neither `--registry` nor `publishConfig.registry` overrides it. Check at any time with `npm config get @montionugera:registry`, which must print `undefined`. For the same reason the libraries are published with `npm publish`, never `pnpm publish`.
+
+**One-time setup.** `pnpm install` answers 401 for the whole workspace until npm can read those packages. This applies to every contributor and every worktree, including work that does not touch the docs, and to `scripts/precheck.sh` and `scripts/epic-check.sh`.
+
+```bash
+# 1. Add the token line to your user-level npm config. Keep the ${...} text as is.
+echo '//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' >> ~/.npmrc
+# 2. Export a token with the read:packages scope from an account that can read the private montionugera/joy-design packages.
+gh auth refresh -s read:packages
+export JOYMIFY_PACKAGES_READ_TOKEN=$(gh auth token)
+```
+
+If you prefer not to export a variable in every shell, store the token itself instead: `npm config set //npm.pkg.github.com/:_authToken <token>`. That writes it to `~/.npmrc` in clear text.
+
+**CI.** Both workflows (`ci.yml`, `release.yml`) read the packages with the Actions secret `JOYMIFY_PACKAGES_READ_TOKEN`, which must be a classic personal access token whose only scope is `read:packages`, given to the install step only (installed with `--ignore-scripts`; a separate token-free `pnpm rebuild` step then runs the dependency build scripts). **The current token has no expiry date** (GitHub reports no expiration), so nothing lapses on a schedule; if it is ever revoked or rotated, installs turn red on the next pull request and on the next merge, which also blocks the library release. The fix is a new token in the same secret, then a re-run of the failed workflow.
+
+**Themes.** The sidebar has a System / Light / Dark control. The choice is saved in `localStorage` under `ucsa-docs-theme`; System follows the operating system. Fonts (Inter, JetBrains Mono) are bundled into `apps/docs/dist/assets`, so the built site makes no request to another origin.
+
+**Code and diagrams.** Code samples use the Joymify `CodeBlock` and `PolyglotCodeTabs`, and diagrams use `MermaidViewer`, all loaded on demand through `apps/docs/src/components/rich.tsx`. The diagram renderer draws flowcharts and sequence diagrams only, and the highlighter has no Dart or C# grammar yet; both gaps are fixed upstream in `joy-design`, not here.
+
 ### Simulation versus real behaviour
 
 Most pages run a small in-browser **model** of a subsystem, not the production class. Where a model exists it is pinned to the real implementation by a parity test under `apps/docs/tests/` (UCB1 codec bytes against `ipc/frame-codec.ts`; CAS hashes against the real CAS store; Outbox transitions against `mutation-outbox.ts`). The WAL page is a labelled simulation of SQLite's pager, and the UCB1 page simulates the hub (no HELLO/token handshake). Treat the pages as explanations of the documented behaviour, and read `packages/core/src` for the authoritative semantics.
@@ -2838,7 +2860,7 @@ pnpm run test:full-chain
 # Run type checks and build
 pnpm run typecheck && pnpm run build
 
-# Run complete Vitest suite (739 tests across 60 files, including React DOM, CLI & Docs)
+# Run complete Vitest suite (806 tests across 69 files, including React DOM, CLI & Docs)
 pnpm test
 
 # Run Flutter widget test suite

@@ -11,8 +11,8 @@
 .mp-snippet__head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); background: var(--bg-sidebar); border: 1px solid var(--border-card); border-bottom: none; border-radius: var(--radius-md) var(--radius-md) 0 0; color: var(--text-muted); font-size: var(--text-sm); font-weight: 600; }
 .mp-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--border-card); }
 .mp-scroll:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.mp-snippet .mp-scroll { border-radius: 0 0 var(--radius-md) var(--radius-md); }
-.mp-code { margin: 0; padding: var(--space-4); background: var(--bg-sidebar); color: var(--text-main); font-family: var(--font-mono); font-size: var(--text-sm); line-height: 1.6; }
+/* The Joymify CodeBlock inside draws its own border; the wrapper must not add a second one. */
+.mp-snippet .mp-scroll { border: none; border-radius: 0 0 var(--radius-md) var(--radius-md); }
 .mp-unavailable { padding: var(--space-4); border: 1px solid var(--border-card); border-radius: 0 0 var(--radius-md) var(--radius-md); color: var(--accent-amber); }
 .mp-notes { margin: var(--space-3) 0 0; padding: var(--space-3) var(--space-4) var(--space-3) var(--space-6); background: var(--bg-card-subtle); border: 1px solid var(--border-card); border-radius: var(--radius-md); color: var(--text-muted); font-size: var(--text-sm); display: flex; flex-direction: column; gap: var(--space-2); }
 .mp-src { margin-top: var(--space-2); color: var(--text-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
