@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { Badge, Button, MetricTile, Input } from "@montionugera/joy-react";
 import { QueryEngine, debounceQuery } from "@montionugera/ucsa-core";
 
 export function TimingPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "h1" | "h2" } = {}) {
@@ -156,11 +157,11 @@ export function TimingPlayground({ headingLevel: Title = "h1" }: { headingLevel?
               Simulates high-frequency incoming data streams (e.g. 60Hz telemetry, rapid WebSocket feeds) and demonstrates how UCSA observer timing controls suppress redundant downstream UI repaints.
             </p>
           </div>
-          <span className="badge badge-emerald">Active Mode: {debounceMs > 0 ? "Debounced" : throttleMs > 0 ? "Throttled" : "Unthrottled"}</span>
+          <Badge variant="success">Active Mode: {debounceMs > 0 ? "Debounced" : throttleMs > 0 ? "Throttled" : "Unthrottled"}</Badge>
         </div>
 
         {/* Sliders */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "1.5rem" }}>
+        <div className="stack-narrow" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "1.5rem" }}>
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem" }}>
               <label className="stat-label">Throttle Window (throttleMs)</label>
@@ -202,40 +203,37 @@ export function TimingPlayground({ headingLevel: Title = "h1" }: { headingLevel?
 
         {/* Interactive Triggers */}
         <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
-          <button className="btn btn-primary" onClick={triggerBurst}>
+          <Button onClick={triggerBurst}>
             ⚡ Trigger Rapid Burst (30 Events)
-          </button>
-          <button
-            className={`btn ${isStreaming ? "btn-danger" : "btn-secondary"}`}
+          </Button>
+          <Button
+            variant={isStreaming ? "danger" : "outline"}
             onClick={() => setIsStreaming(!isStreaming)}
           >
             {isStreaming ? "⏹️ Stop 60Hz Telemetry" : "▶️ Start 60Hz Telemetry Stream"}
-          </button>
-          <button className="btn btn-secondary" onClick={() => emitEvent()}>
+          </Button>
+          <Button variant="outline" onClick={() => emitEvent()}>
             Single Event
-          </button>
-          <button className="btn btn-secondary" onClick={resetObserverStats}>
+          </Button>
+          <Button variant="outline" onClick={resetObserverStats}>
             Reset Stats
-          </button>
+          </Button>
         </div>
 
         {/* Metric Tiles */}
         <div className="stat-grid">
-          <div className="stat-tile">
-            <div className="stat-label">Raw Events Ingested</div>
-            <div className="stat-value">{rawEventCount}</div>
+          <MetricTile title="Raw Events Ingested" value={rawEventCount} />
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">UI Subscribers Dispatched</div>
+            <div className="joy-metric-tile__value" style={{ color: "var(--accent-emerald)" }}>{uiRenderCount}</div>
           </div>
-          <div className="stat-tile">
-            <div className="stat-label">UI Subscribers Dispatched</div>
-            <div className="stat-value" style={{ color: "var(--accent-emerald)" }}>{uiRenderCount}</div>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Render Suppression Ratio</div>
+            <div className="joy-metric-tile__value" style={{ color: "var(--accent-cyan)" }}>{suppressionRatio}%</div>
           </div>
-          <div className="stat-tile">
-            <div className="stat-label">Render Suppression Ratio</div>
-            <div className="stat-value" style={{ color: "var(--accent-cyan)" }}>{suppressionRatio}%</div>
-          </div>
-          <div className="stat-tile">
-            <div className="stat-label">Latest Dispatched Value</div>
-            <div className="stat-value" style={{ fontFamily: "var(--font-mono)", fontSize: "1.25rem" }}>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Latest Dispatched Value</div>
+            <div className="joy-metric-tile__value" style={{ fontFamily: "var(--font-mono)", fontSize: "1.25rem" }}>
               #{latestValue}
             </div>
           </div>
@@ -253,18 +251,16 @@ export function TimingPlayground({ headingLevel: Title = "h1" }: { headingLevel?
               Collapses rapid keystrokes or UI triggers into a single remote network fetch, automatically cancelling superseded timers.
             </p>
           </div>
-          {isQueryPending && <span className="badge badge-amber">⏱️ Debounce Timer Active</span>}
-          {!isQueryPending && <span className="badge badge-emerald">Idle</span>}
+          {isQueryPending && <Badge variant="warning">⏱️ Debounce Timer Active</Badge>}
+          {!isQueryPending && <Badge variant="success">Idle</Badge>}
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 200px", gap: "1rem", marginBottom: "1.5rem" }}>
+        <div className="stack-narrow" style={{ display: "grid", gridTemplateColumns: "1fr 200px", gap: "1rem", marginBottom: "1.5rem" }}>
           <div>
             <label className="stat-label">Search Query (Type rapidly to observe debounce collapse)</label>
-            <input
+            <Input
               type="text"
-              className="input"
               data-testid="search-input"
-              style={{ width: "100%" }}
               placeholder="Type e.g. 'unity', 'flutter', 'storage'..."
               value={searchTerm}
               onChange={(e) => handleSearchInput(e.target.value)}
@@ -289,17 +285,17 @@ export function TimingPlayground({ headingLevel: Title = "h1" }: { headingLevel?
 
         {/* Query Stats */}
         <div className="stat-grid">
-          <div className="stat-tile">
-            <div className="stat-label">Keystrokes / Invocations</div>
-            <div className="stat-value" data-testid="keystrokes-count">{keystrokesCount}</div>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Keystrokes / Invocations</div>
+            <div className="joy-metric-tile__value" data-testid="keystrokes-count">{keystrokesCount}</div>
           </div>
-          <div className="stat-tile">
-            <div className="stat-label">Network Executions</div>
-            <div className="stat-value" style={{ color: "var(--accent-emerald)" }}>{networkFetchCount}</div>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Network Executions</div>
+            <div className="joy-metric-tile__value" style={{ color: "var(--accent-emerald)" }}>{networkFetchCount}</div>
           </div>
-          <div className="stat-tile">
-            <div className="stat-label">Calls Saved / Cancelled</div>
-            <div className="stat-value" style={{ color: "var(--accent-cyan)" }}>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Calls Saved / Cancelled</div>
+            <div className="joy-metric-tile__value" style={{ color: "var(--accent-cyan)" }}>
               {Math.max(0, keystrokesCount - networkFetchCount)}
             </div>
           </div>

@@ -8,9 +8,4 @@
 .prose a { color: var(--accent-cyan); }
 .prose :not(pre) > code { padding: 0.1em 0.4em; background: var(--bg-card-subtle); border-radius: 4px; font-size: 0.9em; }
 
-.prose-callout { margin: var(--space-4) 0; padding: var(--space-3) var(--space-4); background: var(--bg-card); border: 1px solid var(--border-card); border-left-width: 3px; border-radius: 8px; color: var(--text-muted); }
-.prose-callout--info { border-left-color: var(--accent-cyan); }
-.prose-callout--warn { border-left-color: var(--accent-amber); }
-.prose-callout__title { display: block; margin-bottom: var(--space-1); color: var(--text-main); }
-
-.prose-code { margin: var(--space-4) 0; padding: var(--space-4); overflow-x: auto; background: var(--bg-sidebar); border: 1px solid var(--border-card); border-radius: 8px; font-size: var(--text-sm); line-height: 1.6; }
+.prose-callout, .prose-code { margin: var(--space-4) 0; }

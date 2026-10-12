@@ -1,7 +1,7 @@
 .lc { margin-top: var(--space-6); padding: var(--space-4); background: var(--bg-card); border: 1px solid var(--border-card); border-radius: var(--radius-md); min-width: 0; }
 .lc-title { margin: 0 0 var(--space-2); font-size: var(--text-lg); color: var(--text-main); }
 .lc-note { color: var(--text-muted); font-size: var(--text-sm); margin: 0 0 var(--space-3); }
-.lc-scroll { overflow-x: auto; color-scheme: dark; scrollbar-color: var(--border-highlight) var(--bg-card-subtle); }
+.lc-scroll { overflow-x: auto; scrollbar-color: var(--border-highlight) var(--bg-card-subtle); }
 /* 480px = viewBox width, so the 13px labels render at 13px (scale 1) and never shrink below 11px. */
 .lc-svg { display: block; width: 100%; min-width: 480px; height: auto; }
 .lc-edge { fill: none; stroke: var(--text-muted); stroke-width: 1.5; opacity: 0.55; }
@@ -13,8 +13,6 @@
 .lc-node .lc-here { fill: var(--accent-emerald); font-size: 11px; font-weight: 700; }
 .lc-current { margin: var(--space-3) 0 var(--space-2); color: var(--text-main); }
 .lc-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.lc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.lc-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .lc-edges { margin-top: var(--space-3); color: var(--text-muted); font-size: var(--text-sm); }
 .lc-edges summary { cursor: pointer; }
 .lc-edges summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }

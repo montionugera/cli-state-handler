@@ -1,0 +1,2 @@
+/* Shown while the Joymify code and diagram chunk loads: the same text, unhighlighted. */
+.rich-fallback { margin: 0; padding: var(--space-4); overflow-x: auto; background: var(--bg-sidebar); border: 1px solid var(--border-card); border-radius: var(--radius-md); font-family: var(--font-mono); font-size: var(--text-sm); }

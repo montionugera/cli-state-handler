@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useSyncExternalStore } from "react";
+import { Badge, Button, MetricTile, Input } from "@montionugera/joy-react";
 import { QueryEngine, hashQueryKey, replaceEqualDeep } from "@montionugera/ucsa-core";
 import type { QueryState } from "@montionugera/ucsa-core";
 import { LifecycleGraph } from "./LifecycleGraph.js";
@@ -145,11 +146,11 @@ export function SwrPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "
             </p>
           </div>
           <div style={{ display: "flex", gap: "0.5rem" }}>
-            <span className={`badge ${snapshot.status === "loading" ? "badge-amber" : snapshot.status === "success" ? "badge-emerald" : "badge-blue"}`}>
+            <Badge variant={snapshot.status === "loading" ? "warning" : snapshot.status === "success" ? "success" : "brand"}>
               Status: {snapshot.status}
-            </span>
-            {isStale && <span className="badge badge-rose">Cache Stale</span>}
-            {!isStale && snapshot.data && <span className="badge badge-cyan">Cache Fresh</span>}
+            </Badge>
+            {isStale && <Badge variant="danger">Cache Stale</Badge>}
+            {!isStale && snapshot.data && <Badge variant="brand">Cache Fresh</Badge>}
           </div>
         </div>
 
@@ -157,41 +158,33 @@ export function SwrPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
           <div>
             <label className="stat-label">Query Key</label>
-            <input
+            <Input
               type="text"
-              className="input"
-              style={{ width: "100%" }}
               value={queryKeyStr}
               onChange={(e) => setQueryKeyStr(e.target.value)}
             />
           </div>
           <div>
             <label className="stat-label">Stale Time (TTL ms)</label>
-            <input
+            <Input
               type="number"
-              className="input"
-              style={{ width: "100%" }}
               value={staleTimeMs}
               onChange={(e) => setStaleTimeMs(Number(e.target.value))}
             />
           </div>
           <div>
             <label className="stat-label">Simulated Latency (ms)</label>
-            <input
+            <Input
               type="number"
               data-testid="latency-input"
-              className="input"
-              style={{ width: "100%" }}
               value={simulateLatencyMs}
               onChange={(e) => setSimulateLatencyMs(Number(e.target.value))}
             />
           </div>
           <div>
             <label className="stat-label">Invalidation Tag</label>
-            <input
+            <Input
               type="text"
-              className="input"
-              style={{ width: "100%" }}
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
             />
@@ -200,43 +193,40 @@ export function SwrPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "
 
         {/* Button Bar */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", marginBottom: "1.5rem" }}>
-          <button className="btn btn-primary" onClick={handleFetch}>
+          <Button onClick={handleFetch}>
             🚀 Fetch Query (SWR)
-          </button>
-          <button className="btn btn-secondary" onClick={handleServerMutateIdentical}>
+          </Button>
+          <Button variant="outline" onClick={handleServerMutateIdentical}>
             🔄 Background Refetch (Identical Payload)
-          </button>
-          <button className="btn btn-secondary" onClick={handleServerMutateDifferent}>
+          </Button>
+          <Button variant="outline" onClick={handleServerMutateDifferent}>
             ⚡ Mutate Remote Data & Refetch
-          </button>
-          <button className="btn btn-secondary" onClick={handleInvalidateTag}>
+          </Button>
+          <Button variant="outline" onClick={handleInvalidateTag}>
             🏷️ Invalidate Tag ("{tagInput}")
-          </button>
-          <button className="btn btn-danger" onClick={() => queryHandle.current.cancel()}>
+          </Button>
+          <Button variant="danger" onClick={() => queryHandle.current.cancel()}>
             🛑 Abort Active Fetch
-          </button>
+          </Button>
         </div>
 
         {/* Metric Tiles */}
         <div className="stat-grid">
-          <div className="stat-tile">
-            <div className="stat-label">Component Renders</div>
-            <div className="stat-value">{renderCount}</div>
-          </div>
-          <div className="stat-tile">
-            <div className="stat-label">Structural Sharing Status</div>
+          <MetricTile title="Component Renders" value={renderCount} />
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Structural Sharing Status</div>
             <div style={{ fontSize: "0.95rem", fontWeight: 600, color: refPreserved ? "var(--accent-emerald)" : "var(--accent-rose)", marginTop: "0.25rem" }}>
               {refPreserved ? "✓ IDENTICAL REFERENCE" : refPreserved === false ? "⚡ MUTATED REFERENCE" : "STANDBY"}
             </div>
           </div>
-          <div className="stat-tile">
-            <div className="stat-label">Last Updated</div>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Last Updated</div>
             <div style={{ fontSize: "0.95rem", fontFamily: "var(--font-mono)", marginTop: "0.25rem" }}>
               {snapshot.dataUpdatedAt ? new Date(snapshot.dataUpdatedAt).toLocaleTimeString() : "Never"}
             </div>
           </div>
-          <div className="stat-tile">
-            <div className="stat-label">Expires / Stale At</div>
+          <div className="joy-metric-tile">
+            <div className="joy-metric-tile__title">Expires / Stale At</div>
             <div style={{ fontSize: "0.95rem", fontFamily: "var(--font-mono)", marginTop: "0.25rem" }}>
               {snapshot.dataUpdatedAt ? new Date(snapshot.dataUpdatedAt + staleTimeMs).toLocaleTimeString() : "N/A"}
             </div>
@@ -247,8 +237,8 @@ export function SwrPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "
         <div style={{
           padding: "1rem",
           borderRadius: "8px",
-          backgroundColor: refPreserved ? "rgba(16, 185, 129, 0.1)" : "rgba(59, 130, 246, 0.1)",
-          border: `1px solid ${refPreserved ? "rgba(16, 185, 129, 0.3)" : "rgba(59, 130, 246, 0.3)"}`,
+          backgroundColor: refPreserved ? "var(--joy-status-success-bg)" : "var(--joy-status-info-bg)",
+          border: `1px solid ${refPreserved ? "var(--joy-status-success-border)" : "var(--joy-status-info-border)"}`,
           marginBottom: "1.5rem"
         }}>
           <div style={{ fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.25rem" }}>
@@ -262,7 +252,8 @@ export function SwrPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "
         {/* Payload Visualizer */}
         <div>
           <div style={{ display: "flex", gap: "1rem", borderBottom: "1px solid var(--border-card)", marginBottom: "1rem" }}>
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setActiveTab("visualizer")}
               style={{
                 padding: "0.5rem 1rem",
@@ -275,8 +266,9 @@ export function SwrPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "
               }}
             >
               Live Data Payload
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
               onClick={() => setActiveTab("cache")}
               style={{
                 padding: "0.5rem 1rem",
@@ -289,7 +281,7 @@ export function SwrPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "
               }}
             >
               Cache Metadata
-            </button>
+            </Button>
           </div>
 
           {activeTab === "visualizer" && (
@@ -307,7 +299,7 @@ export function SwrPlayground({ headingLevel: Title = "h1" }: { headingLevel?: "
 
           {activeTab === "cache" && (
             <div style={{ background: "var(--bg-sidebar)", padding: "1rem", borderRadius: "8px", border: "1px solid var(--border-card)", fontSize: "0.875rem" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: "0.5rem", fontFamily: "var(--font-mono)" }}>
+              <div className="stack-narrow" style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: "0.5rem", fontFamily: "var(--font-mono)" }}>
                 <span style={{ color: "var(--text-muted)" }}>Query Hash:</span>
                 <span>{queryHash}</span>
                 <span style={{ color: "var(--text-muted)" }}>Query Key:</span>

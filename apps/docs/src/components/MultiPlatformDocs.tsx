@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Badge, Button } from "@montionugera/joy-react";
 import { guides, guideIds, platforms, type GuideId, type PlatformId, type Snippet } from "../content/guides/index.js";
+import { Code, CodeTabs } from "./rich.js";
 import "./multiplatform.css";
 
 const PLATFORM_LABEL: Record<PlatformId, string> = {
@@ -12,7 +14,9 @@ const CONCEPT_ICON: Record<GuideId, string> = { swr: "⚡", timing: "⏱️", ou
 
 type View = "tabs" | "side";
 
-function SnippetView({ snippet }: { snippet: Snippet }) {
+const isPlatform = (key: string): key is PlatformId => (platforms as readonly string[]).includes(key);
+
+function SnippetView({ snippet, children }: { snippet: Snippet; children?: React.ReactNode }) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const resetTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mounted = useRef(false);
@@ -44,18 +48,18 @@ function SnippetView({ snippet }: { snippet: Snippet }) {
       <header className="mp-snippet__head">
         <span className="mp-snippet__title">{snippet.title}</span>
         {snippet.available && (
-          <button className="btn btn-secondary" onClick={handleCopy}>
+          <Button variant="outline" onClick={handleCopy}>
             {status === "copied" ? "✓ Copied to Clipboard" : status === "failed" ? "Copy failed" : "📋 Copy Code"}
-          </button>
+          </Button>
         )}
       </header>
-      {snippet.available ? (
+      {children ?? (snippet.available ? (
         <div className="mp-scroll" role="region" aria-label={`${snippet.title} code, scrollable`} tabIndex={0}>
-          <pre className="mp-code"><code>{snippet.code}</code></pre>
+          <Code code={snippet.code} language={snippet.lang} allowCopy={false} />
         </div>
       ) : (
         <p className="mp-unavailable"><strong>Not available on this platform.</strong></p>
-      )}
+      ))}
       <ul className="mp-notes">
         {snippet.notes.map((note) => (
           <li key={note}>{note}</li>
@@ -75,6 +79,8 @@ export function MultiPlatformDocs() {
   const [concept, setConcept] = useState<GuideId>("swr");
   const [view, setView] = useState<View>("tabs");
   const guide = guides[concept];
+  // Tabs need a snippet on every platform; a guide with a gap keeps the plain buttons.
+  const allAvailable = platforms.every((p) => guide[p].available);
 
   return (
     <div className="multiplatform-docs mp">
@@ -87,57 +93,69 @@ export function MultiPlatformDocs() {
               source file it was checked against; see the <a href="#/parity">parity matrix</a> for what each platform lacks.
             </p>
           </div>
-          <span className="badge badge-cyan">3 Native Implementations</span>
+          <Badge variant="brand">3 Native Implementations</Badge>
         </div>
 
         <div className="mp-row" role="group" aria-label="Subsystem">
           {guideIds.map((id, i) => (
-            <button
+            <Button
               key={id}
-              className={`btn ${concept === id ? "btn-primary" : "btn-secondary"}`}
+              variant={concept === id ? "solid" : "outline"}
               aria-pressed={concept === id}
               onClick={() => setConcept(id)}
             >
               {`${CONCEPT_ICON[id]} ${i + 1}. ${guides[id].label}`}
-            </button>
+            </Button>
           ))}
         </div>
 
         <div className="mp-row mp-row--split">
-          {view === "tabs" ? (
+          {view === "tabs" && !allAvailable ? (
             <div className="mp-row" role="group" aria-label="Platform">
               {platforms.map((p) => (
-                <button
+                <Button
                   key={p}
-                  className={`btn ${platform === p ? "btn-primary" : "btn-secondary"}`}
+                  variant={platform === p ? "solid" : "outline"}
                   aria-pressed={platform === p}
                   onClick={() => setPlatform(p)}
                 >
                   {PLATFORM_LABEL[p]}
-                </button>
+                </Button>
               ))}
             </div>
           ) : (
             <span />
           )}
           <div className="mp-row mp-viewtoggle" role="group" aria-label="Layout">
-            <button className={`btn ${view === "tabs" ? "btn-primary" : "btn-secondary"}`} aria-pressed={view === "tabs"} onClick={() => setView("tabs")}>
+            <Button variant={view === "tabs" ? "solid" : "outline"} aria-pressed={view === "tabs"} onClick={() => setView("tabs")}>
               Tabs
-            </button>
-            <button className={`btn ${view === "side" ? "btn-primary" : "btn-secondary"}`} aria-pressed={view === "side"} onClick={() => setView("side")}>
+            </Button>
+            <Button variant={view === "side" ? "solid" : "outline"} aria-pressed={view === "side"} onClick={() => setView("side")}>
               Side by side
-            </button>
+            </Button>
           </div>
         </div>
 
-        {view === "tabs" ? (
-          <SnippetView snippet={guide[platform]} />
-        ) : (
+        {view === "side" ? (
           <div className="mp-side">
             {platforms.map((p) => (
               <SnippetView key={p} snippet={guide[p]} />
             ))}
           </div>
+        ) : allAvailable ? (
+          <SnippetView snippet={guide[platform]}>
+            <CodeTabs
+              aria-label="Platform code"
+              items={platforms.map((p) => ({ key: p, language: guide[p].lang, label: PLATFORM_LABEL[p], code: guide[p].code }))}
+              activeKey={platform}
+              onChange={(key) => {
+                if (isPlatform(key)) setPlatform(key);
+              }}
+              allowCopy={false}
+            />
+          </SnippetView>
+        ) : (
+          <SnippetView snippet={guide[platform]} />
         )}
       </div>
     </div>

@@ -1,20 +1,22 @@
+/* Colours, spacing, radii and fonts come from the Joymify design tokens (@montionugera/joy-tokens/theme.css, loaded in main.tsx). */
 :root {
-  --bg-main: #0b0f17;
-  --bg-sidebar: #070a10;
-  --bg-card: #131b2a;
-  --bg-card-subtle: #192337;
-  --border-card: #202d44;
-  --border-highlight: #3b82f6;
-  --text-main: #f1f5f9;
-  --text-muted: #94a3b8;
-  --accent-cyan: #06b6d4;
-  --accent-emerald: #10b981;
-  --accent-amber: #f59e0b;
-  --accent-rose: #f43f5e;
-  --accent-blue: #3b82f6;
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --bg-hover: #141d2e;
-  --focus-ring: #7dd3fc;
+  --bg-main: var(--joy-surface-canvas);
+  --bg-sidebar: var(--joy-surface-sunken);
+  --bg-card: var(--joy-surface-card);
+  --bg-card-subtle: var(--joy-surface-raised);
+  --border-card: var(--joy-border-default);
+  --border-highlight: var(--joy-border-focus);
+  --text-main: var(--joy-text-primary);
+  --text-muted: var(--joy-text-muted);
+  --accent-cyan: var(--joy-status-info-fg);
+  --accent-emerald: var(--joy-status-success-fg);
+  --accent-amber: var(--joy-status-warning-fg);
+  --accent-rose: var(--joy-status-danger-fg);
+  --font-sans: var(--joy-font-family-sans);
+  --font-mono: var(--joy-font-family-mono);
+  --accent-blue: var(--joy-status-info-fg);
+  --bg-hover: var(--joy-surface-raised);
+  --focus-ring: var(--joy-border-focus);
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -28,9 +30,16 @@
   --sidebar-width: 17.5rem;
   --ease: 150ms ease-out;
   --radius-md: 8px;
-  --scrim: rgba(0, 0, 0, 0.6);
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  /* Same recipe as the design system's own modal backdrop. */
+  --scrim: color-mix(in srgb, var(--joy-color-navy-900) 60%, transparent);
+  /* The tokens name "Inter" and "JetBrains Mono" but ship no font files. The self-hosted
+     variable fonts register under "... Variable", so those names go first. */
+  --joy-font-family-sans: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  --joy-font-family-mono: "JetBrains Mono Variable", "JetBrains Mono", Menlo, monospace;
+  color-scheme: light dark;
 }
+[data-theme="light"] { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }
 
 * {
   box-sizing: border-box;
@@ -67,105 +76,48 @@ code, pre {
 .card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-card);
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.625rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  border-radius: 9999px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.badge-cyan { background: rgba(6, 182, 212, 0.15); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.3); }
-.badge-emerald { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
-.badge-amber { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-.badge-rose { background: rgba(244, 63, 94, 0.15); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); }
-.badge-blue { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-weight: 600;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  cursor: pointer;
-  transition: all 0.15s ease-in-out;
-  font-size: 0.875rem;
-}
-
-.btn-primary {
-  background: #2563eb;
-  color: white;
-}
-.btn-primary:hover {
-  background: #1d4ed8;
-}
-
-.btn-secondary {
-  background: var(--bg-card-subtle);
-  color: var(--text-main);
-  border-color: var(--border-card);
-}
-.btn-secondary:hover {
-  background: var(--border-card);
-}
-
-.btn-danger {
-  background: #e11d48;
-  color: white;
-}
-.btn-danger:hover {
-  background: #be123c;
-}
-
-.input {
-  background: var(--bg-sidebar);
-  border: 1px solid var(--border-card);
-  color: var(--text-main);
-  padding: 0.5rem 0.75rem;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  outline: none;
-}
-.input:focus {
-  border-color: var(--border-highlight);
+  border-radius: var(--joy-radius-card);
+  padding: var(--joy-space-6);
+  margin-bottom: var(--joy-space-6);
+  min-width: 0;
 }
 
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.stat-tile {
-  background: var(--bg-card-subtle);
-  border: 1px solid var(--border-card);
-  border-radius: 8px;
-  padding: 1rem;
+  gap: var(--joy-space-4);
+  margin-bottom: var(--joy-space-6);
 }
 
 .stat-label {
+  display: block;
   font-size: 0.75rem;
   text-transform: uppercase;
   color: var(--text-muted);
   letter-spacing: 0.05em;
-  margin-bottom: 0.25rem;
+  margin-bottom: var(--joy-space-1);
 }
 
-.stat-value {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text-main);
+@media (max-width: 720px) {
+  .card {
+    padding: var(--joy-space-4);
+    overflow-x: auto;
+  }
+  /* Inline multi-column grids collapse to one column. */
+  .stack-narrow {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Upstream colours keyword/number tokens and the active tab with the accent
+   fill (gold), about 2.2:1 on the light code surface. Use the accent text
+   token, which is the AA-safe gold in both themes. */
+:root .joy-syntax-keyword,
+:root .joy-syntax-number,
+:root .joy-syntax-macro,
+:root .joy-polyglot-tabs__tab[aria-selected="true"] {
+  color: var(--joy-accent-text);
+}
+:root .joy-polyglot-tabs__tab[aria-selected="true"] {
+  border-bottom-color: var(--joy-accent-text);
 }

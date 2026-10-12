@@ -1,4 +1,5 @@
 import React, { useId, useState } from "react";
+import { Button } from "@montionugera/joy-react";
 import { phaseAt } from "../models/stale-timeline.js";
 import type { TimelineState } from "../models/stale-timeline.js";
 import "./StaleTimeline.css";
@@ -99,15 +100,15 @@ export function StaleTimeline({ startAt = 0 }: { startAt?: number }) {
         </label>
       </div>
       <div className="st-buttons" role="group" aria-label="Timeline actions">
-        <button type="button" className="btn btn-primary" onClick={fetchNow}>Fetch</button>
-        <button type="button" className="btn btn-secondary" onClick={readQuery}>Read query</button>
-        <button type="button" className="btn btn-secondary" onClick={reset}>Reset timeline</button>
+        <Button type="button" variant="solid" onClick={fetchNow}>Fetch</Button>
+        <Button type="button" variant="outline" onClick={readQuery}>Read query</Button>
+        <Button type="button" variant="outline" onClick={reset}>Reset timeline</Button>
       </div>
       <div className="st-buttons" role="group" aria-label="Advance the clock">
         {[1, 5, 30].map((sec) => (
-          <button key={sec} type="button" className="btn btn-secondary" onClick={() => advance(sec * 1000)}>
+          <Button key={sec} type="button" variant="outline" onClick={() => advance(sec * 1000)}>
             Advance {sec}s
-          </button>
+          </Button>
         ))}
       </div>
       <p className="st-readout">
