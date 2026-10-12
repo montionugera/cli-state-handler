@@ -55,11 +55,13 @@ jobs:
       # written to an npm config file (it would redirect the library release).
       # The line keeps its ${...} placeholder, so the token itself is never
       # written to disk; only the install step has the variable.
-      # The leading newline matters: actions/setup-node writes its config file
-      # without a final newline, so a bare append would join its last line.
+      # The line goes into a file of its own, used by the install step only.
+      # It must not be appended to the file actions/setup-node wrote: that file
+      # references ${NODE_AUTH_TOKEN}, which is unset during install, and pnpm
+      # then discards the whole file, token line included (401 on install).
       - name: Point npm at the Joymify package token
         run: |
-          printf '\n%s\n' '//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' >> "${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+          printf '%s\n' '//npm.pkg.github.com/:_authToken=${JOYMIFY_PACKAGES_READ_TOKEN}' > "$RUNNER_TEMP/joymify.npmrc"
 
       - name: Install dependencies
         run: |
@@ -70,6 +72,7 @@ jobs:
           pnpm install --frozen-lockfile --ignore-scripts
         env:
           JOYMIFY_PACKAGES_READ_TOKEN: ${{ secrets.JOYMIFY_PACKAGES_READ_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/joymify.npmrc
 
       # Dependency build scripts (better-sqlite3, esbuild) run here, in a step
       # whose environment has no token. No workspace prepare/postinstall exists.
