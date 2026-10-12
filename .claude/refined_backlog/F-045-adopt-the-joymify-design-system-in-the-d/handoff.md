@@ -27,3 +27,9 @@ Baseline docs tests: 328
 3. The tokens stylesheet sets no `color-scheme`, so each consumer adds it.
 4. `PolyglotCodeTabs` arrow keys change the selected tab but leave focus on the old one.
 5. `.joy-syntax-keyword`, `.joy-syntax-number`, `.joy-syntax-macro` and the active `.joy-polyglot-tabs__tab` use `--joy-accent-default` as a text colour: about 2.2:1 on the light code surface (this repo overrides it with `--joy-accent-text` in `apps/docs/src/index.css`).
+
+**CI proof (2026-10-12):** `ci.yml` run green: https://github.com/montionugera/cli-state-handler/actions/runs/38187878415 (draft pull request #7, closed unmerged; remote branch `feat/F-045` kept). Plan Task 6 Step 3 (removing the token line before the pre-ship check) was not needed. Not proven by this run: the token line in `release.yml`, which is appended to a file `actions/setup-node` wrote; that path is covered only by the local replay in Task 3.
+
+**At promote:** watch the Release run (install, Build native dependencies, Decide release, publish). In the log of the step "Publish to npmjs.com (trusted publishing)" the npm notice must name registry.npmjs.org, not npm.pkg.github.com.
+
+**Secret scope:** the Actions secret currently holds a broad classic token by owner decision; README and `ci.yml` state the requirement (`read:packages` only). Swap it when convenient.
