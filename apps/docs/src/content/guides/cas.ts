@@ -56,11 +56,11 @@ final pruned = await cas.prune();                  // CasPruneResult(prunedCount
     title: "Content-Addressable Storage & LRU Pruning (C# Unity)",
     lang: "csharp",
     available: true,
-    sources: [`${CS}/Storage/UnityCasStore.cs`],
-    code: `// Checked against: Runtime/Storage/UnityCasStore.cs (UnityCasStore, PutAsync, GetAsync, PruneAsync)
-using Ucsa.Unity.Storage;
+    sources: [`${CS}/Storage/CasStore.cs`],
+    code: `// Checked against: Runtime/Storage/CasStore.cs (CasStore, PutAsync, GetAsync, PruneAsync)
+using Ucsa.Storage;
 
-var cas = new UnityCasStore(
+var cas = new CasStore(
     Application.persistentDataPath + "/cas",
     sqlite,
     maxSizeBytes: 50L * 1024 * 1024);

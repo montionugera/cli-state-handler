@@ -83,12 +83,12 @@ print('\${result.processed} processed, \${result.failed} failed');`,
     title: "Offline Mutation Outbox (C# Unity)",
     lang: "csharp",
     available: true,
-    sources: [`${CS}/Storage/UnitySqliteAdapter.cs`, `${CS}/Core/Types.cs`],
-    code: `// Checked against: Runtime/Storage/UnitySqliteAdapter.cs (SetMutation, ReplayOutboxAsync),
+    sources: [`${CS}/Storage/SqliteAdapter.cs`, `${CS}/Core/Types.cs`],
+    code: `// Checked against: Runtime/Storage/SqliteAdapter.cs (SetMutation, ReplayOutboxAsync),
 // Runtime/Core/Types.cs (OutboxMutation, ConflictPolicy)
-using Ucsa.Unity.Core;
+using Ucsa.Core;
 
-// There is no MutationOutbox class in C#: the outbox lives on UnitySqliteAdapter.
+// There is no MutationOutbox class in C#: the outbox lives on SqliteAdapter.
 sqlite.SetMutation(new OutboxMutation<string>(
     "todo-1", "/api/todos", "POST", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
     payload: "{\\"title\\":\\"Buy milk\\"}")

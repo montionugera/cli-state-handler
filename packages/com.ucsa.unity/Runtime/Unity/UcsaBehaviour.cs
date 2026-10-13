@@ -1,7 +1,7 @@
 using System;
 using System.Threading.Tasks;
-using Ucsa.Unity.Core;
-using Ucsa.Unity.Storage;
+using Ucsa.Core;
+using Ucsa.Storage;
 using Ucsa.Unity.Transports;
 using UnityEngine;
 
@@ -18,8 +18,8 @@ namespace Ucsa.Unity.Unity
         public static void ResetInstance() => _instance = null;
 
         public QueryEngine? QueryEngine { get; set; }
-        public UnitySqliteAdapter? SqliteAdapter { get; set; }
-        public UnityCasStore? CasStore { get; set; }
+        public SqliteAdapter? SqliteAdapter { get; set; }
+        public CasStore? CasStore { get; set; }
         public TextureCache? TextureCache { get; set; }
 
         public bool RevalidateOnResume { get; set; } = true;

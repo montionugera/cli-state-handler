@@ -69,7 +69,7 @@ Future<List<dynamic>> search(String term) => engine.fetchQuery<List<dynamic>>(
     sources: [`${CS}/Core/QueryEngine.cs`, `${CS}/Core/StateObserver.cs`],
     code: `// Checked against: Runtime/Core/QueryEngine.cs (DebounceQueryAsync),
 // Runtime/Core/StateObserver.cs (StateObserver constructor, Update, OnValueChanged)
-using Ucsa.Unity.Core;
+using Ucsa.Core;
 
 // Observer fed by you: call Update with each new full state.
 var fps = new StateObserver<Telemetry, int>(t => t.Fps, throttleMs: 100);

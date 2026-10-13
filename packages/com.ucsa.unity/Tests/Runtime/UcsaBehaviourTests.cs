@@ -2,8 +2,8 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using NUnit.Framework;
-using Ucsa.Unity.Core;
-using Ucsa.Unity.Storage;
+using Ucsa.Core;
+using Ucsa.Storage;
 using Ucsa.Unity.Unity;
 
 namespace Ucsa.Unity.Tests.Runtime
@@ -13,7 +13,7 @@ namespace Ucsa.Unity.Tests.Runtime
     {
         private string _testDir = null!;
         private string _dbPath = null!;
-        private UnitySqliteAdapter _sqlite = null!;
+        private SqliteAdapter _sqlite = null!;
         private QueryEngine _engine = null!;
 
         [SetUp]
@@ -24,7 +24,7 @@ namespace Ucsa.Unity.Tests.Runtime
             Directory.CreateDirectory(_testDir);
             _dbPath = Path.Combine(_testDir, "test.db");
 
-            _sqlite = new UnitySqliteAdapter(_dbPath);
+            _sqlite = new SqliteAdapter(_dbPath);
             _sqlite.InitSchema();
 
             _engine = new QueryEngine(new QueryEngineOptions(_sqlite));

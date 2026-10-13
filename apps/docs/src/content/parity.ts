@@ -1,4 +1,4 @@
-import { CORE, DART, CS, type GuideId, type PlatformId } from "./guides/types.js";
+import { CORE, DART, CS, UNITY, type GuideId, type PlatformId } from "./guides/types.js";
 
 export type ParityLevel = "full" | "partial" | "none";
 
@@ -51,8 +51,8 @@ export const parity: ParityRow[] = [
       },
       csharp: {
         level: "partial",
-        sources: [`${CS}/Storage/UnitySqliteAdapter.cs`],
-        reason: "Lives on UnitySqliteAdapter.ReplayOutboxAsync; retry limit fixed at 3, no rollback or merge callbacks; ConflictPolicy.Merge is not implemented (a 409 without a resolver is handled as server-wins).",
+        sources: [`${CS}/Storage/SqliteAdapter.cs`],
+        reason: "Lives on SqliteAdapter.ReplayOutboxAsync; retry limit fixed at 3, no rollback or merge callbacks; ConflictPolicy.Merge is not implemented (a 409 without a resolver is handled as server-wins).",
       },
     },
   },
@@ -62,7 +62,7 @@ export const parity: ParityRow[] = [
     cells: {
       ts: { level: "full", sources: [`${CORE}/storage/cas-store.ts`, `${CORE}/storage/cas-lru.ts`] },
       dart: { level: "full", sources: [`${DART}/cas_store.dart`] },
-      csharp: { level: "full", sources: [`${CS}/Storage/UnityCasStore.cs`] },
+      csharp: { level: "full", sources: [`${CS}/Storage/CasStore.cs`] },
     },
   },
   {
@@ -77,7 +77,7 @@ export const parity: ParityRow[] = [
       },
       csharp: {
         level: "partial",
-        sources: [`${CS}/Storage/UnitySqliteAdapter.cs`, `${CS}/Unity/UcsaBehaviour.cs`],
+        sources: [`${CS}/Storage/SqliteAdapter.cs`, `${UNITY}/Unity/UcsaBehaviour.cs`],
         reason: "WAL is fixed for file databases and UcsaBehaviour checkpoints on pause and quit, but there is no journalMode option or busy fallback.",
       },
     },

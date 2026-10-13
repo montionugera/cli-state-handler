@@ -78,7 +78,8 @@ slot_unit_tests() {
   if command -v flutter >/dev/null 2>&1 && [ -f "packages/ucsa_flutter/pubspec.yaml" ]; then
     (cd packages/ucsa_flutter && flutter test)
   fi
-  if command -v dotnet >/dev/null 2>&1 && [ -f "packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj" ]; then
+  if command -v dotnet >/dev/null 2>&1 && [ -f "packages/com.ucsa.core/Tests/Ucsa.Core.Tests.csproj" ]; then
+    dotnet test packages/com.ucsa.core/Tests/Ucsa.Core.Tests.csproj
     dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
   fi
 }

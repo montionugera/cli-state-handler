@@ -26,4 +26,5 @@ export interface Guide {
 
 export const CORE = "packages/core/src";
 export const DART = "packages/ucsa_dart/lib/src";
-export const CS = "packages/com.ucsa.unity/Runtime";
+export const CS = "packages/com.ucsa.core/Runtime";
+export const UNITY = "packages/com.ucsa.unity/Runtime";

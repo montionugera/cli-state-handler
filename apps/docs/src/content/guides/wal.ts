@@ -1,4 +1,4 @@
-import { CORE, DART, CS, type Guide } from "./types.js";
+import { CORE, DART, CS, UNITY, type Guide } from "./types.js";
 
 export const wal: Guide = {
   id: "wal",
@@ -47,14 +47,14 @@ sqlite.checkpoint('PASSIVE');`,
     title: "SQLite WAL and Checkpoints (C# Unity)",
     lang: "csharp",
     available: true,
-    sources: [`${CS}/Storage/UnitySqliteAdapter.cs`, `${CS}/Unity/UcsaBehaviour.cs`],
-    code: `// Checked against: Runtime/Storage/UnitySqliteAdapter.cs (constructor, Checkpoint),
+    sources: [`${CS}/Storage/SqliteAdapter.cs`, `${UNITY}/Unity/UcsaBehaviour.cs`],
+    code: `// Checked against: Runtime/Storage/SqliteAdapter.cs (constructor, Checkpoint),
 // Runtime/Unity/UcsaBehaviour.cs (CheckpointOnPause, OnCheckpointFlushed)
-using Ucsa.Unity.Storage;
+using Ucsa.Storage;
 using Ucsa.Unity.Unity;
 
 // A file database is opened with PRAGMA journal_mode = WAL (fixed, no option).
-var sqlite = new UnitySqliteAdapter(Application.persistentDataPath + "/app.db");
+var sqlite = new SqliteAdapter(Application.persistentDataPath + "/app.db");
 
 // Runs PRAGMA wal_checkpoint(TRUNCATE); skipped for in-memory databases.
 sqlite.Checkpoint();

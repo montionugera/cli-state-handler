@@ -58,7 +58,7 @@ final election = hub.elect(); // ElectionResult(role, endpoint, token, epoch)`,
     sources: [`${CS}/Ipc/FrameCodec.cs`, `${CS}/Ipc/BusHub.cs`],
     code: `// Checked against: Runtime/Ipc/FrameCodec.cs (FrameCodec.EncodeFrame, FrameDecoder.Feed),
 // Runtime/Ipc/BusHub.cs (BusHubHelper.ResolveBusEndpoint, GetHubRecord)
-using Ucsa.Unity.Ipc;
+using Ucsa.Ipc;
 
 // Encode and decode UCB1 frames (same wire format as TypeScript).
 byte[] bytes = FrameCodec.EncodeFrame(FrameType.Hello, "{\\"proto\\":1,\\"token\\":\\"abc\\"}");

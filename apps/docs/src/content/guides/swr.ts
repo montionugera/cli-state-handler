@@ -78,15 +78,15 @@ final user = await engine.fetchQuery<Map<String, dynamic>>(
     title: "QueryEngine & SWR Lifecycle (C# Unity)",
     lang: "csharp",
     available: true,
-    sources: [`${CS}/Core/QueryEngine.cs`, `${CS}/Core/Types.cs`, `${CS}/Storage/UnitySqliteAdapter.cs`],
+    sources: [`${CS}/Core/QueryEngine.cs`, `${CS}/Core/Types.cs`, `${CS}/Storage/SqliteAdapter.cs`],
     code: `// Checked against: Runtime/Core/QueryEngine.cs (WatchQuery, FetchQueryAsync),
-// Runtime/Core/Types.cs (QueryOptions), Runtime/Storage/UnitySqliteAdapter.cs (constructor)
+// Runtime/Core/Types.cs (QueryOptions), Runtime/Storage/SqliteAdapter.cs (constructor)
 using System.Collections.Generic;
-using Ucsa.Unity.Core;
-using Ucsa.Unity.Storage;
+using Ucsa.Core;
+using Ucsa.Storage;
 
 // The constructor opens the file and runs InitSchema itself.
-var sqlite = new UnitySqliteAdapter(Application.persistentDataPath + "/app_cache.db");
+var sqlite = new SqliteAdapter(Application.persistentDataPath + "/app_cache.db");
 var engine = new QueryEngine(sqlite, defaultStaleTime: 5000);
 
 var options = new QueryOptions { StaleTime = 10000, Tags = new List<string> { "user:42" } };

@@ -1634,11 +1634,11 @@ The docs are not deployed from this repo directly. On every release, `.github/wo
 2. **Deterministic 5-Stage Lifecycle FSM (`LifecycleFsm<TData, TError>`)**:
    - Manages state transitions (`Idle` -> `Loading` -> `Retrying` -> `Success` / `Error`).
    - Implements exponential backoff with full jitter to prevent thundering herd spikes on backend game servers.
-3. **SQLite WAL Persistence (`UnitySqliteAdapter`)**:
+3. **SQLite WAL Persistence (`SqliteAdapter`)**:
    - Executes UCSA cache schema using `Microsoft.Data.Sqlite` in WAL mode (`PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;`).
    - Maintains B-tree indexed tag invalidation (`ucsa_cache_tags`) and offline mutation outbox (`ucsa_mutation_outbox`).
    - Configures busy timeouts to prevent database locking across background worker threads.
-4. **Content-Addressable Storage (`UnityCasStore`)**:
+4. **Content-Addressable Storage (`CasStore`)**:
    - High-throughput binary asset and DLC caching addressed by SHA-256 digests.
    - Uses two-phase atomic temporary file writes (`.tmp/<uuid>`) and atomic `File.Move` promotion to avoid corrupt partial reads.
    - Enforces automatic LRU quota pruning against high-watermark disk limits.
@@ -1660,7 +1660,7 @@ The docs are not deployed from this repo directly. On every release, `.github/wo
 ```csharp
 using UnityEngine;
 using UnityEngine.UI;
-using Ucsa.Unity.Core;
+using Ucsa.Core;
 
 public class PlayerHealthView : MonoBehaviour
 {
@@ -1694,8 +1694,8 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
-using Ucsa.Unity.Core;
-using Ucsa.Unity.Storage;
+using Ucsa.Core;
+using Ucsa.Storage;
 
 public class InventoryService
 {
@@ -1703,7 +1703,7 @@ public class InventoryService
 
     public InventoryService(string dbPath)
     {
-        var sqlite = new UnitySqliteAdapter(dbPath);
+        var sqlite = new SqliteAdapter(dbPath);
         sqlite.InitSchema();
 
         _engine = new QueryEngine(new QueryEngineOptions(sqlite)
@@ -1740,7 +1740,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
 using Ucsa.Unity.Transports;
-using Ucsa.Unity.Storage;
+using Ucsa.Storage;
 
 public class AvatarLoader : MonoBehaviour
 {
@@ -1749,7 +1749,7 @@ public class AvatarLoader : MonoBehaviour
 
     private async void Start()
     {
-        var cas = new UnityCasStore(Application.persistentDataPath + "/cas");
+        var cas = new CasStore(Application.persistentDataPath + "/cas");
         await cas.InitAsync();
 
         _textureCache = new TextureCache(new TextureCacheOptions
@@ -1770,11 +1770,11 @@ public class AvatarLoader : MonoBehaviour
 
 #### 4. Schema Migration Runner & Parity (`MigrationRunner`)
 
-`MigrationRunner` in `packages/com.ucsa.unity` guarantees identical SQLite database compatibility across platforms:
+`MigrationRunner` in `packages/com.ucsa.core` guarantees identical SQLite database compatibility across platforms:
 
 ```csharp
 using Microsoft.Data.Sqlite;
-using Ucsa.Unity.Storage;
+using Ucsa.Storage;
 
 public class StorageInitializer
 {
@@ -2034,7 +2034,7 @@ for (final frame of frames) {
 
 #### C# / Unity
 ```csharp
-using Ucsa.Unity.Ipc;
+using Ucsa.Ipc;
 
 // Encode a frame
 var bytes = FrameCodec.EncodeFrame(FrameType.Hello, "{\"client_id\":\"unity-client\",\"lang\":\"csharp\"}");
@@ -2151,8 +2151,8 @@ if (record == null) {
 
 #### C# / Unity
 ```csharp
-using Ucsa.Unity.Ipc;
-using Ucsa.Unity.Storage;
+using Ucsa.Ipc;
+using Ucsa.Storage;
 
 string endpoint = BusHubHelper.ResolveBusEndpoint(dbPath);
 HubRecord? record = BusHubHelper.GetHubRecord(adapter);
@@ -2244,7 +2244,7 @@ sequenceDiagram
   ```
 - **Zero Duplicate Replays**: Concurrent workers claim mutually exclusive, non-overlapping subsets of pending mutations.
 - **Dead-Worker Lease Recovery**: If a worker process terminates abruptly (`SIGKILL`, power failure, out-of-memory) while holding a lease, surviving workers automatically reclaim the abandoned mutations once `lease_until` expires.
-- **Cross-Platform Parity**: Implemented natively across TypeScript (`MutationOutbox`), Dart (`SqliteAdapter.claimPendingMutations`), and C# Unity (`UnitySqliteAdapter.ClaimPendingMutations`).
+- **Cross-Platform Parity**: Implemented natively across TypeScript (`MutationOutbox`), Dart (`SqliteAdapter.claimPendingMutations`), and C# Unity (`SqliteAdapter.ClaimPendingMutations`).
 
 ### 3. Non-Blocking WAL Truncate Checkpoint Fallback
 
@@ -2340,12 +2340,12 @@ final cached = sqlite.compactStream(stream.queryHash);
 print(cached.data); // "Thinking... Completed."
 ```
 
-#### C# / Unity (`packages/com.ucsa.unity`)
+#### C# / Unity (`packages/com.ucsa.core`)
 ```csharp
-using Ucsa.Unity.Core;
-using Ucsa.Unity.Storage;
+using Ucsa.Core;
+using Ucsa.Storage;
 
-var adapter = new UnitySqliteAdapter("Data Source=state.db");
+var adapter = new SqliteAdapter("Data Source=state.db");
 var stream = adapter.CreateStream(new object[] { "agent", "generate" }, StreamEncoding.Utf8);
 
 adapter.AppendStreamChunk(stream.QueryHash, "Streaming token...", expectedSeq: 0);
@@ -2490,12 +2490,12 @@ if (recovery.canResume) {
 }
 ```
 
-#### C# / Unity (`packages/com.ucsa.unity`)
+#### C# / Unity (`packages/com.ucsa.core`)
 ```csharp
-using Ucsa.Unity.Streaming;
-using Ucsa.Unity.Storage;
+using Ucsa.Streaming;
+using Ucsa.Storage;
 
-var adapter = new UnitySqliteAdapter("Data Source=state.db");
+var adapter = new SqliteAdapter("Data Source=state.db");
 var fsm = new StreamResumeFsm(new StreamResumeFsmOptions
 {
     QueryHash = "chat-completion-42",
@@ -2649,13 +2649,13 @@ final finalStory = await handle.done;
 print('Completed story: $finalStory');
 ```
 
-#### C# / Unity (`packages/com.ucsa.unity`)
+#### C# / Unity (`packages/com.ucsa.core`)
 ```csharp
-using Ucsa.Unity.Core;
-using Ucsa.Unity.Storage;
-using Ucsa.Unity.Streaming;
+using Ucsa.Core;
+using Ucsa.Storage;
+using Ucsa.Streaming;
 
-var engine = new QueryEngine(new QueryEngineOptions(new UnitySqliteAdapter(":memory:")));
+var engine = new QueryEngine(new QueryEngineOptions(new SqliteAdapter(":memory:")));
 
 var handle = engine.StreamQueryAsync(
     new object[] { "ai", "story" },
@@ -2827,25 +2827,25 @@ After a release, `main` has a bump commit made by the workflow; run `psrw sync-m
 | **Dart Streaming Resume Strategies & FSM** | `packages/ucsa_dart/test/resume_strategy_test.dart` | 17 | Passing (100%) |
 | **Dart Streaming Query Engine** | `packages/ucsa_dart/test/stream_query_test.dart` | 12 | Passing (100%) |
 | **Flutter Widget Framework** | `packages/ucsa_flutter/test/widget_test.dart` | 1 | Passing (100%) |
-| **Unity Lifecycle FSM** | `packages/com.ucsa.unity/Tests/Runtime/LifecycleFsmTests.cs` | 6 | Passing (100%) |
-| **Unity State Observer** | `packages/com.ucsa.unity/Tests/Runtime/StateObserverTests.cs` | 8 | Passing (100%) |
-| **Unity State Observer Timing** | `packages/com.ucsa.unity/Tests/Runtime/StateObserverTimingTests.cs` | 2 | Passing (100%) |
-| **Unity SQLite WAL Storage** | `packages/com.ucsa.unity/Tests/Runtime/SqliteAdapterTests.cs` | 15 | Passing (100%) |
-| **Unity Schema Migrations** | `packages/com.ucsa.unity/Tests/Runtime/MigrationTests.cs` | 8 | Passing (100%) |
-| **Unity Change Log & Catch-up** | `packages/com.ucsa.unity/Tests/Runtime/ChangeLogTests.cs` | 9 | Passing (100%) |
-| **Unity CAS Store & Prune** | `packages/com.ucsa.unity/Tests/Runtime/CasStoreTests.cs` | 14 | Passing (100%) |
-| **Unity SWR Query Engine** | `packages/com.ucsa.unity/Tests/Runtime/QueryEngineTests.cs` | 15 | Passing (100%) |
-| **Unity Query Debouncing** | `packages/com.ucsa.unity/Tests/Runtime/QueryDebouncingTests.cs` | 3 | Passing (100%) |
-| **Unity Outbox Rate-Limiting** | `packages/com.ucsa.unity/Tests/Runtime/OutboxRateLimitTests.cs` | 2 | Passing (100%) |
-| **Unity Outbox Distributed Leases** | `packages/com.ucsa.unity/Tests/Runtime/OutboxLeaseTests.cs` | 3 | Passing (100%) |
+| **Unity Lifecycle FSM** | `packages/com.ucsa.core/Tests/Runtime/LifecycleFsmTests.cs` | 6 | Passing (100%) |
+| **Unity State Observer** | `packages/com.ucsa.core/Tests/Runtime/StateObserverTests.cs` | 8 | Passing (100%) |
+| **Unity State Observer Timing** | `packages/com.ucsa.core/Tests/Runtime/StateObserverTimingTests.cs` | 2 | Passing (100%) |
+| **Unity SQLite WAL Storage** | `packages/com.ucsa.core/Tests/Runtime/SqliteAdapterTests.cs` | 15 | Passing (100%) |
+| **Unity Schema Migrations** | `packages/com.ucsa.core/Tests/Runtime/MigrationTests.cs` | 8 | Passing (100%) |
+| **Unity Change Log & Catch-up** | `packages/com.ucsa.core/Tests/Runtime/ChangeLogTests.cs` | 9 | Passing (100%) |
+| **Unity CAS Store & Prune** | `packages/com.ucsa.core/Tests/Runtime/CasStoreTests.cs` | 14 | Passing (100%) |
+| **Unity SWR Query Engine** | `packages/com.ucsa.core/Tests/Runtime/QueryEngineTests.cs` | 15 | Passing (100%) |
+| **Unity Query Debouncing** | `packages/com.ucsa.core/Tests/Runtime/QueryDebouncingTests.cs` | 3 | Passing (100%) |
+| **Unity Outbox Rate-Limiting** | `packages/com.ucsa.core/Tests/Runtime/OutboxRateLimitTests.cs` | 2 | Passing (100%) |
+| **Unity Outbox Distributed Leases** | `packages/com.ucsa.core/Tests/Runtime/OutboxLeaseTests.cs` | 3 | Passing (100%) |
 | **Unity Texture Cache** | `packages/com.ucsa.unity/Tests/Runtime/TextureCacheTests.cs` | 5 | Passing (100%) |
 | **Unity Behaviour Durability** | `packages/com.ucsa.unity/Tests/Runtime/UcsaBehaviourTests.cs` | 4 | Passing (100%) |
-| **Unity UCB1 Frame Codec & Parity** | `packages/com.ucsa.unity/Tests/Runtime/FrameCodecTests.cs` | 17 | Passing (100%) |
-| **Unity Bus Hub Models & Parity** | `packages/com.ucsa.unity/Tests/Runtime/BusHubTests.cs` | 5 | Passing (100%) |
+| **Unity UCB1 Frame Codec & Parity** | `packages/com.ucsa.core/Tests/Runtime/FrameCodecTests.cs` | 17 | Passing (100%) |
+| **Unity Bus Hub Models & Parity** | `packages/com.ucsa.core/Tests/Runtime/BusHubTests.cs` | 5 | Passing (100%) |
 | **Unity Full-Chain E2E Gate** | `packages/com.ucsa.unity/Tests/Runtime/E2EFullChainTests.cs` | 1 | Passing (100%) |
-| **Unity Streaming Chunk Store** | `packages/com.ucsa.unity/Tests/Runtime/StreamChunkTests.cs` | 10 | Passing (100%) |
-| **Unity Streaming Resume Strategies & FSM** | `packages/com.ucsa.unity/Tests/Runtime/ResumeStrategyTests.cs` | 17 | Passing (100%) |
-| **Unity Streaming Query Engine** | `packages/com.ucsa.unity/Tests/Runtime/StreamQueryTests.cs` | 7 | Passing (100%) |
+| **Unity Streaming Chunk Store** | `packages/com.ucsa.core/Tests/Runtime/StreamChunkTests.cs` | 10 | Passing (100%) |
+| **Unity Streaming Resume Strategies & FSM** | `packages/com.ucsa.core/Tests/Runtime/ResumeStrategyTests.cs` | 17 | Passing (100%) |
+| **Unity Streaming Query Engine** | `packages/com.ucsa.core/Tests/Runtime/StreamQueryTests.cs` | 7 | Passing (100%) |
 | **Total** | **97 Test Suites** | **1047 Tests** | **1047 / 1047 Passing (137 C# Unity + 170 Dart + 1 Flutter + 739 Node/TS/React/CLI/Docs)** |
 
 > All counts in the Total row come from real runs on this branch. Node/TS/React/CLI/Docs: `pnpm test` (60 files, 739 tests; the `apps/docs` subset is 19 files, 320 tests). Dart (170), Flutter (1) and C# (137, via `dotnet test`) come from `scripts/precheck.sh`. The per-row Unity counts above are carried over from earlier releases and sum to 151, which differs from the 137 that `dotnet test` reports; the rows were not reconciled in this change.
@@ -2869,7 +2869,10 @@ pnpm test
 # Run complete Dart test suite (170 tests across 17 files)
 (cd packages/ucsa_dart && dart test)
 
-# Run complete C# Unity test suite (137 tests across 19 files)
+# Run the shared C# core test suite (127 tests across 16 files)
+dotnet test packages/com.ucsa.core/Tests/Ucsa.Core.Tests.csproj
+
+# Run the C# Unity binding test suite (10 tests across 3 files)
 dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
 
 # Run Gate 1 precheck script (cross-platform verification)

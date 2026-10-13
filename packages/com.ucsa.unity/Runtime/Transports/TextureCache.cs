@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using Ucsa.Unity.Core;
-using Ucsa.Unity.Storage;
+using Ucsa.Core;
+using Ucsa.Storage;
 using UnityEngine;
 
 namespace Ucsa.Unity.Transports
@@ -14,8 +14,8 @@ namespace Ucsa.Unity.Transports
     /// </summary>
     public class TextureCacheOptions
     {
-        public UnityCasStore? CasStore { get; set; }
-        public UnitySqliteAdapter? SqliteAdapter { get; set; }
+        public CasStore? CasStore { get; set; }
+        public SqliteAdapter? SqliteAdapter { get; set; }
         public int MaxMemoryTextures { get; set; } = 100;
         public Func<string, CancellationToken, Task<byte[]>>? DownloadHandler { get; set; }
         public Func<byte[], Texture2D>? TextureDecoder { get; set; }
@@ -31,8 +31,8 @@ namespace Ucsa.Unity.Transports
     {
         private static readonly HttpClient SharedHttpClient = new();
 
-        private readonly UnityCasStore? _casStore;
-        private readonly UnitySqliteAdapter? _sqliteAdapter;
+        private readonly CasStore? _casStore;
+        private readonly SqliteAdapter? _sqliteAdapter;
         private readonly int _maxMemoryTextures;
         private readonly Func<string, CancellationToken, Task<byte[]>> _downloadHandler;
         private readonly Func<byte[], Texture2D> _textureDecoder;
@@ -67,8 +67,8 @@ namespace Ucsa.Unity.Transports
         }
 
         public TextureCache(
-            UnityCasStore? casStore,
-            UnitySqliteAdapter? sqliteAdapter = null,
+            CasStore? casStore,
+            SqliteAdapter? sqliteAdapter = null,
             int maxMemoryTextures = 100)
             : this(new TextureCacheOptions
             {
