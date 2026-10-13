@@ -327,5 +327,11 @@
     "title": "Tell the developer portal which docs version to fetch",
     "created_at": "2026-10-11T05:59:10.101345+00:00",
     "promoted_to": "F-048"
+  },
+  {
+    "id": "I-049",
+    "title": "Godot engine support for UCSA client state",
+    "created_at": "2026-10-13T03:41:42.976073+00:00",
+    "promoted_to": null
   }
 ]
