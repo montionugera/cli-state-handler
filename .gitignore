@@ -17,3 +17,5 @@ coverage/
 build/
 bin/
 obj/
+# Godot editor cache and .NET build output (packages/ucsa_godot)
+.godot/

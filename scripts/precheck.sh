@@ -82,6 +82,14 @@ slot_unit_tests() {
     dotnet test packages/com.ucsa.core/Tests/Ucsa.Core.Tests.csproj
     dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
   fi
+  # Godot in-engine smoke test (packages/ucsa_godot). It runs when a Godot .NET
+  # binary is found; otherwise it prints a visible skip line. CI sets
+  # UCSA_REQUIRE_GODOT_SMOKE=1 so a missing binary fails there instead of skipping.
+  if [ -n "${GODOT_MONO_BIN:-}" ] || [ "${UCSA_REQUIRE_GODOT_SMOKE:-0}" = "1" ] || bash scripts/godot-smoke.sh --locate >/dev/null 2>&1; then
+    bash scripts/godot-smoke.sh
+  else
+    echo "-- godot smoke: SKIPPED (no Godot .NET binary found; set GODOT_MONO_BIN or install godot-mono)"
+  fi
 }
 
 # SLOT 3 - fast static UI checks: lint for controls that cannot be clicked
