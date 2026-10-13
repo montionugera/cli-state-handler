@@ -2,6 +2,10 @@
 
 Release notes for `@montionugera/ucsa-core` and `@montionugera/ucsa-cli`. Both packages always share one version. Entries are written by the release workflow.
 
+## 0.6.0 - 2026-10-13
+
+- Godot engine support for UCSA client state (F-049)
+
 ## 0.5.0 - 2026-10-12
 
 - Adopt the Joymify design system in the docs portal (F-045)
