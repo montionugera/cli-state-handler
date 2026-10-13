@@ -146,7 +146,7 @@ AddChild(new UcsaNode { SqliteAdapter = sqlite, QueryEngine = engine });`,
     notes: [
       "Same engine as the Unity column: the Godot package references the shared core in packages/com.ucsa.core.",
       "Times are long milliseconds (StaleTime, GcTime, DefaultStaleTime). Tags is a List<string>, not an array.",
-      "UcsaNode revalidates active subscribers on focus-in and on mobile resume (RevalidateOnResume, default true). On desktop an alt-tab back to the game can therefore trigger refetches.",
+      "On focus-in or resume UcsaNode calls QueryEngine.InvalidateQueriesAsync() with no prefix, which marks every query stale and deletes the persisted rows, and on desktop this happens on every refocus; a game that does not want that sets RevalidateOnResume to false.",
     ],
   },
 };

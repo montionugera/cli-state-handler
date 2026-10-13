@@ -1565,7 +1565,7 @@ The pages are the entries of the `routes` array in `apps/docs/src/routes.ts` (th
 | CAS Storage & LRU | `#/cas` | Visualisers | Content-addressed store model with LRU eviction under a byte budget. |
 | UCB1 Event Bus | `#/ucb1` | Visualisers | Labelled UCB1 header fields and a simulated hub with per-process topic filters. |
 | WAL Storage | `#/wal` | Visualisers | Labelled simulation of SQLite WAL: readers, checkpoint, crash recovery, rollback-journal mode. |
-| TS / Dart / Unity C# | `#/multiplatform` | Guides | Per-subsystem code snippets for TypeScript, Dart and C#, as tabs or side by side; each names its source file. |
+| TS / Dart / Unity C# | `#/multiplatform` | Guides | Per-subsystem code snippets for TypeScript, Dart, C# for Unity, and C# for Godot, as tabs or side by side; each names its source file. |
 | Platform Parity Matrix | `#/parity` | Guides | Table of how much of each subsystem exists per platform (full / partial / none), with reasons and source files. |
 | Release notes | `#/release-notes` | Guides | Shows the changelog entries produced by the merge-based release pipeline, with the published version. |
 | TypeScript Sandbox | `#/sandbox` | Sandbox | Editable TypeScript with presets; Run executes it against `@montionugera/ucsa-core` in a sandboxed iframe (`allow-scripts` only) and shows console output and errors. Types are stripped, not checked. |
@@ -1813,7 +1813,7 @@ public class StorageInitializer
 
 `packages/ucsa_godot` is a Godot 4 .NET (C#) binding for UCSA. It is a thin layer over the shared engine-free C# core in `packages/com.ucsa.core`, the same core the Unity package uses, so the query engine, SQLite storage, content-addressable store, UCB1 frame codec and streaming classes are the same code on both engines. Namespace: `Ucsa.Godot`.
 
-> Verified target: desktop (macOS and Linux) on Godot 4.7.2 .NET with .NET 8. Mobile export is not verified, and Godot 4 does not support C# web export. There is no GDScript API and no editor plugin. Nothing is published to a registry: install from this repository.
+> Target: desktop. The smoke test is verified locally on macOS (Godot 4.7.2 .NET with .NET 8); Linux is configured in the CI workflow (a pinned Godot .NET build, with the smoke test required there) and has not yet been run on a runner. Mobile export is not verified, and Godot 4 does not support C# web export. There is no GDScript API and no editor plugin. Nothing is published to a registry: install from this repository.
 
 ### What the binding adds
 
@@ -1878,7 +1878,7 @@ Two behaviours are specific to Godot. Losing window focus counts as a pause, so 
 ./scripts/godot-smoke.sh
 ```
 
-The runner builds the project, runs `packages/ucsa_godot/tests/Smoke.tscn` headless under a timeout, and passes only when the engine exits with code 0 and prints `SMOKE PASS 4/4`. The four assertion groups: a focus-out checkpoint with the value readable from a fresh adapter, a checkpoint on tree exit, every UCB1 conformance vector in `contracts/ipc/vectors.json`, and a PNG decoded through `TextureCache` with the second request served from memory. `scripts/precheck.sh` runs it when a Godot .NET build is present and prints a skip line otherwise; CI always runs it.
+The runner builds the project, runs `packages/ucsa_godot/tests/Smoke.tscn` headless under a timeout, and passes only when the engine exits with code 0 and prints `SMOKE PASS 4/4`. The four assertion groups: a focus-out checkpoint with the value readable from a fresh adapter, a checkpoint on tree exit, every UCB1 conformance vector in `contracts/ipc/vectors.json`, and a PNG decoded through `TextureCache` with the second request served from memory. `scripts/precheck.sh` runs it when a Godot .NET build is present and prints a skip line otherwise; CI is configured to run it on Linux (a pinned Godot .NET build, with the smoke test required there) and has not yet been run on a runner.
 
 ---
 
@@ -2932,7 +2932,7 @@ After a release, `main` has a bump commit made by the workflow; run `psrw sync-m
 | **Unity Streaming Chunk Store** | `packages/com.ucsa.core/Tests/Runtime/StreamChunkTests.cs` | 10 | Passing (100%) |
 | **Unity Streaming Resume Strategies & FSM** | `packages/com.ucsa.core/Tests/Runtime/ResumeStrategyTests.cs` | 17 | Passing (100%) |
 | **Unity Streaming Query Engine** | `packages/com.ucsa.core/Tests/Runtime/StreamQueryTests.cs` | 7 | Passing (100%) |
-| **Total** | **97 Test Suites** | **1047 Tests** | **1047 / 1047 Passing (137 C# Unity + 170 Dart + 1 Flutter + 739 Node/TS/React/CLI/Docs)** |
+| **Total** | **97 Test Suites** | **1047 Tests** | **1047 / 1047 Passing (127 C# core + 10 C# Unity + 170 Dart + 1 Flutter + 739 Node/TS/React/CLI/Docs)** |
 
 > All counts in the Total row come from real runs on this branch. Node/TS/React/CLI/Docs: `pnpm test` (60 files, 739 tests; the `apps/docs` subset is 19 files, 320 tests). Dart (170), Flutter (1) and C# (137, via `dotnet test`) come from `scripts/precheck.sh`. The per-row Unity counts above are carried over from earlier releases and sum to 151, which differs from the 137 that `dotnet test` reports; the rows were not reconciled in this change.
 
