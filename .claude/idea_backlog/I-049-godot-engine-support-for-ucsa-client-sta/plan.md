@@ -73,7 +73,7 @@ Still unverified, because no Godot .NET binary is installed here. Task 2 confirm
 
 ## Spec statements that differ from the source (decided here, confirm at audit)
 
-1. **The Unity quit handler does close the database.** The spec says `UcsaBehaviour` "does not open, migrate or dispose the database". `packages/com.ucsa.unity/Runtime/Unity/UcsaBehaviour.cs:132` calls `SqliteAdapter.Close()` inside `HandleQuit`, and `Close()` is `Dispose()` (`Runtime/Storage/UnitySqliteAdapter.cs:1793-1796`). Decision: `UcsaNode.HandleQuit` mirrors the source exactly (checkpoint, close, raise the event) and runs on `NotificationWMCloseRequest`. The new `_ExitTree` checkpoint does not close the adapter. `UcsaNode` still never opens or migrates a database.
+1. **The Unity quit handler does close the database.** The spec says `UcsaBehaviour` "does not open, migrate or dispose the database". `packages/com.ucsa.unity/Runtime/Unity/UcsaBehaviour.cs:132` calls `SqliteAdapter.Close()` inside `HandleQuit`, and `Close()` is `Dispose()` (`Runtime/Storage/UnitySqliteAdapter.cs:1793-1796`). Decision (changed at the plan audit): a Godot close request is cancellable and is delivered to other nodes too, so a game that saves on quit could hit a closed database. `NotificationWMCloseRequest` therefore only checkpoints and leaves the adapter open, as the approved spec says. `UcsaNode.HandleQuit()` stays public and mirrors the Unity source (checkpoint, close, raise the event) for games that want to call it explicitly; nothing in `UcsaNode` calls it. The new `_ExitTree` checkpoint does not close the adapter either. `UcsaNode` still never opens or migrates a database.
 2. **Two docs components also need the new platform.** The spec lists `types.ts`, `guides/index.ts`, six guide files, `parity.ts` and the docs tests. `apps/docs/src/components/MultiPlatformDocs.tsx:7-11` and `apps/docs/src/components/ParityMatrix.tsx:6` are `Record<PlatformId, string>` maps, so adding `godot` to `PlatformId` fails the typecheck until both get an entry. `apps/docs/src/components/multiplatform.css:20` hard-codes three columns. Task 9 changes all three.
 3. **One source-root constant is not enough in phase 1.** `apps/docs/src/content/guides/wal.ts:50` and `apps/docs/src/content/parity.ts:80` cite `${CS}/Unity/UcsaBehaviour.cs`, which stays in the Unity package. Task 1 adds a second constant, `UNITY`.
 4. **The Godot project's `bin/` and `obj/` need no ignore entry.** The Godot .NET SDK writes build output under `.godot/mono/temp/`, and the root `.gitignore` already ignores `bin/` and `obj/`. Task 6 adds only `.godot/`.
@@ -560,7 +560,7 @@ grep -n 'Ucsa\.Unity\|UnitySqlite\|UnityCas' README.md
 grep -n 'com\.ucsa\.unity' README.md | cut -c1-90
 ```
 
-Expected: the count is `16`; the second grep prints one line, `using Ucsa.Unity.Transports;` (the texture cache example, which is correct); the third prints six lines: the section heading, the sentence under it, the three test-table rows for `TextureCacheTests.cs`, `UcsaBehaviourTests.cs` and `E2EFullChainTests.cs`, and the Unity `dotnet test` command.
+Expected: the count is `16`; the second grep prints two lines, both correct: `using Ucsa.Unity.Transports;` (the texture cache example) and the `Ucsa.Unity.Tests.csproj` test command; the third prints six lines: the section heading, the sentence under it, the three test-table rows for `TextureCacheTests.cs`, `UcsaBehaviourTests.cs` and `E2EFullChainTests.cs`, and the Unity `dotnet test` command.
 
 The "137 C# Unity" figure in the test table's Total row stays: the combined count is unchanged.
 
@@ -639,17 +639,9 @@ Already confirmed at build time while writing this plan, so not repeated here: t
 
 - [ ] **Step 1: Install the Godot .NET build beside the standard one**
 
-This installs an application on the machine (costly to reverse only in the sense that it is removed with `brew uninstall --cask godot-mono`). The standard build at `/usr/local/bin/godot` stays.
+This installs an application on the machine; it is removed by deleting `~/Applications/godot-mono-4.7.2`. The standard build at `/usr/local/bin/godot` stays.
 
-```bash
-brew install --cask godot-mono 2>&1 | tail -n 3
-command -v godot-mono && godot-mono --version
-godot --version
-```
-
-Expected: `godot-mono --version` prints a 4.7.2 version string; `godot --version` still prints `4.7.2.stable.official.ed1daf0bf`.
-
-If Homebrew provides no `godot-mono` command, use the official download instead, in its own new empty folder:
+Do NOT use `brew install --cask godot-mono`: that cask depends on the `dotnet-sdk` cask (.NET SDK 10), and a second `dotnet` on the machine could shadow .NET 8.0.422 and change every `net8.0` test count in this plan. Use the official download, in its own new empty folder:
 
 ```bash
 DL="$(mktemp -d)"
@@ -661,6 +653,8 @@ ls "$HOME/Applications/godot-mono-4.7.2"
 ```
 
 Expected checksum: `0862c53d7158c7a67f745e2e46f90b68cf5343cbe8b95d6d4333c469e42ca104af9c121d1746a50e5d221a99d09d82ef7016495f8e0d09255842884ed0502795`. Stop if it differs.
+
+Then confirm the .NET toolchain is unchanged: `dotnet --version` must still print `8.0.422`. If Godot later reports that it cannot find the .NET host, export `DOTNET_ROOT` to the directory of the `dotnet` that printed that version and record it in the Task 2 results table; do not install another SDK.
 
 Then export the binary path for this and every later task (use the path that exists on this machine):
 
@@ -1060,6 +1054,16 @@ namespace Ucsa.Godot.Tests
             WriteValue(sqlite, "smoke-exit", "value-exit");
             Require(WalLength(dbPath) > 0, "the write is pending in the write-ahead log");
 
+            // Sending the notification to one node does not quit the tree.
+            node.Notification((int)NotificationWMCloseRequest);
+            Require(flushed == 1, "a close request raises OnCheckpointFlushed once");
+            Require(WalLength(dbPath) == 0, "a close request truncates the write-ahead log");
+            Require(!sqlite.IsClosed, "a close request leaves the adapter open");
+
+            flushed = 0;
+            WriteValue(sqlite, "smoke-exit-2", "value-exit-2");
+            Require(WalLength(dbPath) > 0, "the second write is pending in the write-ahead log");
+
             RemoveChild(node); // runs _ExitTree synchronously
             node.Free();
 
@@ -1359,18 +1363,7 @@ namespace Ucsa.Godot
         {
             // New for Godot (not in Unity): a programmatic quit sends no close request,
             // so the node also checkpoints when it leaves the tree. The adapter stays open.
-            if (SqliteAdapter != null && !SqliteAdapter.IsClosed)
-            {
-                try
-                {
-                    SqliteAdapter.Checkpoint("TRUNCATE");
-                    OnCheckpointFlushed?.Invoke();
-                }
-                catch (Exception ex)
-                {
-                    GD.PushError($"[UCSA] Checkpoint on tree exit failed: {ex.Message}");
-                }
-            }
+            CheckpointKeepOpen("tree exit");
 
             if (_instance == this)
             {
@@ -1391,7 +1384,9 @@ namespace Ucsa.Godot
             }
             else if (notification == NotificationWMCloseRequest)
             {
-                HandleQuit();
+                // Checkpoint only: the request is cancellable and other nodes may
+                // still write while handling it, so the adapter stays open.
+                CheckpointKeepOpen("close request");
             }
         }
 
@@ -1437,9 +1432,28 @@ namespace Ucsa.Godot
             }
         }
 
+        private void CheckpointKeepOpen(string reason)
+        {
+            if (SqliteAdapter == null || SqliteAdapter.IsClosed)
+            {
+                return;
+            }
+
+            try
+            {
+                SqliteAdapter.Checkpoint("TRUNCATE");
+                OnCheckpointFlushed?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                GD.PushError($"[UCSA] Checkpoint on {reason} failed: {ex.Message}");
+            }
+        }
+
         /// <summary>
-        /// Core quit handler, exposed for tests. Mirrors UcsaBehaviour.HandleQuit:
+        /// Explicit shutdown for games that want it. Mirrors UcsaBehaviour.HandleQuit:
         /// checkpoint, close the adapter, then raise OnCheckpointFlushed.
+        /// UcsaNode never calls this itself; a close request only checkpoints.
         /// </summary>
         public void HandleQuit()
         {
@@ -2132,6 +2146,15 @@ Directly before this existing step:
         run: bash scripts/precheck.sh
 ```
 
+And change that existing step so the no-skip flag is set on the gate itself. If the install step is ever removed or made conditional, the gate then fails; it cannot silently skip:
+
+```yaml
+      - name: Gate 1 (precheck)
+        env:
+          UCSA_REQUIRE_GODOT_SMOKE: "1"
+        run: bash scripts/precheck.sh
+```
+
 insert:
 
 ```yaml
@@ -2152,7 +2175,6 @@ insert:
           test -x "$bin"
           "$bin" --version
           echo "GODOT_MONO_BIN=$bin" >> "$GITHUB_ENV"
-          echo "UCSA_REQUIRE_GODOT_SMOKE=1" >> "$GITHUB_ENV"
 
 ```
 
@@ -3009,7 +3031,7 @@ After the sweep, stop. Shipping the feature into the release (`psrw ship`), push
 | Acceptance criteria, all eight | Task 9 Step 9 item 5; criterion six in Task 7 Step 5 |
 | Error handling: checkpoint failures logged, never thrown | Task 4 (`GD.PushError` in the three handlers) |
 
-Gaps found and closed while reviewing: the docs components and CSS that the spec did not list (added to Task 9); the second source-root constant `UNITY` (added to Task 1 Step 9); the test method name the word-boundary pattern missed (pattern changed in Task 1 Step 3). Not covered by any automated check, and said so in the README text: the two-package layout inside a real Unity editor (the spec accepts this risk), and `HandleQuit` on a real window close request (the smoke test sends focus-out and removes the node; it does not send a close request because that would also end the run).
+Gaps found and closed while reviewing: the docs components and CSS that the spec did not list (added to Task 9); the second source-root constant `UNITY` (added to Task 1 Step 9); the test method name the word-boundary pattern missed (pattern changed in Task 1 Step 3). Not covered by any automated check, and said so in the README text: the two-package layout inside a real Unity editor (the spec accepts this risk), and a close request delivered by a real window manager (the smoke test sends the close-request notification to the node directly, inside assertion group 2).
 
 **2. Placeholder scan.** No "TBD", "TODO" or "similar to Task N". The only angle-bracket fields are `<F-NNN>` (minted by `psrw refine`) and the result cells of the Task 2 results table, which exist to be filled with observed output.
 
@@ -3020,3 +3042,14 @@ Gaps found and closed while reviewing: the docs components and CSS that the spec
 ## Audit trail
 
 - 2026-10-13: plan written from the approved spec. Not yet audited. `self-grill-audit` findings and the fixes applied go here.
+
+## Appendix: audit trail
+
+- 2026-10-13 self-grill-audit: verdict safe-with-fixes (no critical, two high). The auditor reproduced Phase 1 on a scratch clone (29 files moved, 127 core plus 10 Unity tests, 137 total) and the Godot C# build. Corrected:
+  - Godot .NET is installed from the checksum-verified official zip only; the Homebrew cask is ruled out because it pulls in .NET SDK 10.
+  - A close request only checkpoints and leaves the adapter open, as the approved spec says; `HandleQuit()` stays public for explicit use. The shared logic is `CheckpointKeepOpen`.
+  - Assertion group 2 now sends the close-request notification and checks the adapter stays open.
+  - README grep expectation corrected to two lines.
+  - `UCSA_REQUIRE_GODOT_SMOKE` moved to the `env:` of the CI gate step.
+  - Open for the owner: Task 7's choice of when the first real CI run happens (it needs a push). Not applied: the low-severity notes (the frozen-install step is harmless but not strictly required; feature folders are named `F-NNN-<slug>`).
+  - Never run in an engine until Task 2 and Task 5: everything Godot-specific. Not covered even then: a close request from a real window manager, mobile pause delivery, and `TextureCache` JPEG decoding and its default downloader.
