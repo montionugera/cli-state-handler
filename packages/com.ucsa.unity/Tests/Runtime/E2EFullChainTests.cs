@@ -6,8 +6,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
-using Ucsa.Unity.Core;
-using Ucsa.Unity.Storage;
+using Ucsa.Core;
+using Ucsa.Storage;
 using Ucsa.Unity.Transports;
 using Ucsa.Unity.Unity;
 using UnityEngine;
@@ -39,8 +39,8 @@ namespace Ucsa.Unity.Tests.Runtime
         private string _dbPath = null!;
         private string _walPath = null!;
         private string _casDir = null!;
-        private UnitySqliteAdapter _sqlite = null!;
-        private UnityCasStore _cas = null!;
+        private SqliteAdapter _sqlite = null!;
+        private CasStore _cas = null!;
         private QueryEngine _engine = null!;
 
         [SetUp]
@@ -52,10 +52,10 @@ namespace Ucsa.Unity.Tests.Runtime
             _walPath = $"{_dbPath}-wal";
             _casDir = Path.Combine(_testDir, "cas");
 
-            _sqlite = new UnitySqliteAdapter(_dbPath);
+            _sqlite = new SqliteAdapter(_dbPath);
             _sqlite.InitSchema();
 
-            _cas = new UnityCasStore(_casDir, _sqlite);
+            _cas = new CasStore(_casDir, _sqlite);
             await _cas.InitAsync();
 
             _engine = new QueryEngine(new QueryEngineOptions(_sqlite)
@@ -254,7 +254,7 @@ namespace Ucsa.Unity.Tests.Runtime
             behaviour.HandleQuit();
 
             // Reopen and verify data durability
-            using var reopenDb = new UnitySqliteAdapter(_dbPath);
+            using var reopenDb = new SqliteAdapter(_dbPath);
             var sentinel = reopenDb.GetQuery<string>("sentinel");
             Assert.That(sentinel, Is.Not.Null);
             Assert.That(sentinel!.DataPayload, Is.EqualTo("ok"));

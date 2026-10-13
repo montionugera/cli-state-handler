@@ -3,7 +3,7 @@ import { parity, type ParityCell } from "../content/parity.js";
 import { platforms, type PlatformId } from "../content/guides/index.js";
 import "./multiplatform.css";
 
-const COLUMN: Record<PlatformId, string> = { ts: "TypeScript", dart: "Dart", csharp: "C#" };
+const COLUMN: Record<PlatformId, string> = { ts: "TypeScript", dart: "Dart", csharp: "Unity C#", godot: "Godot C#" };
 
 function Cell({ cell }: { cell: ParityCell }) {
   return (

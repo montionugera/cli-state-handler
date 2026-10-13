@@ -56,11 +56,11 @@ final pruned = await cas.prune();                  // CasPruneResult(prunedCount
     title: "Content-Addressable Storage & LRU Pruning (C# Unity)",
     lang: "csharp",
     available: true,
-    sources: [`${CS}/Storage/UnityCasStore.cs`],
-    code: `// Checked against: Runtime/Storage/UnityCasStore.cs (UnityCasStore, PutAsync, GetAsync, PruneAsync)
-using Ucsa.Unity.Storage;
+    sources: [`${CS}/Storage/CasStore.cs`],
+    code: `// Checked against: Runtime/Storage/CasStore.cs (CasStore, PutAsync, GetAsync, PruneAsync)
+using Ucsa.Storage;
 
-var cas = new UnityCasStore(
+var cas = new CasStore(
     Application.persistentDataPath + "/cas",
     sqlite,
     maxSizeBytes: 50L * 1024 * 1024);
@@ -72,6 +72,30 @@ CasPruneResult pruned = await cas.PruneAsync(); // targetRatio defaults to 0.7`,
     notes: [
       "Same model as Dart; PutAsync prunes when the total is over maxSizeBytes. A manual PruneAsync evicts whenever the total is above 70% of maxSizeBytes; TypeScript prune() does nothing until the total exceeds maxSizeBytes.",
       "No reference counting or pinning.",
+    ],
+  },
+  godot: {
+    title: "Content-Addressable Storage & LRU Pruning (C# Godot)",
+    lang: "csharp",
+    available: true,
+    sources: [`${CS}/Storage/CasStore.cs`],
+    code: `// Checked against: com.ucsa.core Runtime/Storage/CasStore.cs (CasStore, PutAsync, GetAsync, PruneAsync)
+using System.IO;
+using Godot;
+using Ucsa.Storage;
+
+var cas = new CasStore(
+    Path.Combine(ProjectSettings.GlobalizePath("user://"), "cas"),
+    sqlite,
+    maxSizeBytes: 50L * 1024 * 1024);
+await cas.InitAsync();
+
+CasPutResult put = await cas.PutAsync(System.Text.Encoding.UTF8.GetBytes("payload"));
+byte[]? bytes = await cas.GetAsync(put.Hash);
+CasPruneResult pruned = await cas.PruneAsync(); // targetRatio defaults to 0.7`,
+    notes: [
+      "Same class as the Unity column, from the shared core; PutAsync prunes when the total is over maxSizeBytes. A manual PruneAsync evicts whenever the total is above 70% of maxSizeBytes.",
+      "No reference counting or pinning. The Godot TextureCache (packages/ucsa_godot/addons/ucsa/TextureCache.cs) stores downloaded images through this store.",
     ],
   },
 };

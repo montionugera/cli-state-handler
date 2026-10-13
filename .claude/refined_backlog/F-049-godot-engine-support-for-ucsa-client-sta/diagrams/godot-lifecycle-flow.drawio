@@ -1,0 +1,81 @@
+<mxfile host="Electron" agent="Antigravity" version="26.0.0">
+  <diagram id="lifecycle-flow" name="Godot Engine Lifecycle Binding">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1150" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="E" value="Godot engine" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;size=44;fillColor=#1e1e2e;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="130" height="660" as="geometry"/>
+        </mxCell>
+        <mxCell id="N" value="UcsaNode" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;size=44;fillColor=#1e1e2e;strokeColor=#cba6f7;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="340" y="40" width="130" height="660" as="geometry"/>
+        </mxCell>
+        <mxCell id="K" value="Shared core" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;size=44;fillColor=#1e1e2e;strokeColor=#a6e3a1;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="640" y="40" width="130" height="660" as="geometry"/>
+        </mxCell>
+        <mxCell id="D" value="SQLite file in user://" style="shape=umlLifeline;perimeter=lifelinePerimeter;whiteSpace=wrap;html=1;container=1;dropTarget=0;collapsible=0;recursiveResize=0;outlineConnect=0;portConstraint=eastwest;size=44;fillColor=#1e1e2e;strokeColor=#f9e2af;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="940" y="40" width="130" height="660" as="geometry"/>
+        </mxCell>
+        <mxCell id="act_n1" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;fillColor=#313244;strokeColor=#45475a;strokeWidth=1;" vertex="1" parent="N">
+          <mxGeometry x="60" y="60" width="10" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="act_n2" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;fillColor=#313244;strokeColor=#45475a;strokeWidth=1;" vertex="1" parent="N">
+          <mxGeometry x="60" y="180" width="10" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="act_n3" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;fillColor=#313244;strokeColor=#45475a;strokeWidth=1;" vertex="1" parent="N">
+          <mxGeometry x="60" y="390" width="10" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="act_n4" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;fillColor=#313244;strokeColor=#45475a;strokeWidth=1;" vertex="1" parent="N">
+          <mxGeometry x="60" y="510" width="10" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="act_k1" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;fillColor=#313244;strokeColor=#45475a;strokeWidth=1;" vertex="1" parent="K">
+          <mxGeometry x="60" y="225" width="10" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="act_k2" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;fillColor=#313244;strokeColor=#45475a;strokeWidth=1;" vertex="1" parent="K">
+          <mxGeometry x="60" y="435" width="10" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="act_k3" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;fillColor=#313244;strokeColor=#45475a;strokeWidth=1;" vertex="1" parent="K">
+          <mxGeometry x="60" y="555" width="10" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="act_d1" value="" style="html=1;points=[];perimeter=orthogonalPerimeter;outlineConnect=0;fillColor=#313244;strokeColor=#45475a;strokeWidth=1;" vertex="1" parent="D">
+          <mxGeometry x="60" y="270" width="10" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="m0" value="_Ready" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=11;labelBackgroundColor=#1e1e2e;labelBorderColor=none;exitX=0.5;exitY=0.0909;entryX=0;entryY=0.0;" edge="1" parent="1" source="E" target="act_n1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="m1" value="register singleton" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;strokeColor=#cba6f7;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=11;labelBackgroundColor=#1e1e2e;labelBorderColor=none;exitX=1;exitY=0.35;entryX=1;entryY=0.8;" edge="1" parent="1" source="act_n1" target="act_n1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="465" y="130"/>
+              <mxPoint x="465" y="168"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m2" value="focus out, paused, or close requested" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=11;labelBackgroundColor=#1e1e2e;labelBorderColor=none;exitX=0.5;exitY=0.2727;entryX=0;entryY=0.0;" edge="1" parent="1" source="E" target="act_n2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="m3" value="checkpoint" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;strokeColor=#cba6f7;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=11;labelBackgroundColor=#1e1e2e;labelBorderColor=none;exitX=1;exitY=0.3;entryX=0;entryY=0.0;" edge="1" parent="1" source="act_n2" target="act_k1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="m4" value="flush write-ahead log" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;strokeColor=#a6e3a1;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=11;labelBackgroundColor=#1e1e2e;labelBorderColor=none;exitX=1;exitY=0.5294;entryX=0;entryY=0.0;" edge="1" parent="1" source="act_k1" target="act_d1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="m5" value="OnCheckpointFlushed event" style="html=1;verticalAlign=bottom;endArrow=open;dashed=1;curved=0;rounded=0;strokeColor=#cba6f7;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=11;labelBackgroundColor=#1e1e2e;labelBorderColor=none;exitX=0;exitY=1.0;entryX=0.5;entryY=0.5;" edge="1" parent="1" source="act_n2" target="E">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="m6" value="focus in or resumed" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=11;labelBackgroundColor=#1e1e2e;labelBorderColor=none;exitX=0.5;exitY=0.5909;entryX=0;entryY=0.0;" edge="1" parent="1" source="E" target="act_n3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="m7" value="revalidate" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;strokeColor=#cba6f7;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=11;labelBackgroundColor=#1e1e2e;labelBorderColor=none;exitX=1;exitY=0.75;entryX=0;entryY=0.0;" edge="1" parent="1" source="act_n3" target="act_k2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="m8" value="_ExitTree" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;strokeColor=#89b4fa;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=11;labelBackgroundColor=#1e1e2e;labelBorderColor=none;exitX=0.5;exitY=0.7727;entryX=0;entryY=0.0;" edge="1" parent="1" source="E" target="act_n4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="m9" value="checkpoint, then clear singleton" style="html=1;verticalAlign=bottom;endArrow=block;curved=0;rounded=0;strokeColor=#cba6f7;strokeWidth=1.5;fontColor=#cdd6f4;fontSize=11;labelBackgroundColor=#1e1e2e;labelBorderColor=none;exitX=1;exitY=0.75;entryX=0;entryY=0.0;" edge="1" parent="1" source="act_n4" target="act_k3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

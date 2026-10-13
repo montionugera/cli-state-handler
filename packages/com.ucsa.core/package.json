@@ -1,0 +1,10 @@
+{
+  "name": "com.ucsa.core",
+  "version": "0.1.0",
+  "displayName": "UCSA Core (engine-free C#)",
+  "description": "Engine-free C# runtime of the Unified Client State Architecture (UCSA), shared by the Unity and Godot bindings.",
+  "unity": "2021.3",
+  "author": {
+    "name": "DeepMind UCSA Team"
+  }
+}

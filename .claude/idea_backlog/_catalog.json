@@ -327,5 +327,29 @@
     "title": "Tell the developer portal which docs version to fetch",
     "created_at": "2026-10-11T05:59:10.101345+00:00",
     "promoted_to": "F-048"
+  },
+  {
+    "id": "I-049",
+    "title": "Godot engine support for UCSA client state",
+    "created_at": "2026-10-13T03:41:42.976073+00:00",
+    "promoted_to": "F-049"
+  },
+  {
+    "id": "I-050",
+    "title": "Unity TextureCache persists downloaded bytes before decoding them",
+    "created_at": "2026-10-13T07:53:32.073351+00:00",
+    "promoted_to": null
+  },
+  {
+    "id": "I-051",
+    "title": "Pin .NET 8 in ci.yml with setup-dotnet before runner images drop it",
+    "created_at": "2026-10-13T07:53:32.359131+00:00",
+    "promoted_to": null
+  },
+  {
+    "id": "I-052",
+    "title": "Release script path filter: only bump and publish packages whose files changed",
+    "created_at": "2026-10-13T08:25:22.204685+00:00",
+    "promoted_to": null
   }
 ]

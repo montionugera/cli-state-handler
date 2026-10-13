@@ -663,5 +663,17 @@
     "shipped_at": "2026-10-11T06:09:26.333845+00:00",
     "shipped_sha": "3e7c670e84dbbc9a2e58805ec0eb5043d9bd4b21",
     "promoted_at": "2026-10-11T07:07:31.561009+00:00"
+  },
+  {
+    "id": "F-049",
+    "title": "Godot engine support for UCSA client state",
+    "from_idea": "I-049",
+    "created_at": "2026-10-13T05:02:58.400493+00:00",
+    "claimed_by": "claude-a6c35399",
+    "status": "shipped",
+    "release_version": "1.13",
+    "claimed_at": "2026-10-13T05:03:03.687520+00:00",
+    "shipped_at": "2026-10-13T07:59:33.587139+00:00",
+    "shipped_sha": "dffe8001be9b0f55f011f0de35bee491c4599e46"
   }
 ]

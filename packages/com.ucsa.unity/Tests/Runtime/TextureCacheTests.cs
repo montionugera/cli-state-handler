@@ -4,7 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
-using Ucsa.Unity.Storage;
+using Ucsa.Storage;
 using Ucsa.Unity.Transports;
 using UnityEngine;
 
@@ -16,8 +16,8 @@ namespace Ucsa.Unity.Tests.Runtime
         private string _testDir = null!;
         private string _dbPath = null!;
         private string _casDir = null!;
-        private UnitySqliteAdapter _sqlite = null!;
-        private UnityCasStore _casStore = null!;
+        private SqliteAdapter _sqlite = null!;
+        private CasStore _casStore = null!;
 
         [SetUp]
         public async Task Setup()
@@ -27,10 +27,10 @@ namespace Ucsa.Unity.Tests.Runtime
             _dbPath = Path.Combine(_testDir, "test.db");
             _casDir = Path.Combine(_testDir, "cas");
 
-            _sqlite = new UnitySqliteAdapter(_dbPath);
+            _sqlite = new SqliteAdapter(_dbPath);
             _sqlite.InitSchema();
 
-            _casStore = new UnityCasStore(_casDir, _sqlite);
+            _casStore = new CasStore(_casDir, _sqlite);
             await _casStore.InitAsync();
         }
 
