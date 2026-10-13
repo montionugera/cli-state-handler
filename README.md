@@ -1626,6 +1626,19 @@ The docs are not deployed from this repo directly. On every release, `.github/wo
 
 `com.ucsa.unity` provides a production-grade Unity Package Manager (UPM) reference implementation of UCSA tailored specifically for 60–120 FPS game loops, mobile/desktop platforms (iOS, Android, Windows, macOS, WebGL), and IL2CPP Ahead-of-Time (AOT) compilation.
 
+> **Two packages.** The engine-free runtime (`QueryEngine`, `StateObserver`, `LifecycleFsm`, `SqliteAdapter`, `CasStore`, `MigrationRunner`, the UCB1 frame codec and the streaming classes) lives in `packages/com.ucsa.core`, in namespaces `Ucsa.Core`, `Ucsa.Storage`, `Ucsa.Ipc` and `Ucsa.Streaming`. `packages/com.ucsa.unity` keeps only `UcsaBehaviour` and `TextureCache`. A Unity project must list both packages in its `Packages/manifest.json`, because Unity resolves a package's dependencies only from a registry and neither package is published:
+>
+> ```json
+> {
+>   "dependencies": {
+>     "com.ucsa.core": "file:../../cli-state-handler/packages/com.ucsa.core",
+>     "com.ucsa.unity": "file:../../cli-state-handler/packages/com.ucsa.unity"
+>   }
+> }
+> ```
+>
+> `UnitySqliteAdapter` is now `SqliteAdapter` and `UnityCasStore` is now `CasStore`; there are no compatibility aliases. This layout is checked by `dotnet test` against mock engine types, not inside a Unity editor.
+
 ### Game Engine Architecture Highlights
 
 1. **Zero-Allocation Reactive Selectors (`StateObserver<TData, TSelected>`)**:
@@ -1793,6 +1806,79 @@ public class StorageInitializer
     }
 }
 ```
+
+---
+
+## C# / Godot Reference Implementation (`packages/ucsa_godot`)
+
+`packages/ucsa_godot` is a Godot 4 .NET (C#) binding for UCSA. It is a thin layer over the shared engine-free C# core in `packages/com.ucsa.core`, the same core the Unity package uses, so the query engine, SQLite storage, content-addressable store, UCB1 frame codec and streaming classes are the same code on both engines. Namespace: `Ucsa.Godot`.
+
+> Verified target: desktop (macOS and Linux) on Godot 4.7.2 .NET with .NET 8. Mobile export is not verified, and Godot 4 does not support C# web export. There is no GDScript API and no editor plugin. Nothing is published to a registry: install from this repository.
+
+### What the binding adds
+
+| Class | File | Role |
+|---|---|---|
+| `UcsaNode : Node` | `packages/ucsa_godot/addons/ucsa/UcsaNode.cs` | Counterpart of `UcsaBehaviour`. Checkpoints the SQLite write-ahead log on focus-out, pause, window close request and tree exit; revalidates active queries on focus-in and resume. |
+| `TextureCache` | `packages/ucsa_godot/addons/ucsa/TextureCache.cs` | Counterpart of the Unity texture cache, producing `ImageTexture`: memory first, then the content-addressable store, then download. |
+
+### Install
+
+1. Copy or symlink `packages/ucsa_godot/addons/ucsa` into your project's `addons/` folder.
+2. Copy or symlink `packages/com.ucsa.core` next to your project and reference it from your project's `.csproj`:
+
+```xml
+<ItemGroup>
+  <ProjectReference Include="../com.ucsa.core/Ucsa.Core.csproj" />
+</ItemGroup>
+```
+
+### Godot usage example
+
+```csharp
+using System.IO;
+using Godot;
+using Ucsa.Core;
+using Ucsa.Godot;
+using Ucsa.Storage;
+
+public partial class Main : Node
+{
+    public override void _Ready()
+    {
+        // The game owns the database. UcsaNode never opens or migrates it.
+        string dbPath = Path.Combine(ProjectSettings.GlobalizePath("user://"), "app_cache.db");
+        var sqlite = new SqliteAdapter(dbPath);
+        var engine = new QueryEngine(sqlite, defaultStaleTime: 5000);
+
+        var ucsa = new UcsaNode { SqliteAdapter = sqlite, QueryEngine = engine };
+        ucsa.OnCheckpointFlushed += () => GD.Print("WAL flushed");
+        AddChild(ucsa);
+    }
+}
+```
+
+### Lifecycle mapping
+
+| Unity (`UcsaBehaviour`) | Godot (`UcsaNode`) | Fires on |
+|---|---|---|
+| `Awake` | `_EnterTree` | all |
+| `OnApplicationPause(true)` | `NotificationApplicationPaused` | mobile |
+| (none) | `NotificationApplicationFocusOut` | desktop |
+| `OnApplicationPause(false)` | `NotificationApplicationResumed`, `NotificationApplicationFocusIn` | mobile, desktop |
+| `OnApplicationQuit` | `NotificationWMCloseRequest` | desktop |
+| `OnDestroy` | `_ExitTree` | all |
+
+Two behaviours are specific to Godot. Losing window focus counts as a pause, so an alt-tab checkpoints and the return revalidates queries. Leaving the tree checkpoints too, because a programmatic quit sends no close request. Focus-out, a close request and leaving the tree each checkpoint and leave the adapter open; the game owns the adapter and closes it itself, or calls the public `UcsaNode.HandleQuit()` (checkpoint, close, raise the event) when it is really shutting down.
+
+### In-engine smoke test
+
+```bash
+# needs a Godot .NET build: set GODOT_MONO_BIN, or have godot-mono on PATH
+./scripts/godot-smoke.sh
+```
+
+The runner builds the project, runs `packages/ucsa_godot/tests/Smoke.tscn` headless under a timeout, and passes only when the engine exits with code 0 and prints `SMOKE PASS 4/4`. The four assertion groups: a focus-out checkpoint with the value readable from a fresh adapter, a checkpoint on tree exit, every UCB1 conformance vector in `contracts/ipc/vectors.json`, and a PNG decoded through `TextureCache` with the second request served from memory. `scripts/precheck.sh` runs it when a Godot .NET build is present and prints a skip line otherwise; CI always runs it.
 
 ---
 
@@ -2850,6 +2936,8 @@ After a release, `main` has a bump commit made by the workflow; run `psrw sync-m
 
 > All counts in the Total row come from real runs on this branch. Node/TS/React/CLI/Docs: `pnpm test` (60 files, 739 tests; the `apps/docs` subset is 19 files, 320 tests). Dart (170), Flutter (1) and C# (137, via `dotnet test`) come from `scripts/precheck.sh`. The per-row Unity counts above are carried over from earlier releases and sum to 151, which differs from the 137 that `dotnet test` reports; the rows were not reconciled in this change.
 
+> The Godot binding is covered by the in-engine smoke test (`packages/ucsa_godot/tests/Smoke.cs`, 4 assertion groups), which is not an NUnit suite and is not part of the counts above.
+
 ### Verification Commands
 
 ```bash
@@ -2874,6 +2962,9 @@ dotnet test packages/com.ucsa.core/Tests/Ucsa.Core.Tests.csproj
 
 # Run the C# Unity binding test suite (10 tests across 3 files)
 dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj
+
+# Run the Godot in-engine smoke test (needs a Godot .NET build: GODOT_MONO_BIN, or godot-mono on PATH)
+./scripts/godot-smoke.sh
 
 # Run Gate 1 precheck script (cross-platform verification)
 ./scripts/precheck.sh
