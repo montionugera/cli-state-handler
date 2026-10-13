@@ -74,4 +74,28 @@ CasPruneResult pruned = await cas.PruneAsync(); // targetRatio defaults to 0.7`,
       "No reference counting or pinning.",
     ],
   },
+  godot: {
+    title: "Content-Addressable Storage & LRU Pruning (C# Godot)",
+    lang: "csharp",
+    available: true,
+    sources: [`${CS}/Storage/CasStore.cs`],
+    code: `// Checked against: com.ucsa.core Runtime/Storage/CasStore.cs (CasStore, PutAsync, GetAsync, PruneAsync)
+using System.IO;
+using Godot;
+using Ucsa.Storage;
+
+var cas = new CasStore(
+    Path.Combine(ProjectSettings.GlobalizePath("user://"), "cas"),
+    sqlite,
+    maxSizeBytes: 50L * 1024 * 1024);
+await cas.InitAsync();
+
+CasPutResult put = await cas.PutAsync(System.Text.Encoding.UTF8.GetBytes("payload"));
+byte[]? bytes = await cas.GetAsync(put.Hash);
+CasPruneResult pruned = await cas.PruneAsync(); // targetRatio defaults to 0.7`,
+    notes: [
+      "Same class as the Unity column, from the shared core; PutAsync prunes when the total is over maxSizeBytes. A manual PruneAsync evicts whenever the total is above 70% of maxSizeBytes.",
+      "No reference counting or pinning. The Godot TextureCache (packages/ucsa_godot/addons/ucsa/TextureCache.cs) stores downloaded images through this store.",
+    ],
+  },
 };

@@ -32,6 +32,11 @@ describe("MultiPlatformDocs Component", () => {
     const csharpBtn = await screen.findByText("🎮 C# Unity (.NET)");
     fireEvent.click(csharpBtn);
     expect(screen.getByText("QueryEngine & SWR Lifecycle (C# Unity)")).toBeDefined();
+
+    // Switch to C# Godot
+    const godotBtn = await screen.findByText("🤖 C# Godot (.NET)");
+    fireEvent.click(godotBtn);
+    expect(screen.getByText("QueryEngine & SWR Lifecycle (C# Godot)")).toBeDefined();
   });
 
   it("switches concept tabs to the WAL and UCB1 guides", async () => {
@@ -45,13 +50,14 @@ describe("MultiPlatformDocs Component", () => {
     expect(screen.getByText("UCB1 Frames and Hub Record (C# Unity)")).toBeDefined();
   });
 
-  it("offers the three platforms as Joymify tabs and highlights the TypeScript snippet", async () => {
+  it("offers the four platforms as Joymify tabs and highlights the TypeScript snippet", async () => {
     const { container } = render(<MultiPlatformDocs />);
     const tabs = await screen.findAllByRole("tab");
     expect(tabs.map((t) => t.textContent)).toEqual([
       "🟦 TypeScript (React / Node)",
       "🎯 Dart 3+ (Flutter)",
       "🎮 C# Unity (.NET)",
+      "🤖 C# Godot (.NET)",
     ]);
     expect(tabs[0].getAttribute("aria-selected")).toBe("true");
     expect(container.querySelector('.joy-code-block [class^="joy-syntax-"]')).not.toBeNull();
@@ -60,21 +66,22 @@ describe("MultiPlatformDocs Component", () => {
     expect(screen.getByText("QueryEngine & SWR Lifecycle (C# Unity)")).toBeDefined();
     expect(screen.getAllByRole("tab")[2].getAttribute("aria-selected")).toBe("true");
   });
-  it("renders three Joymify code blocks in the side-by-side view", async () => {
+  it("renders four Joymify code blocks in the side-by-side view", async () => {
     const { container } = render(<MultiPlatformDocs />);
     fireEvent.click(screen.getByText("Side by side"));
-    await waitFor(() => expect(container.querySelectorAll(".mp-side .joy-code-block").length).toBe(3));
+    await waitFor(() => expect(container.querySelectorAll(".mp-side .joy-code-block").length).toBe(4));
     expect(screen.queryByRole("tablist")).toBeNull();
   });
 
-  it("shows all three platforms at once in the side-by-side view", () => {
+  it("shows all four platforms at once in the side-by-side view", () => {
     render(<MultiPlatformDocs />);
 
     fireEvent.click(screen.getByText("Side by side"));
     expect(screen.getByText("QueryEngine & SWR Lifecycle (TypeScript)")).toBeDefined();
     expect(screen.getByText("QueryEngine & SWR Lifecycle (Dart / Flutter)")).toBeDefined();
     expect(screen.getByText("QueryEngine & SWR Lifecycle (C# Unity)")).toBeDefined();
-    expect(screen.getAllByRole("region", { name: /code, scrollable$/ }).length).toBe(3);
+    expect(screen.getByText("QueryEngine & SWR Lifecycle (C# Godot)")).toBeDefined();
+    expect(screen.getAllByRole("region", { name: /code, scrollable$/ }).length).toBe(4);
   });
 
   it("copies code snippet to clipboard only after writeText resolves", async () => {

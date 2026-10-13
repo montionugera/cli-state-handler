@@ -86,4 +86,29 @@ var results = await engine.DebounceQueryAsync<SearchResponse>(
       "Telemetry, SearchResponse and SearchAsync are your own types.",
     ],
   },
+  godot: {
+    title: "Debounce and Throttle (C# Godot)",
+    lang: "csharp",
+    available: true,
+    sources: [`${CS}/Core/QueryEngine.cs`, `${CS}/Core/StateObserver.cs`],
+    code: `// Checked against: com.ucsa.core Runtime/Core/QueryEngine.cs (DebounceQueryAsync),
+// Runtime/Core/StateObserver.cs (StateObserver constructor, Update, OnValueChanged)
+using Godot;
+using Ucsa.Core;
+
+// Observer fed by you: call Update with each new full state.
+var fps = new StateObserver<Telemetry, int>(t => t.Fps, throttleMs: 100);
+fps.OnValueChanged += value => GD.Print(value.ToString());
+fps.Update(latestTelemetry);
+
+// Debounced query: debounceMs is a positional argument.
+var results = await engine.DebounceQueryAsync<SearchResponse>(
+    new object[] { "search", term },
+    ct => SearchAsync(term, ct),
+    debounceMs: 300);`,
+    notes: [
+      "Same classes as the Unity column, from the shared core. StateObserver is not subscribed to the engine by itself; the caller passes data to Update (Update returns true when the selected value changed; with debounceMs the notification fires later).",
+      "Telemetry, SearchResponse and SearchAsync are your own types.",
+    ],
+  },
 };

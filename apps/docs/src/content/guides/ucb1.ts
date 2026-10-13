@@ -73,4 +73,27 @@ HubRecord? record = BusHubHelper.GetHubRecord(sqlite);`,
       "Not available: a socket server, bus client, election, HELLO token checks and subscription filtering. Searched Runtime/ for Socket, NamedPipe, BusClient and Subscribe handling and found none outside the frame type enum.",
     ],
   },
+  godot: {
+    title: "UCB1 Frames and Hub Record (C# Godot)",
+    lang: "csharp",
+    available: true,
+    sources: [`${CS}/Ipc/FrameCodec.cs`, `${CS}/Ipc/BusHub.cs`],
+    code: `// Checked against: com.ucsa.core Runtime/Ipc/FrameCodec.cs (FrameCodec.EncodeFrame, FrameDecoder.Feed),
+// Runtime/Ipc/BusHub.cs (BusHubHelper.ResolveBusEndpoint, GetHubRecord)
+using Godot;
+using Ucsa.Ipc;
+
+// Encode and decode UCB1 frames (same wire format as TypeScript).
+byte[] bytes = FrameCodec.EncodeFrame(FrameType.Hello, "{\\"proto\\":1,\\"token\\":\\"abc\\"}");
+var frames = new FrameDecoder().Feed(bytes); // List<Frame>
+GD.Print(frames[0].Type.ToString());
+
+// BusHubHelper only resolves the endpoint and reads or writes the ucsa_bus_hub row.
+string endpoint = BusHubHelper.ResolveBusEndpoint(dbPath);
+HubRecord? record = BusHubHelper.GetHubRecord(sqlite);`,
+    notes: [
+      "Partial parity, identical to the Unity column because the code is the shared core: BusHub.cs is a static helper (BusHubHelper), not a hub.",
+      "Not available: a socket server, bus client, election, HELLO token checks and subscription filtering. The Godot smoke test runs every vector in contracts/ipc/vectors.json through this codec inside the engine.",
+    ],
+  },
 };
