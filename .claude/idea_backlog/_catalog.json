@@ -339,5 +339,11 @@
     "title": "Unity TextureCache persists downloaded bytes before decoding them",
     "created_at": "2026-10-13T07:53:32.073351+00:00",
     "promoted_to": null
+  },
+  {
+    "id": "I-051",
+    "title": "Pin .NET 8 in ci.yml with setup-dotnet before runner images drop it",
+    "created_at": "2026-10-13T07:53:32.359131+00:00",
+    "promoted_to": null
   }
 ]
