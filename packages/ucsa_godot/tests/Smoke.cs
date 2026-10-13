@@ -43,7 +43,7 @@ namespace Ucsa.Godot.Tests
                     CheckFocusOutCheckpoint(dir);
                     CheckExitTreeCheckpoint(dir);
                     CheckFrameCodecVectors();
-                    await CheckTextureCacheAsync();
+                    await CheckTextureCacheAsync(dir);
                 }
                 finally
                 {
@@ -96,7 +96,7 @@ namespace Ucsa.Godot.Tests
             AddChild(node);
             try
             {
-                Require(UcsaNode.Instance == node, "_Ready registers the singleton");
+                Require(UcsaNode.Instance == node, "_EnterTree registers the singleton");
 
                 int flushed = 0;
                 bool? lastState = null;
@@ -115,6 +115,15 @@ namespace Ucsa.Godot.Tests
                 using var reopened = new SqliteAdapter(dbPath);
                 var entry = reopened.GetQuery<string>("smoke-focus");
                 Require(entry != null && entry.DataPayload == "value-focus", "value readable from a fresh adapter");
+
+                // M1: Throwing subscriber does not prevent checkpoint or escape
+                node.OnApplicationStateChanged += _ => throw new InvalidOperationException("test throwing subscriber");
+                flushed = 0;
+                WriteValue(sqlite, "smoke-throw", "value-throw");
+                Require(WalLength(dbPath) > 0, "pending write before notification with throwing subscriber");
+                node.Notification((int)NotificationApplicationFocusOut);
+                Require(flushed == 1, "throwing subscriber does not prevent checkpoint");
+                Require(WalLength(dbPath) == 0, "checkpoint with throwing subscriber truncated WAL");
             }
             finally
             {
@@ -133,7 +142,7 @@ namespace Ucsa.Godot.Tests
             using var sqlite = new SqliteAdapter(dbPath);
             var node = new UcsaNode { SqliteAdapter = sqlite };
             AddChild(node);
-            Require(UcsaNode.Instance == node, "_Ready registers the singleton");
+            Require(UcsaNode.Instance == node, "_EnterTree registers the singleton");
 
             int flushed = 0;
             node.OnCheckpointFlushed += () => flushed++;
@@ -151,12 +160,29 @@ namespace Ucsa.Godot.Tests
             Require(WalLength(dbPath) > 0, "the second write is pending in the write-ahead log");
 
             RemoveChild(node); // runs _ExitTree synchronously
-            node.Free();
 
             Require(flushed == 1, "_ExitTree raises OnCheckpointFlushed once");
             Require(WalLength(dbPath) == 0, "_ExitTree truncates the write-ahead log");
             Require(UcsaNode.Instance == null, "_ExitTree clears the singleton");
             Require(!sqlite.IsClosed, "_ExitTree leaves the adapter open");
+
+            // I3: after removing the node from the tree and adding it again, UcsaNode.Instance == node
+            AddChild(node);
+            Require(UcsaNode.Instance == node, "after removing the node from the tree and adding it again, UcsaNode.Instance == node");
+            RemoveChild(node);
+            Require(UcsaNode.Instance == null, "removing node again clears singleton");
+            node.Free();
+
+            // M2: HandleQuit and pause do nothing when adapter is closed
+            sqlite.Close();
+            var closedNode = new UcsaNode { SqliteAdapter = sqlite };
+            flushed = 0;
+            closedNode.OnCheckpointFlushed += () => flushed++;
+            closedNode.HandleQuit();
+            Require(flushed == 0, "HandleQuit does nothing if adapter is closed");
+            closedNode.HandlePauseState(true);
+            Require(flushed == 0, "pause does nothing if adapter is closed");
+            closedNode.Free();
 
             _passed++;
         }
@@ -202,12 +228,66 @@ namespace Ucsa.Godot.Tests
         }
 
         // 4. TextureCache decodes a PNG into a texture and serves the second request from memory.
-        private async Task CheckTextureCacheAsync()
+        private async Task CheckTextureCacheAsync(string dir)
         {
             byte[] png = Convert.FromBase64String(TinyPngBase64);
             int downloads = 0;
+            string dbPath = Path.Combine(dir, "textures.db");
+            using var sqlite = new SqliteAdapter(dbPath);
+            string casDir = Path.Combine(dir, "cas");
+            var cas = new CasStore(casDir);
+
             using var cache = new TextureCache(new TextureCacheOptions
             {
+                CasStore = cas,
+                SqliteAdapter = sqlite,
+                DownloadHandler = (url, _) =>
+                {
+                    Interlocked.Increment(ref downloads);
+                    if (url.Contains("invalid"))
+                    {
+                        return Task.FromResult(new byte[] { 0x01, 0x02, 0x03 });
+                    }
+                    return Task.FromResult(png);
+                }
+            });
+
+            // I2: A download that fails to decode is NOT persisted to CAS and mapping is NOT stored
+            bool threwOnInvalid = false;
+            try
+            {
+                await cache.GetTextureAsync("smoke://invalid.png");
+            }
+            catch (InvalidDataException)
+            {
+                threwOnInvalid = true;
+            }
+            Require(threwOnInvalid, "invalid downloaded bytes throw InvalidDataException");
+            Require(!Directory.Exists(cas.ObjectsDir) || Directory.GetFiles(cas.ObjectsDir, "*", SearchOption.AllDirectories).Length == 0, "invalid downloaded bytes are not persisted to CAS");
+
+            const string url = "smoke://tiny.png";
+            ImageTexture? first = await cache.GetTextureAsync(url);
+            Require(first != null, "first request returns a texture");
+            Require(first!.GetWidth() == 2 && first.GetHeight() == 2, "decoded texture is 2x2");
+            Require(Directory.GetFiles(cas.ObjectsDir, "*", SearchOption.AllDirectories).Length == 1, "valid texture is persisted to CAS");
+
+            ImageTexture? second = await cache.GetTextureAsync(url);
+            Require(ReferenceEquals(first, second), "second request returns the cached texture");
+            Require(downloads == 2, "second request does not download again (1 invalid + 1 valid)");
+            Require(cache.ContainsInMemory(url), "texture is held in the memory cache");
+
+            // I2: If bytes read back from disk tier fail to decode, drop URL mapping and throw
+            // Pre-seed an invalid entry in CAS and map it in SQLite
+            var badCas = await cas.PutAsync(new byte[] { 0xAA, 0xBB, 0xCC });
+            const string corruptUrl = "smoke://corrupt.png";
+            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            string queryHash = QueryKeyHasher.Hash("texture", corruptUrl);
+            sqlite.SetQuery(new CacheEntry<string>(queryHash, new object[] { "texture", corruptUrl }, badCas.Hash, now, now + 60000, now + 120000));
+
+            using var freshCache = new TextureCache(new TextureCacheOptions
+            {
+                CasStore = cas,
+                SqliteAdapter = sqlite,
                 DownloadHandler = (_, _) =>
                 {
                     Interlocked.Increment(ref downloads);
@@ -215,15 +295,23 @@ namespace Ucsa.Godot.Tests
                 }
             });
 
-            const string url = "smoke://tiny.png";
-            ImageTexture? first = await cache.GetTextureAsync(url);
-            Require(first != null, "first request returns a texture");
-            Require(first!.GetWidth() == 2 && first.GetHeight() == 2, "decoded texture is 2x2");
+            bool threwOnCorruptDisk = false;
+            try
+            {
+                await freshCache.GetTextureAsync(corruptUrl);
+            }
+            catch (InvalidDataException)
+            {
+                threwOnCorruptDisk = true;
+            }
+            Require(threwOnCorruptDisk, "corrupted bytes from disk tier throw InvalidDataException");
+            Require(sqlite.GetQuery<string>(queryHash) == null, "corrupted disk tier drops URL mapping from SQLite");
 
-            ImageTexture? second = await cache.GetTextureAsync(url);
-            Require(ReferenceEquals(first, second), "second request returns the cached texture");
-            Require(downloads == 1, "second request does not download again");
-            Require(cache.ContainsInMemory(url), "texture is held in the memory cache");
+            // Next call for corruptUrl downloads again and succeeds
+            int downloadsBeforeRetry = downloads;
+            ImageTexture? redownloaded = await freshCache.GetTextureAsync(corruptUrl);
+            Require(redownloaded != null, "subsequent request downloads again and succeeds");
+            Require(downloads == downloadsBeforeRetry + 1, "subsequent request called download handler");
 
             _passed++;
         }

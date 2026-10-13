@@ -56,14 +56,14 @@ public partial class Main : Node
 
 | Unity (`UcsaBehaviour`) | Godot (`UcsaNode`) | Fires on |
 |---|---|---|
-| `Awake` | `_Ready` | all |
+| `Awake` | `_EnterTree` | all |
 | `OnApplicationPause(true)` | `NotificationApplicationPaused` | mobile |
 | (none) | `NotificationApplicationFocusOut` | desktop |
 | `OnApplicationPause(false)` | `NotificationApplicationResumed`, `NotificationApplicationFocusIn` | mobile, desktop |
 | `OnApplicationQuit` | `NotificationWMCloseRequest` | desktop |
 | `OnDestroy` | `_ExitTree` | all |
 
-Two behaviours are specific to Godot. Losing window focus counts as a pause, so an alt-tab checkpoints and the return revalidates queries. Leaving the tree checkpoints too, because a programmatic quit sends no close request. A window close request checkpoints and then closes the adapter, exactly as the Unity quit handler does; leaving the tree does not close it.
+Two behaviours are specific to Godot. Losing window focus counts as a pause, so an alt-tab checkpoints and the return revalidates queries. Leaving the tree checkpoints too, because a programmatic quit sends no close request. Focus-out, a close request and leaving the tree each checkpoint and leave the adapter open; the game owns the adapter and closes it itself, or calls the public `UcsaNode.HandleQuit()` (checkpoint, close, raise the event) when it is really shutting down.
 
 A second `UcsaNode` entering the tree logs a warning and does not replace `UcsaNode.Instance`. Checkpoint failures are logged with `GD.PushError` and never thrown into the engine.
 

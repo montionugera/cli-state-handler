@@ -36,7 +36,7 @@ namespace Ucsa.Godot
         /// </summary>
         public event Action? OnCheckpointFlushed;
 
-        public override void _Ready()
+        public override void _EnterTree()
         {
             if (_instance == null)
             {
@@ -84,21 +84,20 @@ namespace Ucsa.Godot
         /// </summary>
         public void HandlePauseState(bool pauseStatus)
         {
-            OnApplicationStateChanged?.Invoke(pauseStatus);
+            try
+            {
+                OnApplicationStateChanged?.Invoke(pauseStatus);
+            }
+            catch (Exception ex)
+            {
+                GD.PushError($"[UCSA] Application state change subscriber failed: {ex.Message}");
+            }
 
             if (pauseStatus)
             {
-                if (CheckpointOnPause && SqliteAdapter != null)
+                if (CheckpointOnPause)
                 {
-                    try
-                    {
-                        SqliteAdapter.Checkpoint("TRUNCATE");
-                        OnCheckpointFlushed?.Invoke();
-                    }
-                    catch (Exception ex)
-                    {
-                        GD.PushError($"[UCSA] Checkpoint on pause failed: {ex.Message}");
-                    }
+                    CheckpointKeepOpen("pause");
                 }
             }
             else
@@ -146,18 +145,20 @@ namespace Ucsa.Godot
         /// </summary>
         public void HandleQuit()
         {
-            if (SqliteAdapter != null)
+            if (SqliteAdapter == null || SqliteAdapter.IsClosed)
             {
-                try
-                {
-                    SqliteAdapter.Checkpoint("TRUNCATE");
-                    SqliteAdapter.Close();
-                    OnCheckpointFlushed?.Invoke();
-                }
-                catch (Exception ex)
-                {
-                    GD.PushError($"[UCSA] Checkpoint on quit failed: {ex.Message}");
-                }
+                return;
+            }
+
+            try
+            {
+                SqliteAdapter.Checkpoint("TRUNCATE");
+                SqliteAdapter.Close();
+                OnCheckpointFlushed?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                GD.PushError($"[UCSA] Checkpoint on quit failed: {ex.Message}");
             }
         }
     }

@@ -102,11 +102,16 @@ namespace Ucsa.Godot
             // 2. Resolve CAS content hash for this URL (from memory mapping or SQLite index)
             string? contentHash = ResolveCasHash(url);
             byte[]? rawBytes = null;
+            bool fromDisk = false;
 
             // 3. Check CAS store on disk
             if (contentHash != null && _casStore != null)
             {
                 rawBytes = await _casStore.GetAsync(contentHash, ct);
+                if (rawBytes != null)
+                {
+                    fromDisk = true;
+                }
             }
 
             // 4. Download if not found in CAS
@@ -117,17 +122,29 @@ namespace Ucsa.Godot
                 {
                     return null;
                 }
-
-                if (_casStore != null)
-                {
-                    // Store into CAS asynchronously (atomic .tmp write and SHA-256 validation)
-                    var putResult = await _casStore.PutAsync(rawBytes, expectedHash: null, ct);
-                    RecordUrlMapping(url, putResult.Hash);
-                }
             }
 
             // 5. Decode into an ImageTexture (on the caller's context, see class summary)
-            ImageTexture texture = _textureDecoder(rawBytes);
+            ImageTexture texture;
+            try
+            {
+                texture = _textureDecoder(rawBytes);
+            }
+            catch
+            {
+                if (fromDisk)
+                {
+                    DropUrlMapping(url);
+                }
+                throw;
+            }
+
+            if (!fromDisk && _casStore != null)
+            {
+                // Store into CAS asynchronously (atomic .tmp write and SHA-256 validation)
+                var putResult = await _casStore.PutAsync(rawBytes, expectedHash: null, ct);
+                RecordUrlMapping(url, putResult.Hash);
+            }
 
             // 6. Promote to in-memory cache
             lock (_lock)
@@ -251,6 +268,20 @@ namespace Ucsa.Godot
             }
         }
 
+        private void DropUrlMapping(string url)
+        {
+            lock (_lock)
+            {
+                _urlToCasHash.Remove(url);
+            }
+
+            if (_sqliteAdapter != null && !_sqliteAdapter.IsClosed)
+            {
+                string queryHash = QueryKeyHasher.Hash("texture", url);
+                _sqliteAdapter.DeleteQuery(queryHash);
+            }
+        }
+
         private void TouchMemoryLru(string url)
         {
             _lruOrder.Remove(url);
@@ -285,7 +316,7 @@ namespace Ucsa.Godot
         // PNG and JPEG, the same two formats Unity's LoadImage accepts.
         private static ImageTexture DefaultDecoder(byte[] bytes)
         {
-            var image = new Image();
+            using var image = new Image();
             bool isJpeg = bytes.Length >= 3 && bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF;
             Error err = isJpeg ? image.LoadJpgFromBuffer(bytes) : image.LoadPngFromBuffer(bytes);
             if (err != Error.Ok)
