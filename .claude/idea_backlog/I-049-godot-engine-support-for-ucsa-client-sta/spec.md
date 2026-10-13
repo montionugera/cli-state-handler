@@ -65,6 +65,10 @@ flowchart TD
     G --> S
 ```
 
+![Package layout](diagrams/godot-package-layout.drawio.svg)
+
+Editable source: `diagrams/godot-package-layout.drawio`.
+
 **`packages/com.ucsa.core` (new).** Holds the four engine-free folders moved out of the Unity package: `Runtime/Core`, `Runtime/Ipc`, `Runtime/Storage`, `Runtime/Streaming` (13 files, verified free of `UnityEngine` and of the mock).
 
 - `package.json` (name `com.ucsa.core`, version `0.1.0`, no dependencies) and `Runtime/com.ucsa.core.asmdef` with `noEngineReferences: true`, so Unity refuses to compile it if an engine type leaks in.
@@ -111,6 +115,10 @@ sequenceDiagram
     E->>N: _ExitTree
     N->>K: checkpoint, then clear singleton
 ```
+
+![Lifecycle flow](diagrams/godot-lifecycle-flow.drawio.svg)
+
+Editable source: `diagrams/godot-lifecycle-flow.drawio`.
 
 | Unity (`UcsaBehaviour`) | Godot (`UcsaNode`) | Fires on |
 |---|---|---|
