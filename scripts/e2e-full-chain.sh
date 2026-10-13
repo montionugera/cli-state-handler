@@ -76,12 +76,28 @@ echo "    ✓ Dart full-chain passed cleanly."
 echo ""
 
 # ------------------------------------------------------------------------------
-# Phase 4: C# Unity Engine Package (packages/com.ucsa.unity)
+# Phase 4: C# shared core and Unity binding (packages/com.ucsa.core, packages/com.ucsa.unity)
 # ------------------------------------------------------------------------------
-echo ">>> [Phase 4/5] C# Unity Engine Reference Engine Full Chain (packages/com.ucsa.unity)"
+echo ">>> [Phase 4/5] C# Core and Unity Reference Engine Full Chain (packages/com.ucsa.core, packages/com.ucsa.unity)"
 echo "    Testing: SWR QueryEngine | Zero-Alloc Observer | TextureCache | Mobile Pause Durability | Timing Controls"
-dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj --filter "FullyQualifiedName~E2EFullChainTests|FullyQualifiedName~StateObserverTimingTests|FullyQualifiedName~QueryDebouncingTests|FullyQualifiedName~OutboxRateLimitTests"
-echo "    ✓ C# Unity full-chain passed cleanly."
+
+# dotnet test exits 0 when a filter matches nothing, so require at least one test per invocation.
+run_dotnet_filtered() {
+  local project="$1" filter="$2" out
+  if ! out=$(dotnet test "$project" --filter "$filter" 2>&1); then
+    echo "$out"
+    return 1
+  fi
+  echo "$out"
+  if ! echo "$out" | grep -Eq 'Passed!.*Total: +[1-9]'; then
+    echo "    ✗ filter matched no tests in $project"
+    return 1
+  fi
+}
+
+run_dotnet_filtered packages/com.ucsa.core/Tests/Ucsa.Core.Tests.csproj "FullyQualifiedName~StateObserverTimingTests|FullyQualifiedName~QueryDebouncingTests|FullyQualifiedName~OutboxRateLimitTests"
+run_dotnet_filtered packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj "FullyQualifiedName~E2EFullChainTests"
+echo "    ✓ C# core and Unity full-chain passed cleanly."
 echo ""
 
 # ------------------------------------------------------------------------------

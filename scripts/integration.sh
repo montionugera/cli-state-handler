@@ -78,8 +78,8 @@ slot_integration_real_datastore() {
   if command -v dart >/dev/null 2>&1 && [ -f "packages/ucsa_dart/pubspec.yaml" ]; then
     (cd packages/ucsa_dart && dart test test/query_engine_test.dart test/sqlite_test.dart)
   fi
-  if command -v dotnet >/dev/null 2>&1 && [ -f "packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj" ]; then
-    dotnet test packages/com.ucsa.unity/Tests/Ucsa.Unity.Tests.csproj --filter "FullyQualifiedName~SqliteAdapterTests|FullyQualifiedName~QueryEngineTests"
+  if command -v dotnet >/dev/null 2>&1 && [ -f "packages/com.ucsa.core/Tests/Ucsa.Core.Tests.csproj" ]; then
+    dotnet test packages/com.ucsa.core/Tests/Ucsa.Core.Tests.csproj --filter "FullyQualifiedName~SqliteAdapterTests|FullyQualifiedName~QueryEngineTests"
   fi
 }
 

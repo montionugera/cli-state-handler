@@ -83,12 +83,12 @@ print('\${result.processed} processed, \${result.failed} failed');`,
     title: "Offline Mutation Outbox (C# Unity)",
     lang: "csharp",
     available: true,
-    sources: [`${CS}/Storage/UnitySqliteAdapter.cs`, `${CS}/Core/Types.cs`],
-    code: `// Checked against: Runtime/Storage/UnitySqliteAdapter.cs (SetMutation, ReplayOutboxAsync),
+    sources: [`${CS}/Storage/SqliteAdapter.cs`, `${CS}/Core/Types.cs`],
+    code: `// Checked against: Runtime/Storage/SqliteAdapter.cs (SetMutation, ReplayOutboxAsync),
 // Runtime/Core/Types.cs (OutboxMutation, ConflictPolicy)
-using Ucsa.Unity.Core;
+using Ucsa.Core;
 
-// There is no MutationOutbox class in C#: the outbox lives on UnitySqliteAdapter.
+// There is no MutationOutbox class in C#: the outbox lives on SqliteAdapter.
 sqlite.SetMutation(new OutboxMutation<string>(
     "todo-1", "/api/todos", "POST", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
     payload: "{\\"title\\":\\"Buy milk\\"}")
@@ -107,6 +107,35 @@ Debug.Log($"{result.Processed} processed, {result.Failed} failed");`,
       "'force' here only resets the row to pending; TypeScript also adds the X-Force-Overwrite header.",
       "No backoff, no connectivity check, and nothing calls ReplayOutboxAsync for you.",
       "ReplayResult property names Processed, Successful and Failed come from the ReplayResult constructor used in ReplayOutboxAsync.",
+    ],
+  },
+  godot: {
+    title: "Offline Mutation Outbox (C# Godot)",
+    lang: "csharp",
+    available: true,
+    sources: [`${CS}/Storage/SqliteAdapter.cs`, `${CS}/Core/Types.cs`],
+    code: `// Checked against: com.ucsa.core Runtime/Storage/SqliteAdapter.cs (SetMutation, ReplayOutboxAsync),
+// Runtime/Core/Types.cs (OutboxMutation, ConflictPolicy)
+using Godot;
+using Ucsa.Core;
+
+// There is no MutationOutbox class in C#: the outbox lives on SqliteAdapter.
+sqlite.SetMutation(new OutboxMutation<string>(
+    "todo-1", "/api/todos", "POST", DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+    payload: "{\\"title\\":\\"Buy milk\\"}")
+{
+    ConflictPolicy = ConflictPolicy.ServerWins
+});
+
+// SendToServerAsync is your own method returning (int status, object data).
+var result = await sqlite.ReplayOutboxAsync<string>(
+    m => SendToServerAsync(m),
+    rateLimitMs: 200,
+    batchSize: 10);
+GD.Print($"{result.Processed} processed, {result.Failed} failed");`,
+    notes: [
+      "Partial parity, identical to the Unity column because the code is the shared core: retry limit fixed at 3, no rollback or merge callbacks. ConflictPolicy.Merge is not implemented: without a conflictResolver a 409 is handled as server-wins (row deleted, counted successful).",
+      "No backoff, no connectivity check, and nothing calls ReplayOutboxAsync for you.",
     ],
   },
 };

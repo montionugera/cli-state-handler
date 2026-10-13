@@ -1,4 +1,4 @@
-import { CORE, DART, CS, type Guide } from "./types.js";
+import { CORE, DART, CS, GODOT, type Guide } from "./types.js";
 
 export const swr: Guide = {
   id: "swr",
@@ -78,15 +78,15 @@ final user = await engine.fetchQuery<Map<String, dynamic>>(
     title: "QueryEngine & SWR Lifecycle (C# Unity)",
     lang: "csharp",
     available: true,
-    sources: [`${CS}/Core/QueryEngine.cs`, `${CS}/Core/Types.cs`, `${CS}/Storage/UnitySqliteAdapter.cs`],
+    sources: [`${CS}/Core/QueryEngine.cs`, `${CS}/Core/Types.cs`, `${CS}/Storage/SqliteAdapter.cs`],
     code: `// Checked against: Runtime/Core/QueryEngine.cs (WatchQuery, FetchQueryAsync),
-// Runtime/Core/Types.cs (QueryOptions), Runtime/Storage/UnitySqliteAdapter.cs (constructor)
+// Runtime/Core/Types.cs (QueryOptions), Runtime/Storage/SqliteAdapter.cs (constructor)
 using System.Collections.Generic;
-using Ucsa.Unity.Core;
-using Ucsa.Unity.Storage;
+using Ucsa.Core;
+using Ucsa.Storage;
 
 // The constructor opens the file and runs InitSchema itself.
-var sqlite = new UnitySqliteAdapter(Application.persistentDataPath + "/app_cache.db");
+var sqlite = new SqliteAdapter(Application.persistentDataPath + "/app_cache.db");
 var engine = new QueryEngine(sqlite, defaultStaleTime: 5000);
 
 var options = new QueryOptions { StaleTime = 10000, Tags = new List<string> { "user:42" } };
@@ -106,6 +106,47 @@ var user = await engine.FetchQueryAsync<UserProfile>(
       "Times are long milliseconds (StaleTime, GcTime, DefaultStaleTime).",
       "Tags is a List<string>, not an array.",
       "Unity's UcsaBehaviour revalidates active subscribers on application resume (RevalidateOnResume, default true). It also marks every cached query stale and deletes the persisted rows. That is the only focus-like hook found in the C# runtime.",
+    ],
+  },
+  godot: {
+    title: "QueryEngine & SWR Lifecycle (C# Godot)",
+    lang: "csharp",
+    available: true,
+    sources: [`${CS}/Core/QueryEngine.cs`, `${CS}/Core/Types.cs`, `${CS}/Storage/SqliteAdapter.cs`, `${GODOT}/UcsaNode.cs`],
+    code: `// Checked against: com.ucsa.core Runtime/Core/QueryEngine.cs (WatchQuery, FetchQueryAsync),
+// Runtime/Core/Types.cs (QueryOptions), Runtime/Storage/SqliteAdapter.cs (constructor),
+// ucsa_godot addons/ucsa/UcsaNode.cs (QueryEngine, RevalidateOnResume)
+using System.Collections.Generic;
+using System.IO;
+using Godot;
+using Ucsa.Core;
+using Ucsa.Godot;
+using Ucsa.Storage;
+
+// The constructor opens the file and runs InitSchema itself.
+var sqlite = new SqliteAdapter(Path.Combine(ProjectSettings.GlobalizePath("user://"), "app_cache.db"));
+var engine = new QueryEngine(sqlite, defaultStaleTime: 5000);
+
+var options = new QueryOptions { StaleTime = 10000, Tags = new List<string> { "user:42" } };
+
+// WatchQuery: cached data is emitted at once and a stale entry is revalidated in
+// the background. UserProfile and LoadProfileAsync are your own code.
+IDisposable subscription = engine.WatchQuery<UserProfile>(
+    new object[] { "users", "profile" },
+    state => GD.Print(state.Status.ToString()),
+    options,
+    ct => LoadProfileAsync(ct));
+
+// FetchQueryAsync returns the cached value only while it is fresh, else it awaits a fetch.
+var user = await engine.FetchQueryAsync<UserProfile>(
+    new object[] { "users", "profile" }, ct => LoadProfileAsync(ct), options);
+
+// UcsaNode revalidates active subscribers on focus-in and resume.
+AddChild(new UcsaNode { SqliteAdapter = sqlite, QueryEngine = engine });`,
+    notes: [
+      "Same engine as the Unity column: the Godot package references the shared core in packages/com.ucsa.core.",
+      "Times are long milliseconds (StaleTime, GcTime, DefaultStaleTime). Tags is a List<string>, not an array.",
+      "On focus-in or resume UcsaNode calls QueryEngine.InvalidateQueriesAsync() with no prefix, which marks every query stale and deletes the persisted rows, and on desktop this happens on every refocus; a game that does not want that sets RevalidateOnResume to false.",
     ],
   },
 };

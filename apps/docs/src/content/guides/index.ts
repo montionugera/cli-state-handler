@@ -10,4 +10,4 @@ export type { Guide, GuideId, PlatformId, Snippet } from "./types.js";
 
 export const guides: Record<GuideId, Guide> = { swr, timing, outbox, cas, wal, ucb1 };
 export const guideIds: GuideId[] = ["swr", "timing", "outbox", "cas", "wal", "ucb1"];
-export const platforms: PlatformId[] = ["ts", "dart", "csharp"];
+export const platforms: PlatformId[] = ["ts", "dart", "csharp", "godot"];

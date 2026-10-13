@@ -15,10 +15,13 @@ name: CI
 # no setup step is added here, so on a stock ubuntu runner:
 #   - Dart tests (packages/ucsa_dart) - skipped, no `dart` on the runner
 #   - Flutter tests (packages/ucsa_flutter) - skipped, no `flutter`
-# .NET tests (packages/com.ucsa.unity) DO run: ubuntu-latest ships `dotnet`.
-# Not verified here, since Actions cannot be run locally; if the NuGet
-# restore proves flaky on the runner, that is the first thing to look at.
-# Run those locally via `bash scripts/precheck.sh` before shipping.
+# .NET tests (packages/com.ucsa.core, packages/com.ucsa.unity) DO run:
+# ubuntu-latest ships `dotnet`. If the NuGet restore proves flaky on the
+# runner, that is the first thing to look at.
+# The Godot in-engine smoke test (packages/ucsa_godot) DOES run: one step
+# below downloads a pinned Godot .NET build, checks its SHA-512, and sets
+# UCSA_REQUIRE_GODOT_SMOKE=1 so precheck.sh fails instead of skipping.
+# Run the Dart/Flutter suites locally via `bash scripts/precheck.sh`.
 # Gate 2 (scripts/integration.sh) is not run here.
 on:
   pull_request:
@@ -75,5 +78,25 @@ jobs:
       - name: Build native dependencies (no token)
         run: pnpm rebuild
 
+      # Godot .NET, pinned, for the in-engine smoke test of packages/ucsa_godot.
+      # The archive is checked against the SHA-512 from the release's
+      # SHA512-SUMS.txt before it is unpacked. No secret is in scope here.
+      - name: Install Godot .NET (pinned)
+        env:
+          GODOT_VERSION: 4.7.2-stable
+          GODOT_SHA512: 1855960b27ee3ef5e66e5e228cced69d55637b24334a7411162687dcd077d8f9f645348cdb8eae984bec8135d49ed855a1e3a16476786b8bce60774fd8402d13
+        run: |
+          set -euo pipefail
+          name="Godot_v${GODOT_VERSION}_mono_linux_x86_64"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/godot.zip" "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/${name}.zip"
+          echo "${GODOT_SHA512}  $RUNNER_TEMP/godot.zip" | sha512sum -c -
+          unzip -q "$RUNNER_TEMP/godot.zip" -d "$RUNNER_TEMP/godot"
+          bin="$RUNNER_TEMP/godot/${name}/Godot_v${GODOT_VERSION}_mono_linux.x86_64"
+          test -x "$bin"
+          "$bin" --version
+          echo "GODOT_MONO_BIN=$bin" >> "$GITHUB_ENV"
+
       - name: Gate 1 (precheck)
+        env:
+          UCSA_REQUIRE_GODOT_SMOKE: "1"
         run: bash scripts/precheck.sh

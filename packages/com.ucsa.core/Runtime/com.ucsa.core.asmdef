@@ -1,0 +1,10 @@
+{
+  "name": "com.ucsa.core",
+  "rootNamespace": "Ucsa",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "autoReferenced": true,
+  "noEngineReferences": true
+}

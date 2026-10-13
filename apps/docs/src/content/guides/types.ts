@@ -1,4 +1,4 @@
-export type PlatformId = "ts" | "dart" | "csharp";
+export type PlatformId = "ts" | "dart" | "csharp" | "godot";
 export type GuideId = "swr" | "timing" | "outbox" | "cas" | "wal" | "ucb1";
 
 /**
@@ -22,8 +22,11 @@ export interface Guide {
   ts: Snippet;
   dart: Snippet;
   csharp: Snippet;
+  godot: Snippet;
 }
 
 export const CORE = "packages/core/src";
 export const DART = "packages/ucsa_dart/lib/src";
-export const CS = "packages/com.ucsa.unity/Runtime";
+export const CS = "packages/com.ucsa.core/Runtime";
+export const UNITY = "packages/com.ucsa.unity/Runtime";
+export const GODOT = "packages/ucsa_godot/addons/ucsa";

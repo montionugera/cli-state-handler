@@ -1,4 +1,6 @@
 <linker>
+  <assembly fullname="com.ucsa.core" preserve="all" />
+  <assembly fullname="Ucsa.Core" preserve="all" />
   <assembly fullname="com.ucsa.unity" preserve="all" />
   <assembly fullname="Ucsa.Unity" preserve="all" />
   <assembly fullname="System.Text.Json" preserve="all" />

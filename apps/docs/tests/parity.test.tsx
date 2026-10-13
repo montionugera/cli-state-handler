@@ -11,19 +11,23 @@ import { ParityMatrix } from "../src/components/ParityMatrix.js";
 const repoRoot = path.resolve(import.meta.dirname, "../../..");
 const SUBSYSTEMS = ["swr", "timing", "outbox", "cas", "wal", "ucb1"];
 
-// Pinned expected levels (columns: ts, dart, csharp).
-const EXPECTED_LEVELS: Record<string, [string, string, string]> = {
-  swr: ["full", "full", "full"],
-  timing: ["full", "full", "partial"],
-  outbox: ["full", "partial", "partial"],
-  cas: ["full", "full", "full"],
-  wal: ["full", "partial", "partial"],
-  ucb1: ["full", "partial", "partial"],
+// Pinned expected levels (columns: ts, dart, csharp, godot).
+const EXPECTED_LEVELS: Record<string, [string, string, string, string]> = {
+  swr: ["full", "full", "full", "full"],
+  timing: ["full", "full", "partial", "partial"],
+  outbox: ["full", "partial", "partial", "partial"],
+  cas: ["full", "full", "full", "full"],
+  wal: ["full", "partial", "partial", "partial"],
+  ucb1: ["full", "partial", "partial", "partial"],
 };
 
 describe("guide content", () => {
   it("covers the six subsystems in order", () => {
     expect(guideIds).toEqual(SUBSYSTEMS);
+  });
+
+  it("lists godot as the fourth platform", () => {
+    expect(platforms).toEqual(["ts", "dart", "csharp", "godot"]);
   });
 
   for (const id of SUBSYSTEMS) {
@@ -56,7 +60,7 @@ describe("guide content", () => {
 });
 
 describe("parity data", () => {
-  it("has one row per subsystem and three platform cells each", () => {
+  it("has one row per subsystem and four platform cells each", () => {
     expect(parity.map((r) => r.id)).toEqual(SUBSYSTEMS);
     for (const r of parity) {
       for (const p of platforms) {
@@ -65,7 +69,7 @@ describe("parity data", () => {
     }
   });
 
-  it("matches the pinned 6x3 level table", () => {
+  it("matches the pinned 6x4 level table", () => {
     for (const r of parity) {
       expect(platforms.map((p) => r.cells[p].level), r.id).toEqual(EXPECTED_LEVELS[r.id]);
     }
@@ -97,16 +101,16 @@ describe("parity data", () => {
 describe("ParityMatrix", () => {
   afterEach(() => cleanup());
 
-  it("renders one row per subsystem and three platform columns with text labels", () => {
+  it("renders one row per subsystem and four platform columns with text labels", () => {
     render(<ParityMatrix />);
     const table = screen.getByRole("table");
     const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["Subsystem", "TypeScript", "Dart", "C#"]);
+    expect(headers).toEqual(["Subsystem", "TypeScript", "Dart", "Unity C#", "Godot C#"]);
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows.length).toBe(6);
     rows.forEach((row, i) => {
       const cells = within(row).getAllByRole("cell");
-      expect(cells.length).toBe(3);
+      expect(cells.length).toBe(4);
       platforms.forEach((platform, j) => {
         expect(cells[j].textContent?.startsWith(parity[i].cells[platform].level), `${parity[i].id}/${platform}`).toBe(true);
       });

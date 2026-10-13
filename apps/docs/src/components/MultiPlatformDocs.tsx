@@ -8,6 +8,7 @@ const PLATFORM_LABEL: Record<PlatformId, string> = {
   ts: "🟦 TypeScript (React / Node)",
   dart: "🎯 Dart 3+ (Flutter)",
   csharp: "🎮 C# Unity (.NET)",
+  godot: "🤖 C# Godot (.NET)",
 };
 
 const CONCEPT_ICON: Record<GuideId, string> = { swr: "⚡", timing: "⏱️", outbox: "📦", cas: "💾", wal: "🪵", ucb1: "🚌" };
@@ -89,7 +90,7 @@ export function MultiPlatformDocs() {
           <div>
             <h1 className="mp-title">Multi-Platform Code Reference & Tutorial</h1>
             <p className="mp-lead">
-              Cross-platform guide comparing UCSA on TypeScript Core, Dart / Flutter and C# Unity. Every snippet names the
+              Cross-platform guide comparing UCSA on TypeScript Core, Dart / Flutter, C# Unity and C# Godot. Every snippet names the
               source file it was checked against; see the <a href="#/parity">parity matrix</a> for what each platform lacks.
             </p>
           </div>
