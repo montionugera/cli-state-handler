@@ -333,5 +333,11 @@
     "title": "Godot engine support for UCSA client state",
     "created_at": "2026-10-13T03:41:42.976073+00:00",
     "promoted_to": "F-049"
+  },
+  {
+    "id": "I-050",
+    "title": "Unity TextureCache persists downloaded bytes before decoding them",
+    "created_at": "2026-10-13T07:53:32.073351+00:00",
+    "promoted_to": null
   }
 ]
